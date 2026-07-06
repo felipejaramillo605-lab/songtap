@@ -54,6 +54,24 @@ export default function ManagerTables() {
 
   if (loading) return null;
 
+  // Owner sin venueId asignado
+  if (!venueId) {
+    return (
+      <SongTapLayout role="manager" title="Mesas y Códigos QR">
+        <div className="space-y-6 animate-slide-up">
+          <div className="text-center py-16 text-muted-foreground">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <QrCode size={32} className="text-primary" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground mb-2">Sin local asignado</h2>
+            <p className="text-sm">Como Owner, debes asignar un local primero desde el panel Owner.</p>
+            <p className="text-xs text-muted-foreground mt-4">Ve a Owner → Locales para crear o asignar un local.</p>
+          </div>
+        </div>
+      </SongTapLayout>
+    );
+  }
+
   return (
     <SongTapLayout role="manager" title="Mesas y Códigos QR">
       <div className="space-y-6 animate-slide-up">
