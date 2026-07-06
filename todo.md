@@ -68,3 +68,12 @@
 ## Pruebas
 - [x] 14 tests vitest pasando (auth, venues, users, menu, QR, finance, music)
 - [x] Checkpoint final
+
+
+## Gráficos Interactivos
+- [x] Router tRPC: revenueByHour (ingresos por hora del día)
+- [x] Router tRPC: revenueByCategory (ingresos por categoría)
+- [x] Componente: RevenueByHourChart (BarChart con Recharts)
+- [x] Componente: RevenueByCategoryChart (BarChart con Recharts)
+- [x] Integración en ManagerDashboard con tabs interactivos
+- [x] Pruebas visuales y checkpoint

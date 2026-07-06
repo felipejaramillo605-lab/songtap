@@ -2,11 +2,14 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import SongTapLayout from "@/components/SongTapLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, TrendingUp, ShoppingBag, TrendingDown } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DollarSign, TrendingUp, ShoppingBag, TrendingDown, BarChart3, Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { RevenueByHourChart } from "@/components/RevenueByHourChart";
+import { RevenueByCategoryChart } from "@/components/RevenueByCategoryChart";
 
 export default function ManagerDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -33,7 +36,11 @@ export default function ManagerDashboard() {
     { venueId: venueId!, dateFrom, dateTo },
     { enabled: !!venueId }
   );
-  const { data: byCategory } = trpc.finance.revenueByCategory.useQuery(
+  const { data: byCategory, isLoading: isLoadingByCategory } = trpc.finance.revenueByCategory.useQuery(
+    { venueId: venueId!, dateFrom, dateTo },
+    { enabled: !!venueId }
+  );
+  const { data: byHour, isLoading: isLoadingByHour } = trpc.finance.revenueByHour.useQuery(
     { venueId: venueId!, dateFrom, dateTo },
     { enabled: !!venueId }
   );
@@ -99,35 +106,25 @@ export default function ManagerDashboard() {
           </Card>
         </div>
 
-        {/* Revenue by category chart */}
-        {chartData.length > 0 && (
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold text-foreground">Ingresos por categoría</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorIngresos" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="oklch(0.65 0.18 145)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="oklch(0.65 0.18 145)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0.005 240)" />
-                  <XAxis dataKey="name" tick={{ fill: "oklch(0.55 0.005 240)", fontSize: 11 }} />
-                  <YAxis tick={{ fill: "oklch(0.55 0.005 240)", fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{ background: "oklch(0.14 0.005 240)", border: "1px solid oklch(0.22 0.005 240)", borderRadius: "8px" }}
-                    labelStyle={{ color: "oklch(0.97 0.005 240)" }}
-                    itemStyle={{ color: "oklch(0.65 0.18 145)" }}
-                  />
-                  <Area type="monotone" dataKey="ingresos" stroke="oklch(0.65 0.18 145)" fill="url(#colorIngresos)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
+        {/* Interactive charts with tabs */}
+        <Tabs defaultValue="hourly" className="w-full">
+          <TabsList className="w-full bg-secondary border border-border mb-4">
+            <TabsTrigger value="hourly" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Clock size={14} className="mr-2" /> Por Hora
+            </TabsTrigger>
+            <TabsTrigger value="category" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <BarChart3 size={14} className="mr-2" /> Por Categoría
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="hourly" className="space-y-4">
+            <RevenueByHourChart data={byHour ?? []} isLoading={isLoadingByHour} />
+          </TabsContent>
+
+          <TabsContent value="category" className="space-y-4">
+            <RevenueByCategoryChart data={byCategory ?? []} isLoading={isLoadingByCategory} />
+          </TabsContent>
+        </Tabs>
 
         {!venueId && (
           <Card className="bg-card border-border">

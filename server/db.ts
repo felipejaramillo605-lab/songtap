@@ -345,6 +345,29 @@ export async function getRevenueByCategory(venueId: number, dateFrom: Date, date
     .groupBy(menuItems.categoryId, menuCategories.name);
 }
 
+export async function getRevenueByHour(venueId: number, dateFrom: Date, dateTo: Date) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select({
+      hour: sql<number>`HOUR(${orders.createdAt})`,
+      revenue: sql<number>`COALESCE(SUM(CAST(${orders.totalAmount} AS DECIMAL(10,2))), 0)`,
+      orderCount: sql<number>`COUNT(*)`,
+    })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.venueId, venueId),
+        eq(orders.status, "delivered"),
+        gte(orders.createdAt, dateFrom),
+        lte(orders.createdAt, dateTo)
+      )
+    )
+    .groupBy(sql`HOUR(${orders.createdAt})`)
+    .orderBy(sql`HOUR(${orders.createdAt})`);
+}
+
 export async function getOrderHistory(venueId: number, dateFrom: Date, dateTo: Date) {
   const db = await getDb();
   if (!db) return [];
