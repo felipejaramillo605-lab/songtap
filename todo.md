@@ -94,3 +94,15 @@
 - [x] Validar cambio de contraseña (OAuth de Manus)
 - [x] Validar funcionalidades: menú, pedidos, música, finanzas
 - [x] Generar reporte de validación
+
+
+## Gestión de Mesas Mejorada
+- [x] Router tRPC: tables.create (crear mesa con QR automático)
+- [x] Router tRPC: tables.list (listar mesas del local)
+- [x] Router tRPC: tables.update (actualizar mesa)
+- [x] Router tRPC: tables.delete (eliminar mesa)
+- [x] Componente: Formulario de creación de mesas
+- [x] Componente: Tabla de mesas con acciones
+- [x] Componente: Generador de QR visual
+- [x] Componente: Descarga de códigos QR
+- [x] Integración en ManagerTables
