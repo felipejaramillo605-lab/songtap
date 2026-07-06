@@ -77,3 +77,10 @@
 - [x] Componente: RevenueByCategoryChart (BarChart con Recharts)
 - [x] Integración en ManagerDashboard con tabs interactivos
 - [x] Pruebas visuales y checkpoint
+
+
+## Mejora de Diseño Inspirada en Spotify
+- [x] Actualizar estilos CSS: gradientes, sombras, espaciado refinado
+- [x] Mejorar componentes de gráficos: colores gradientes, animaciones
+- [x] Rediseñar ManagerDashboard: layout asimétrico, jerarquía visual
+- [x] Pruebas visuales y checkpoint

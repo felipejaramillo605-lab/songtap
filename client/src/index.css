@@ -102,6 +102,19 @@
 
 /* ─── Utility Classes ──────────────────────────────────────────────────────── */
 @layer utilities {
+  /* Premium shadows */
+  .shadow-premium {
+    box-shadow: 0 8px 32px oklch(0 0 0 / 0.3), 0 0 0 1px oklch(0.22 0.005 240);
+  }
+
+  .shadow-premium-lg {
+    box-shadow: 0 20px 64px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(0.22 0.005 240);
+  }
+
+  .shadow-glow {
+    box-shadow: 0 0 20px oklch(0.65 0.18 145 / 0.3), 0 0 40px oklch(0.65 0.18 145 / 0.1);
+  }
+
   /* Neon glow effect */
   .neon-glow {
     box-shadow: 0 0 20px oklch(0.65 0.18 145 / 0.4), 0 0 40px oklch(0.65 0.18 145 / 0.2);
@@ -118,9 +131,50 @@
     border: 1px solid oklch(0.22 0.005 240);
   }
 
-  /* Spotify-style gradient */
+  /* Spotify-style gradients */
   .spotify-gradient {
     background: linear-gradient(135deg, oklch(0.65 0.18 145 / 0.15) 0%, transparent 60%);
+  }
+
+  .spotify-gradient-blue {
+    background: linear-gradient(135deg, oklch(0.60 0.15 200 / 0.15) 0%, transparent 60%);
+  }
+
+  .spotify-gradient-card {
+    background: linear-gradient(135deg, oklch(0.14 0.005 240) 0%, oklch(0.12 0.005 240) 100%);
+    position: relative;
+  }
+
+  .spotify-gradient-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, oklch(0.65 0.18 145 / 0.05) 0%, transparent 100%);
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, oklch(0.65 0.18 145) 0%, oklch(0.60 0.15 200) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Hover effects */
+  .hover-lift {
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 48px oklch(0 0 0 / 0.4);
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
   }
 
   /* Status badges */
@@ -168,5 +222,34 @@
 
   .animate-slide-up {
     animation: slide-up 0.2s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.3s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.3s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -1000px 0; }
+    100% { background-position: 1000px 0; }
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(90deg, oklch(0.14 0.005 240) 0%, oklch(0.18 0.005 240) 50%, oklch(0.14 0.005 240) 100%);
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite;
   }
 }

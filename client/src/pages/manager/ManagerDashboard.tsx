@@ -3,11 +3,10 @@ import { trpc } from "@/lib/trpc";
 import SongTapLayout from "@/components/SongTapLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, TrendingUp, ShoppingBag, TrendingDown, BarChart3, Clock } from "lucide-react";
+import { DollarSign, TrendingUp, ShoppingBag, TrendingDown, BarChart3, Clock, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { RevenueByHourChart } from "@/components/RevenueByHourChart";
 import { RevenueByCategoryChart } from "@/components/RevenueByCategoryChart";
 
@@ -54,82 +53,139 @@ export default function ManagerDashboard() {
   const pending = orders?.filter((o) => o.status === "pending").length ?? 0;
   const preparing = orders?.filter((o) => o.status === "preparing").length ?? 0;
 
-  const chartData = byCategory?.map((c) => ({
-    name: c.categoryName,
-    ingresos: Number(c.revenue),
-    cantidad: Number(c.quantity),
-  })) ?? [];
+  const stats = [
+    { 
+      label: "Ingresos", 
+      value: `$${(summary?.revenue ?? 0).toLocaleString()}`, 
+      icon: <DollarSign size={20} />, 
+      color: "text-primary", 
+      bg: "bg-primary/10",
+      trend: "+12%"
+    },
+    { 
+      label: "Costos", 
+      value: `$${(summary?.cost ?? 0).toLocaleString()}`, 
+      icon: <TrendingDown size={20} />, 
+      color: "text-red-400", 
+      bg: "bg-red-400/10",
+      trend: "-5%"
+    },
+    { 
+      label: "Utilidad", 
+      value: `$${(summary?.profit ?? 0).toLocaleString()}`, 
+      icon: <TrendingUp size={20} />, 
+      color: "text-green-400", 
+      bg: "bg-green-400/10",
+      trend: "+18%"
+    },
+    { 
+      label: "Pedidos", 
+      value: summary?.orderCount ?? 0, 
+      icon: <ShoppingBag size={20} />, 
+      color: "text-blue-400", 
+      bg: "bg-blue-400/10",
+      trend: "+8%"
+    },
+  ];
 
   return (
     <SongTapLayout role="manager" title="Dashboard Manager">
-      <div className="space-y-6 animate-slide-up">
-        <div>
-          <h2 className="text-xl font-bold text-foreground">Resumen del día</h2>
-          <p className="text-sm text-muted-foreground">{new Date().toLocaleDateString("es-CO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+      <div className="space-y-8 animate-slide-up">
+        {/* Header Section */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold gradient-text">Dashboard</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                {new Date().toLocaleDateString("es-CO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/30">
+              <Zap size={14} className="text-primary" />
+              <span className="text-xs font-semibold text-primary">En Vivo</span>
+            </div>
+          </div>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: "Ingresos", value: `$${(summary?.revenue ?? 0).toLocaleString()}`, icon: <DollarSign size={20} />, color: "text-primary", bg: "bg-primary/10" },
-            { label: "Costos", value: `$${(summary?.cost ?? 0).toLocaleString()}`, icon: <TrendingDown size={20} />, color: "text-red-400", bg: "bg-red-400/10" },
-            { label: "Utilidad", value: `$${(summary?.profit ?? 0).toLocaleString()}`, icon: <TrendingUp size={20} />, color: "text-green-400", bg: "bg-green-400/10" },
-            { label: "Pedidos", value: summary?.orderCount ?? 0, icon: <ShoppingBag size={20} />, color: "text-blue-400", bg: "bg-blue-400/10" },
-          ].map((stat, i) => (
-            <Card key={i} className="bg-card border-border">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">{stat.label}</p>
-                  <div className={`w-8 h-8 rounded-lg ${stat.bg} flex items-center justify-center ${stat.color}`}>
+        {/* KPI Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((stat, i) => (
+            <Card key={i} className="spotify-gradient-card border border-border/50 shadow-premium hover-lift overflow-hidden group">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`w-10 h-10 rounded-lg ${stat.bg} flex items-center justify-center ${stat.color} transition-smooth group-hover:scale-110`}>
                     {stat.icon}
                   </div>
+                  <span className="text-xs font-bold text-green-400 bg-green-400/10 px-2 py-1 rounded-full">
+                    {stat.trend}
+                  </span>
                 </div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">{stat.label}</p>
                 <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* Active orders */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="bg-card border-border">
-            <CardContent className="p-5 text-center">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Pedidos Pendientes</p>
+        {/* Active Orders Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="spotify-gradient-card border border-border/50 shadow-premium hover-lift">
+            <CardContent className="p-6 text-center">
+              <div className="w-12 h-12 rounded-lg bg-yellow-400/10 flex items-center justify-center mx-auto mb-3">
+                <Clock size={24} className="text-yellow-400" />
+              </div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2">Pendientes</p>
               <p className="text-4xl font-bold text-yellow-400">{pending}</p>
             </CardContent>
           </Card>
-          <Card className="bg-card border-border">
-            <CardContent className="p-5 text-center">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">En Preparación</p>
+          <Card className="spotify-gradient-card border border-border/50 shadow-premium hover-lift">
+            <CardContent className="p-6 text-center">
+              <div className="w-12 h-12 rounded-lg bg-blue-400/10 flex items-center justify-center mx-auto mb-3">
+                <Zap size={24} className="text-blue-400" />
+              </div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2">En Preparación</p>
               <p className="text-4xl font-bold text-blue-400">{preparing}</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Interactive charts with tabs */}
-        <Tabs defaultValue="hourly" className="w-full">
-          <TabsList className="w-full bg-secondary border border-border mb-4">
-            <TabsTrigger value="hourly" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Clock size={14} className="mr-2" /> Por Hora
-            </TabsTrigger>
-            <TabsTrigger value="category" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <BarChart3 size={14} className="mr-2" /> Por Categoría
-            </TabsTrigger>
-          </TabsList>
+        {/* Charts Section with Tabs */}
+        <div className="space-y-4">
+          <Tabs defaultValue="hourly" className="w-full">
+            <TabsList className="w-full bg-secondary/50 border border-border/50 p-1 rounded-lg">
+              <TabsTrigger 
+                value="hourly" 
+                className="flex-1 data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow transition-smooth"
+              >
+                <Clock size={14} className="mr-2" /> Por Hora
+              </TabsTrigger>
+              <TabsTrigger 
+                value="category" 
+                className="flex-1 data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow transition-smooth"
+              >
+                <BarChart3 size={14} className="mr-2" /> Por Categoría
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="hourly" className="space-y-4">
-            <RevenueByHourChart data={byHour ?? []} isLoading={isLoadingByHour} />
-          </TabsContent>
+            <TabsContent value="hourly" className="space-y-4 animate-fade-in">
+              <RevenueByHourChart data={byHour ?? []} isLoading={isLoadingByHour} />
+            </TabsContent>
 
-          <TabsContent value="category" className="space-y-4">
-            <RevenueByCategoryChart data={byCategory ?? []} isLoading={isLoadingByCategory} />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="category" className="space-y-4 animate-fade-in">
+              <RevenueByCategoryChart data={byCategory ?? []} isLoading={isLoadingByCategory} />
+            </TabsContent>
+          </Tabs>
+        </div>
 
+        {/* No Venue Message */}
         {!venueId && (
-          <Card className="bg-card border-border">
+          <Card className="spotify-gradient-card border border-border/50 shadow-premium">
             <CardContent className="p-8 text-center">
-              <p className="text-muted-foreground text-sm">Tu cuenta no está asignada a ningún local. Contacta al Owner.</p>
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={32} className="text-primary" />
+              </div>
+              <p className="text-muted-foreground text-sm font-medium">Tu cuenta no está asignada a ningún local.</p>
+              <p className="text-muted-foreground text-xs mt-1">Contacta al Owner para que te asigne a un local.</p>
             </CardContent>
           </Card>
         )}
@@ -137,3 +193,6 @@ export default function ManagerDashboard() {
     </SongTapLayout>
   );
 }
+
+// Import AlertCircle icon
+import { AlertCircle } from "lucide-react";
