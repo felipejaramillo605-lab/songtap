@@ -106,3 +106,12 @@
 - [x] Componente: Generador de QR visual
 - [x] Componente: Descarga de códigos QR
 - [x] Integración en ManagerTables
+
+
+## Validación End-to-End
+- [x] Verificar routers tRPC para órdenes (create, list, update status)
+- [x] Capturar flujo: portal cliente → crear pedido
+- [x] Capturar flujo: panel staff → ver pedido en cola FIFO
+- [x] Capturar flujo: cambiar estado pedido
+- [x] Capturar flujo: verificar impacto en dashboard financiero
+- [x] Generar reporte de validación end-to-end
