@@ -84,3 +84,13 @@
 - [x] Mejorar componentes de gráficos: colores gradientes, animaciones
 - [x] Rediseñar ManagerDashboard: layout asimétrico, jerarquía visual
 - [x] Pruebas visuales y checkpoint
+
+
+## Testing y Validación
+- [x] Crear datos de prueba: venue, manager, staff, pedidos, PQRs
+- [x] Validar login con cuenta de prueba
+- [x] Validar navegación por roles (Owner, Manager, Staff, Cliente)
+- [x] Capturar screenshots de validación
+- [x] Validar cambio de contraseña (OAuth de Manus)
+- [x] Validar funcionalidades: menú, pedidos, música, finanzas
+- [x] Generar reporte de validación
