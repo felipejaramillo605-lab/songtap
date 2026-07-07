@@ -51,6 +51,7 @@ function Router() {
 
       {/* Manager */}
       <Route path="/manager" component={ManagerDashboard} />
+      <Route path="/manager/dashboard" component={ManagerDashboard} />
       <Route path="/manager/menu" component={ManagerMenu} />
       <Route path="/manager/tables" component={ManagerTables} />
       <Route path="/manager/staff" component={ManagerStaff} />

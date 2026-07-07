@@ -20,6 +20,10 @@ export default function ManagerSettings() {
   useEffect(() => {
     if (!loading && !isAuthenticated) window.location.href = getLoginUrl();
     if (!loading && isAuthenticated && user?.role !== "manager" && user?.role !== "owner") navigate("/");
+    if (!loading && isAuthenticated && !user?.venueId) {
+      toast.error("Sin local asignado");
+      navigate("/manager/dashboard");
+    }
   }, [loading, isAuthenticated, user, navigate]);
 
   const venueId = user?.venueId;
