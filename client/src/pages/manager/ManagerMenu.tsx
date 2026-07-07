@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import SongTapLayout from "@/components/SongTapLayout";
 import { Button } from "@/components/ui/button";
@@ -14,15 +13,20 @@ import { Plus, UtensilsCrossed, Pencil, Trash2, DollarSign, Eye, EyeOff } from "
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
+import { useAuth } from "@/_core/hooks/useAuth";
+import ImageUpload from "@/components/ImageUpload";
 
 export default function ManagerMenu() {
   const { user, isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
   const [catOpen, setCatOpen] = useState(false);
   const [itemOpen, setItemOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<number | null>(null);
   const [showCosts, setShowCosts] = useState(false);
   const [catForm, setCatForm] = useState({ name: "", description: "" });
   const [itemForm, setItemForm] = useState({ name: "", description: "", price: "", cost: "", categoryId: "", imageUrl: "" });
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>("");
 
   useEffect(() => {
     if (!loading && !isAuthenticated) window.location.href = getLoginUrl();
@@ -37,7 +41,11 @@ export default function ManagerMenu() {
     onError: (e) => toast.error(e.message),
   });
   const createItem = trpc.menu.createItem.useMutation({
-    onSuccess: () => { toast.success("Ítem creado"); setItemOpen(false); setItemForm({ name: "", description: "", price: "", cost: "", categoryId: "", imageUrl: "" }); refetch(); },
+    onSuccess: () => { toast.success("Ítem creado"); setItemOpen(false); setItemForm({ name: "", description: "", price: "", cost: "", categoryId: "", imageUrl: "" }); setSelectedImage(null); setImagePreview(""); refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateItem = trpc.menu.updateItem.useMutation({
+    onSuccess: () => { toast.success("Ítem actualizado"); setItemOpen(false); setEditingItem(null); setItemForm({ name: "", description: "", price: "", cost: "", categoryId: "", imageUrl: "" }); setSelectedImage(null); setImagePreview(""); refetch(); },
     onError: (e) => toast.error(e.message),
   });
   const toggleItem = trpc.menu.updateItem.useMutation({
@@ -50,6 +58,59 @@ export default function ManagerMenu() {
   if (loading) return null;
 
   const allCategories = menu ?? [];
+
+  const handleImageSelect = (file: File) => {
+    setSelectedImage(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const openEditDialog = (item: any) => {
+    setEditingItem(item.id);
+    setItemForm({
+      name: item.name,
+      description: item.description || "",
+      price: String(item.price),
+      cost: item.cost ? String(item.cost) : "",
+      categoryId: String(item.categoryId),
+      imageUrl: item.imageUrl || "",
+    });
+    setImagePreview(item.imageUrl || "");
+    setItemOpen(true);
+  };
+
+  const handleSaveItem = () => {
+    if (!itemForm.name || !itemForm.price || !itemForm.categoryId) {
+      toast.error("Completa los campos requeridos");
+      return;
+    }
+
+    if (editingItem) {
+      updateItem.mutate({
+        id: editingItem,
+        venueId: venueId!,
+        name: itemForm.name,
+        description: itemForm.description || undefined,
+        price: itemForm.price,
+        cost: itemForm.cost || undefined,
+        categoryId: Number(itemForm.categoryId),
+        imageUrl: imagePreview || undefined,
+      });
+    } else {
+      createItem.mutate({
+        venueId: venueId!,
+        categoryId: Number(itemForm.categoryId),
+        name: itemForm.name,
+        description: itemForm.description || undefined,
+        price: itemForm.price,
+        cost: itemForm.cost || undefined,
+        imageUrl: imagePreview || undefined,
+      });
+    }
+  };
 
   return (
     <SongTapLayout role="manager" title="Gestión de Menú">
@@ -88,15 +149,15 @@ export default function ManagerMenu() {
                 </div>
               </DialogContent>
             </Dialog>
-            <Dialog open={itemOpen} onOpenChange={setItemOpen}>
+            <Dialog open={itemOpen} onOpenChange={(open) => { setItemOpen(open); if (!open) { setEditingItem(null); setItemForm({ name: "", description: "", price: "", cost: "", categoryId: "", imageUrl: "" }); setSelectedImage(null); setImagePreview(""); } }}>
               <DialogTrigger asChild>
                 <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
                   <Plus size={14} className="mr-1" /> Ítem
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-card border-border">
-                <DialogHeader><DialogTitle className="text-foreground">Nuevo ítem del menú</DialogTitle></DialogHeader>
-                <div className="space-y-3 mt-2">
+              <DialogContent className="bg-card border-border max-h-[90vh] overflow-y-auto">
+                <DialogHeader><DialogTitle className="text-foreground">{editingItem ? "Editar" : "Nuevo"} ítem del menú</DialogTitle></DialogHeader>
+                <div className="space-y-4 mt-2">
                   <div>
                     <Label className="text-xs text-muted-foreground">Categoría *</Label>
                     <Select value={itemForm.categoryId} onValueChange={(v) => setItemForm({ ...itemForm, categoryId: v })}>
@@ -111,15 +172,23 @@ export default function ManagerMenu() {
                     { key: "description", label: "Descripción", placeholder: "IPA 500ml" },
                     { key: "price", label: "Precio de venta *", placeholder: "15000" },
                     { key: "cost", label: "Costo (confidencial)", placeholder: "8000" },
-                    { key: "imageUrl", label: "URL de imagen", placeholder: "https://..." },
                   ].map((f) => (
                     <div key={f.key}>
                       <Label className="text-xs text-muted-foreground">{f.label}</Label>
                       <Input className="mt-1 bg-input border-border text-foreground" placeholder={f.placeholder} value={(itemForm as Record<string, string>)[f.key]} onChange={(e) => setItemForm({ ...itemForm, [f.key]: e.target.value })} />
                     </div>
                   ))}
-                  <Button className="w-full bg-primary text-primary-foreground" onClick={() => createItem.mutate({ venueId: venueId!, categoryId: Number(itemForm.categoryId), name: itemForm.name, description: itemForm.description, price: itemForm.price, cost: itemForm.cost || undefined, imageUrl: itemForm.imageUrl || undefined })} disabled={!itemForm.name || !itemForm.price || !itemForm.categoryId}>
-                    Crear ítem
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Imagen del ítem</Label>
+                    <ImageUpload
+                      onImageSelect={handleImageSelect}
+                      preview={imagePreview}
+                      onRemove={() => { setImagePreview(""); setSelectedImage(null); }}
+                      label="Cargar imagen del ítem"
+                    />
+                  </div>
+                  <Button className="w-full bg-primary text-primary-foreground" onClick={handleSaveItem} disabled={!itemForm.name || !itemForm.price || !itemForm.categoryId}>
+                    {editingItem ? "Actualizar" : "Crear"} ítem
                   </Button>
                 </div>
               </DialogContent>
@@ -167,9 +236,14 @@ export default function ManagerMenu() {
                                 <p className="text-xs text-muted-foreground">Costo: ${Number(item.cost).toLocaleString()}</p>
                               )}
                             </div>
-                            <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 hover:bg-red-400/10 h-7 w-7 p-0" onClick={() => deleteItem.mutate({ id: item.id, venueId: venueId! })}>
-                              <Trash2 size={13} />
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300 hover:bg-blue-400/10 h-7 w-7 p-0" onClick={() => openEditDialog(item)}>
+                                <Pencil size={13} />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 hover:bg-red-400/10 h-7 w-7 p-0" onClick={() => deleteItem.mutate({ id: item.id, venueId: venueId! })}>
+                                <Trash2 size={13} />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))}

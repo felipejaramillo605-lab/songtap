@@ -18,6 +18,11 @@ export const users = mysqlTable("users", {
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["owner", "manager", "staff", "user"]).default("user").notNull(),
   venueId: int("venueId"), // null = owner global
+  phone: varchar("phone", { length: 64 }),
+  cedula: varchar("cedula", { length: 64 }),
+  address: text("address"),
+  photoUrl: text("photoUrl"),
+  cvUrl: text("cvUrl"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

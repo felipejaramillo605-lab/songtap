@@ -115,3 +115,15 @@
 - [x] Capturar flujo: cambiar estado pedido
 - [x] Capturar flujo: verificar impacto en dashboard financiero
 - [x] Generar reporte de validación end-to-end
+
+
+## Mejoras de Menú, Empleados e Imágenes
+- [x] Actualizar esquema DB: agregar campos a users (phone, cedula, address, cvUrl, photoUrl)
+- [x] Router tRPC: menuItems.update (editar ítems de menú)
+- [x] Router tRPC: users.delete (eliminar empleado)
+- [x] Router tRPC: users.update (actualizar perfil de usuario)
+- [x] Componente: ImageUpload con drag-drop y carga de archivo
+- [x] Mejorar ManagerMenu: edición de ítems, carga de imágenes
+- [x] Renombrar "Usuarios" a "Equipo" en navegación
+- [x] Modal de detalles de usuario: teléfono, cédula, dirección, CV
+- [x] Pruebas visuales y checkpoint
