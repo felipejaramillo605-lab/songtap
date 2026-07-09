@@ -8,6 +8,7 @@ import {
   getOrdersBySession,
   getOrdersByVenue,
   getOrderWithItems,
+  getOrderStatusHistory,
   updateOrderStatus,
 } from "../db";
 import { getDb } from "../db";
@@ -121,8 +122,13 @@ export const ordersRouter = router({
     }),
 
   // Staff/Manager: ver detalle de un pedido
-  getDetail: protectedProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
-    return getOrderWithItems(input.orderId);
+  getDetail: protectedProcedure.input(z.object({ orderId: z.number() })).query(async ({ input, ctx }) => {
+    const order = await getOrderWithItems(input.orderId);
+    if (!order) throw new TRPCError({ code: "NOT_FOUND" });
+    if (ctx.user.role !== "owner" && ctx.user.venueId !== order.venueId) {
+      throw new TRPCError({ code: "FORBIDDEN" });
+    }
+    return order;
   }),
 
   // Staff: actualizar estado del pedido
@@ -139,7 +145,7 @@ export const ordersRouter = router({
       if (ctx.user.role !== "owner" && ctx.user.venueId !== input.venueId) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
-      await updateOrderStatus(input.orderId, input.status, ctx.user.id, input.cancelReason);
+      await updateOrderStatus(input.orderId, input.status, ctx.user.id, input.cancelReason, ctx.user.name || undefined);
       await createAuditLog({
         venueId: input.venueId,
         userId: ctx.user.id,
@@ -150,5 +156,19 @@ export const ordersRouter = router({
         details: JSON.stringify({ status: input.status }),
       });
       return { success: true };
+    }),
+
+  // Obtener historial de cambios de estado del pedido
+  getStatusHistory: protectedProcedure
+    .input(z.object({ orderId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      // Verificar que el usuario tiene acceso al pedido
+      const order = await getOrderWithItems(input.orderId);
+      if (!order) throw new TRPCError({ code: "NOT_FOUND" });
+      if (ctx.user.role !== "owner" && ctx.user.venueId !== order.venueId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const history = await getOrderStatusHistory(input.orderId);
+      return history;
     }),
 });

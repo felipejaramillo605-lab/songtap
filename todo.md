@@ -127,3 +127,11 @@
 - [x] Renombrar "Usuarios" a "Equipo" en navegación
 - [x] Modal de detalles de usuario: teléfono, cédula, dirección, CV
 - [x] Pruebas visuales y checkpoint
+
+
+## Validación de Permisos y Auditoría
+- [x] Agregar tabla order_status_history a esquema DB
+- [x] Implementar middleware de validación de permisos por rol y venueId
+- [x] Agregar log de cambios de estado en router de órdenes
+- [x] Crear componente para visualizar historial de cambios
+- [x] Pruebas visuales y checkpoint

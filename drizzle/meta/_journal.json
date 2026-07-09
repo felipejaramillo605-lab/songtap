@@ -22,6 +22,13 @@
       "when": 1783369145690,
       "tag": "0002_clear_slipstream",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1783448803841,
+      "tag": "0003_sturdy_chamber",
+      "breakpoints": true
     }
   ]
 }

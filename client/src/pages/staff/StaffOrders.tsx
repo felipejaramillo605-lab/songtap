@@ -6,9 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ClipboardList, ChefHat, CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
+import OrderStatusTimeline from "@/components/OrderStatusTimeline";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const statusConfig = {
   pending: { label: "Pendiente", color: "status-pending", icon: <Clock size={12} />, next: "preparing" as const, nextLabel: "Preparar" },
@@ -20,6 +22,7 @@ const statusConfig = {
 export default function StaffOrders() {
   const { user, isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) window.location.href = getLoginUrl();
@@ -131,6 +134,14 @@ export default function StaffOrders() {
                             <XCircle size={12} className="mr-1" /> Cancelar
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                          onClick={() => setSelectedOrderId(order.id)}
+                        >
+                          Ver historial
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -164,6 +175,16 @@ export default function StaffOrders() {
           </div>
         )}
       </div>
+
+      {/* Modal de historial */}
+      <Dialog open={!!selectedOrderId} onOpenChange={(open) => !open && setSelectedOrderId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Historial del Pedido #{selectedOrderId}</DialogTitle>
+          </DialogHeader>
+          {selectedOrderId && <OrderStatusTimeline orderId={selectedOrderId} />}
+        </DialogContent>
+      </Dialog>
     </SongTapLayout>
   );
 }

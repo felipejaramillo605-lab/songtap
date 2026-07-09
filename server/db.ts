@@ -7,6 +7,7 @@ import {
   menuItems,
   musicRequests,
   orderItems,
+  orderStatusHistory,
   orders,
   qrSessions,
   tables,
@@ -274,10 +275,16 @@ export async function updateOrderStatus(
   id: number,
   status: "pending" | "preparing" | "delivered" | "cancelled",
   handledByUserId?: number,
-  cancelReason?: string
+  cancelReason?: string,
+  changedByUserName?: string
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  
+  // Obtener el estado anterior
+  const [currentOrder] = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+  const previousStatus = currentOrder?.status;
+  
   const update: Record<string, unknown> = { status };
   if (handledByUserId) update.handledByUserId = handledByUserId;
   if (status === "delivered") update.completedAt = new Date();
@@ -286,6 +293,30 @@ export async function updateOrderStatus(
     if (cancelReason) update.cancelReason = cancelReason;
   }
   await db.update(orders).set(update).where(eq(orders.id, id));
+  
+  // Crear log de cambio de estado
+  if (handledByUserId && previousStatus !== status) {
+    await createOrderStatusHistory({
+      orderId: id,
+      previousStatus: previousStatus as any,
+      newStatus: status,
+      changedByUserId: handledByUserId,
+      changedByUserName: changedByUserName,
+      reason: cancelReason,
+    });
+  }
+}
+
+export async function createOrderStatusHistory(data: typeof orderStatusHistory.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(orderStatusHistory).values(data);
+}
+
+export async function getOrderStatusHistory(orderId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(orderStatusHistory).where(eq(orderStatusHistory.orderId, orderId)).orderBy(desc(orderStatusHistory.createdAt));
 }
 
 // ─── FINANCE ──────────────────────────────────────────────────────────────────

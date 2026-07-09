@@ -185,3 +185,18 @@ export const auditLogs = mysqlTable("audit_logs", {
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
+
+// ─── ORDER STATUS HISTORY ─────────────────────────────────────────────────────
+export const orderStatusHistory = mysqlTable("order_status_history", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  previousStatus: mysqlEnum("previousStatus", ["pending", "preparing", "delivered", "cancelled"]),
+  newStatus: mysqlEnum("newStatus", ["pending", "preparing", "delivered", "cancelled"]).notNull(),
+  changedByUserId: int("changedByUserId").notNull(),
+  changedByUserName: varchar("changedByUserName", { length: 255 }),
+  reason: text("reason"), // motivo del cambio (ej: cancelación)
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type OrderStatusHistory = typeof orderStatusHistory.$inferSelect;
+export type InsertOrderStatusHistory = typeof orderStatusHistory.$inferInsert;
