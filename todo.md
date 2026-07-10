@@ -135,3 +135,25 @@
 - [x] Agregar log de cambios de estado en router de órdenes
 - [x] Crear componente para visualizar historial de cambios
 - [x] Pruebas visuales y checkpoint
+
+
+## Validación de Empresas para Managers (En Progreso)
+- [ ] Tabla venue_requests con estado (pending, approved, rejected)
+- [ ] Router tRPC: venues.requestVenue (crear solicitud)
+- [ ] Router tRPC: venues.approveRequest (Owner aprueba)
+- [ ] Router tRPC: venues.rejectRequest (Owner rechaza)
+- [ ] Panel Owner: lista de solicitudes pendientes
+- [ ] Actualizar flujo de registro de Manager
+- [ ] Pruebas visuales
+
+## Módulo de Lista de Reproducción (En Progreso - Última Prioridad)
+- [ ] Tabla song_queue con canción actual, historial
+- [ ] Tabla applause_votes con puntuación por mesa
+- [ ] Router tRPC: music.getCurrentSong
+- [ ] Router tRPC: music.getQueue
+- [ ] Router tRPC: music.submitApplause (1-5 estrellas)
+- [ ] Router tRPC: music.getAppauseScore (puntuación final)
+- [ ] Componente MusicQueue en portal cliente
+- [ ] Componente AppauseVoting (1-5 estrellas)
+- [ ] Panel Staff: control de reproducción
+- [ ] Pruebas visuales y checkpoint

@@ -1,7 +1,18 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "../_core/trpc";
-import { createAuditLog, createVenue, getAllVenues, getVenueById, updateVenue } from "../db";
+import {
+  approveVenueRequest,
+  createAuditLog,
+  createVenue,
+  createVenueRequest,
+  getAllVenues,
+  getPendingVenueRequests,
+  getVenueById,
+  getVenueRequestsByManager,
+  rejectVenueRequest,
+  updateVenue,
+} from "../db";
 
 export const venuesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -27,7 +38,6 @@ export const venuesRouter = router({
   getPublic: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
     const venue = await getVenueById(input.id);
     if (!venue || !venue.isActive) throw new TRPCError({ code: "NOT_FOUND" });
-    // Solo datos públicos, sin info financiera
     return {
       id: venue.id,
       name: venue.name,
@@ -95,6 +105,71 @@ export const venuesRouter = router({
         entityId: id,
         details: JSON.stringify(data),
       });
+      return { success: true };
+    }),
+
+  requestVenue: protectedProcedure
+    .input(
+      z.object({
+        venueName: z.string().min(1),
+        venueAddress: z.string().optional(),
+        venuePhone: z.string().optional(),
+        venueEmail: z.string().email().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "manager") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const existing = await getVenueRequestsByManager(ctx.user.id);
+      const pending = existing.find((r) => r.status === "pending");
+      if (pending) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Ya tienes una solicitud pendiente",
+        });
+      }
+      await createVenueRequest({
+        managerId: ctx.user.id,
+        venueName: input.venueName,
+        venueAddress: input.venueAddress,
+        venuePhone: input.venuePhone,
+        venueEmail: input.venueEmail,
+      });
+      return { success: true };
+    }),
+
+  getMyRequests: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "manager") {
+      throw new TRPCError({ code: "FORBIDDEN" });
+    }
+    return getVenueRequestsByManager(ctx.user.id);
+  }),
+
+  getPendingRequests: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "owner") {
+      throw new TRPCError({ code: "FORBIDDEN" });
+    }
+    return getPendingVenueRequests();
+  }),
+
+  approveRequest: protectedProcedure
+    .input(z.object({ requestId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "owner") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const result = await approveVenueRequest(input.requestId, ctx.user.id);
+      return result;
+    }),
+
+  rejectRequest: protectedProcedure
+    .input(z.object({ requestId: z.number(), reason: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "owner") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      await rejectVenueRequest(input.requestId, input.reason);
       return { success: true };
     }),
 });

@@ -200,3 +200,57 @@ export const orderStatusHistory = mysqlTable("order_status_history", {
 
 export type OrderStatusHistory = typeof orderStatusHistory.$inferSelect;
 export type InsertOrderStatusHistory = typeof orderStatusHistory.$inferInsert;
+
+// ─── VENUE REQUESTS (solicitudes de empresas por managers) ────────────────────
+export const venueRequests = mysqlTable("venue_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  managerId: int("managerId").notNull(),
+  venueName: varchar("venueName", { length: 255 }).notNull(),
+  venueAddress: text("venueAddress"),
+  venuePhone: varchar("venuePhone", { length: 64 }),
+  venueEmail: varchar("venueEmail", { length: 320 }),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  rejectionReason: text("rejectionReason"),
+  approvedAt: timestamp("approvedAt"),
+  approvedByOwnerId: int("approvedByOwnerId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VenueRequest = typeof venueRequests.$inferSelect;
+export type InsertVenueRequest = typeof venueRequests.$inferInsert;
+
+// ─── SONG QUEUE (cola de canciones) ──────────────────────────────────────────
+export const songQueue = mysqlTable("song_queue", {
+  id: int("id").autoincrement().primaryKey(),
+  venueId: int("venueId").notNull(),
+  spotifyTrackId: varchar("spotifyTrackId", { length: 255 }),
+  songName: varchar("songName", { length: 255 }).notNull(),
+  artist: varchar("artist", { length: 255 }).notNull(),
+  duration: int("duration"), // en segundos
+  isCurrentlyPlaying: boolean("isCurrentlyPlaying").default(false).notNull(),
+  position: int("position").notNull(), // posición en la cola
+  addedByTableId: int("addedByTableId"),
+  addedByTableName: varchar("addedByTableName", { length: 255 }),
+  playedAt: timestamp("playedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SongQueue = typeof songQueue.$inferSelect;
+export type InsertSongQueue = typeof songQueue.$inferInsert;
+
+// ─── APPLAUSE VOTES (aplausos por mesa) ──────────────────────────────────────
+export const appauseVotes = mysqlTable("applause_votes", {
+  id: int("id").autoincrement().primaryKey(),
+  venueId: int("venueId").notNull(),
+  songId: int("songId").notNull(),
+  votingTableId: int("votingTableId").notNull(),
+  votingTableName: varchar("votingTableName", { length: 255 }),
+  performingTableId: int("performingTableId"),
+  performingTableName: varchar("performingTableName", { length: 255 }),
+  rating: int("rating").notNull(), // 1-5 estrellas
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AppauseVote = typeof appauseVotes.$inferSelect;
+export type InsertAppauseVote = typeof appauseVotes.$inferInsert;

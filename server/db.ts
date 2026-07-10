@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
+  appauseVotes,
   auditLogs,
   InsertUser,
   menuCategories,
@@ -10,8 +11,10 @@ import {
   orderStatusHistory,
   orders,
   qrSessions,
+  songQueue,
   tables,
   users,
+  venueRequests,
   venues,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -458,4 +461,164 @@ export async function getAuditLogs(venueId?: number, limit = 100) {
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(auditLogs.createdAt))
     .limit(limit);
+}
+
+
+// ─── VENUE REQUESTS ───────────────────────────────────────────────────────────
+
+export async function createVenueRequest(data: typeof venueRequests.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(venueRequests).values(data);
+  return result;
+}
+
+export async function getVenueRequestsByManager(managerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(venueRequests).where(eq(venueRequests.managerId, managerId)).orderBy(desc(venueRequests.createdAt));
+}
+
+export async function getPendingVenueRequests() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(venueRequests).where(eq(venueRequests.status, "pending")).orderBy(desc(venueRequests.createdAt));
+}
+
+export async function approveVenueRequest(requestId: number, ownerId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  // Obtener la solicitud
+  const [request] = await db.select().from(venueRequests).where(eq(venueRequests.id, requestId)).limit(1);
+  if (!request) throw new Error("Request not found");
+  
+  // Crear el venue
+  const venueResult = await db.insert(venues).values({
+    name: request.venueName,
+    address: request.venueAddress,
+    phone: request.venuePhone,
+    email: request.venueEmail,
+  });
+  
+  const venueId = (venueResult as any).insertId || venueResult[0];
+  
+  // Actualizar la solicitud
+  await db.update(venueRequests).set({
+    status: "approved",
+    approvedAt: new Date(),
+    approvedByOwnerId: ownerId,
+  }).where(eq(venueRequests.id, requestId));
+  
+  // Asignar el venue al manager
+  await db.update(users).set({ venueId }).where(eq(users.id, request.managerId));
+  
+  return { venueId };
+}
+
+export async function rejectVenueRequest(requestId: number, reason: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  await db.update(venueRequests).set({
+    status: "rejected",
+    rejectionReason: reason,
+  }).where(eq(venueRequests.id, requestId));
+}
+
+// ─── SONG QUEUE ───────────────────────────────────────────────────────────────
+
+export async function addSongToQueue(data: typeof songQueue.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(songQueue).values(data);
+}
+
+export async function getCurrentSong(venueId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [song] = await db.select().from(songQueue).where(
+    and(eq(songQueue.venueId, venueId), eq(songQueue.isCurrentlyPlaying, true))
+  ).limit(1);
+  return song || null;
+}
+
+export async function getSongQueue(venueId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(songQueue).where(eq(songQueue.venueId, venueId)).orderBy(songQueue.position);
+}
+
+export async function updateCurrentSong(venueId: number, songId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  // Marcar la canción anterior como tocada
+  await db.update(songQueue).set({ isCurrentlyPlaying: false, playedAt: new Date() }).where(
+    and(eq(songQueue.venueId, venueId), eq(songQueue.isCurrentlyPlaying, true))
+  );
+  
+  // Marcar la nueva canción como tocándose
+  await db.update(songQueue).set({ isCurrentlyPlaying: true }).where(eq(songQueue.id, songId));
+}
+
+export async function removeSongFromQueue(songId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(songQueue).where(eq(songQueue.id, songId));
+}
+
+// ─── APPLAUSE VOTES ───────────────────────────────────────────────────────────
+
+export async function submitAppauseVote(data: typeof appauseVotes.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(appauseVotes).values(data);
+}
+
+export async function getAppauseScore(venueId: number, songId: number) {
+  const db = await getDb();
+  if (!db) return { averageRating: 0, totalVotes: 0, ratingsByPerformingTable: [] };
+  
+  const votes = await db.select().from(appauseVotes).where(
+    and(eq(appauseVotes.venueId, venueId), eq(appauseVotes.songId, songId))
+  );
+  
+  if (votes.length === 0) {
+    return { averageRating: 0, totalVotes: 0, ratingsByPerformingTable: [] };
+  }
+  
+  const averageRating = votes.reduce((sum, v) => sum + v.rating, 0) / votes.length;
+  
+  // Agrupar por mesa que está cantando
+  const ratingsByPerformingTable = votes.reduce((acc: any, v) => {
+    const key = v.performingTableName || `Mesa ${v.performingTableId}`;
+    if (!acc[key]) {
+      acc[key] = { ratings: [], count: 0 };
+    }
+    acc[key].ratings.push(v.rating);
+    acc[key].count += 1;
+    return acc;
+  }, {});
+  
+  // Calcular promedio por mesa
+  const ratingsByTable = Object.entries(ratingsByPerformingTable).map(([tableName, data]: any) => ({
+    tableName,
+    averageRating: data.ratings.reduce((sum: number, r: number) => sum + r, 0) / data.count,
+    totalVotes: data.count,
+  }));
+  
+  return {
+    averageRating: Math.round(averageRating * 10) / 10,
+    totalVotes: votes.length,
+    ratingsByPerformingTable: ratingsByTable,
+  };
+}
+
+export async function getAppauseVotesByTable(venueId: number, performingTableId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(appauseVotes).where(
+    and(eq(appauseVotes.venueId, venueId), eq(appauseVotes.performingTableId, performingTableId))
+  ).orderBy(desc(appauseVotes.createdAt));
 }
