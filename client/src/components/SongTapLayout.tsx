@@ -37,6 +37,7 @@ interface SongTapLayoutProps {
 const ownerNav: NavItem[] = [
   { label: "Dashboard", href: "/owner", icon: <LayoutDashboard size={18} /> },
   { label: "Locales", href: "/owner/venues", icon: <Globe size={18} /> },
+  { label: "Solicitudes", href: "/owner/venue-requests", icon: <ClipboardList size={18} /> },
   { label: "Usuarios", href: "/owner/users", icon: <Users size={18} /> },
   { label: "Auditoría", href: "/owner/audit", icon: <Shield size={18} /> },
 ];

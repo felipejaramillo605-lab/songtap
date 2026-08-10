@@ -137,14 +137,14 @@
 - [x] Pruebas visuales y checkpoint
 
 
-## Validación de Empresas para Managers (En Progreso)
-- [ ] Tabla venue_requests con estado (pending, approved, rejected)
-- [ ] Router tRPC: venues.requestVenue (crear solicitud)
-- [ ] Router tRPC: venues.approveRequest (Owner aprueba)
-- [ ] Router tRPC: venues.rejectRequest (Owner rechaza)
-- [ ] Panel Owner: lista de solicitudes pendientes
+## Validación de Empresas para Managers
+- [x] Tabla venue_requests con estado (pending, approved, rejected)
+- [x] Router tRPC: venues.requestVenue (crear solicitud)
+- [x] Router tRPC: venues.approveRequest (Owner aprueba)
+- [x] Router tRPC: venues.rejectRequest (Owner rechaza)
+- [x] Panel Owner: lista de solicitudes pendientes
 - [ ] Actualizar flujo de registro de Manager
-- [ ] Pruebas visuales
+- [x] Pruebas visuales
 
 ## Módulo de Lista de Reproducción (En Progreso - Última Prioridad)
 - [ ] Tabla song_queue con canción actual, historial

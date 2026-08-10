@@ -18,6 +18,7 @@ import OwnerDashboard from "./pages/owner/OwnerDashboard";
 import OwnerVenues from "./pages/owner/OwnerVenues";
 import OwnerUsers from "./pages/owner/OwnerUsers";
 import OwnerAudit from "./pages/owner/OwnerAudit";
+import OwnerVenueRequests from "./pages/owner/OwnerVenueRequests";
 
 // Manager pages
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
@@ -46,6 +47,7 @@ function Router() {
       {/* Owner */}
       <Route path="/owner" component={OwnerDashboard} />
       <Route path="/owner/venues" component={OwnerVenues} />
+      <Route path="/owner/venue-requests" component={OwnerVenueRequests} />
       <Route path="/owner/users" component={OwnerUsers} />
       <Route path="/owner/audit" component={OwnerAudit} />
 
