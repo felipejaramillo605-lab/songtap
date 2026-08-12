@@ -146,14 +146,37 @@
 - [ ] Actualizar flujo de registro de Manager
 - [x] Pruebas visuales
 
-## Módulo de Lista de Reproducción (En Progreso - Última Prioridad)
-- [ ] Tabla song_queue con canción actual, historial
-- [ ] Tabla applause_votes con puntuación por mesa
-- [ ] Router tRPC: music.getCurrentSong
-- [ ] Router tRPC: music.getQueue
-- [ ] Router tRPC: music.submitApplause (1-5 estrellas)
-- [ ] Router tRPC: music.getAppauseScore (puntuación final)
-- [ ] Componente MusicQueue en portal cliente
-- [ ] Componente AppauseVoting (1-5 estrellas)
-- [ ] Panel Staff: control de reproducción
-- [ ] Pruebas visuales y checkpoint
+## Módulo de Lista de Reproducción (Completado)
+- [x] Tabla song_queue con canción actual, historial
+- [x] Tabla applause_votes con puntuación por mesa
+- [x] Router tRPC: music.getCurrentSong
+- [x] Router tRPC: music.getQueue
+- [x] Router tRPC: music.submitApplause (1-5 estrellas)
+- [x] Router tRPC: music.getAppauseScore (puntuación final)
+- [x] Componente MusicQueue en portal cliente
+- [x] Componente AppauseVoting (1-5 estrellas)
+- [x] Panel Staff: control de reproducción
+- [x] Pruebas visuales y checkpoint
+
+## Módulo Musical — Implementado y Validado
+- [x] Extraer componente MusicQueue reutilizable para el portal cliente
+- [x] Extraer componente ApplauseVoting reutilizable con estrellas 1-5
+- [x] Validar integración de cola y aplausos en el portal cliente
+- [x] Validar controles manuales de reproducción en Staff
+- [x] Añadir pruebas Vitest del flujo musical (18/18 pasando)
+- [x] Ejecutar validación visual y guardar checkpoint del módulo musical
+
+## Notas de alcance
+- [x] Integración manual del reproductor por Staff implementada (Spotify API pendiente de expansión futura)
+- [ ] Flujo completo de registro Manager con solicitud de venue queda pendiente
+
+## Pruebas
+- [x] Verificar contrato de solicitud de canción y posición FIFO con Vitest
+- [x] Verificar contrato de aplausos de 1 a 5 estrellas con Vitest
+- [x] Verificar contrato de puntuación agregada de una canción con Vitest
+- [x] Verificar flujo visual completo en portal cliente y Staff
+
+## Validación end-to-end del módulo musical
+- [x] Verificar en navegador el flujo real QR → solicitar canción → aparece en cola del portal y Staff
+- [x] Verificar en navegador que Staff pueda reproducir/remover canciones y el portal refleje la canción actual
+- [x] Revisar y documentar el flujo seguro basado en sesiones QR emitidas

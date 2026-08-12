@@ -562,10 +562,13 @@ export async function updateCurrentSong(venueId: number, songId: number) {
   await db.update(songQueue).set({ isCurrentlyPlaying: true }).where(eq(songQueue.id, songId));
 }
 
-export async function removeSongFromQueue(songId: number) {
+export async function removeSongFromQueue(songId: number, venueId?: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(songQueue).where(eq(songQueue.id, songId));
+  const conditions = venueId
+    ? and(eq(songQueue.id, songId), eq(songQueue.venueId, venueId))
+    : eq(songQueue.id, songId);
+  await db.delete(songQueue).where(conditions);
 }
 
 // ─── APPLAUSE VOTES ───────────────────────────────────────────────────────────

@@ -1,13 +1,13 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import SongTapLayout from "@/components/SongTapLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Music2, Play, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Music2, Play, CheckCircle2, Trash2, Clock, Star } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 export default function StaffMusic() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -19,96 +19,132 @@ export default function StaffMusic() {
   }, [loading, isAuthenticated, user, navigate]);
 
   const venueId = user?.venueId;
-  const { data: queue, refetch } = trpc.music.getQueue.useQuery(
+  const { data: musicData, refetch } = trpc.music.getClientQueue.useQuery(
     { venueId: venueId! },
-    { enabled: !!venueId, refetchInterval: 8000 }
+    { enabled: !!venueId, refetchInterval: 5000 }
   );
 
-  const updateStatus = trpc.music.updateStatus.useMutation({
-    onSuccess: () => { toast.success("Estado actualizado"); refetch(); },
+  const playSong = trpc.music.playSong.useMutation({
+    onSuccess: () => { toast.success("Canción reproduciéndose"); refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const removeSong = trpc.music.removeSong.useMutation({
+    onSuccess: () => { toast.success("Canción removida de la cola"); refetch(); },
     onError: (e) => toast.error(e.message),
   });
 
   if (loading) return null;
 
+  const currentSong = musicData?.current;
+  const queueList = musicData?.queue || [];
+
   return (
     <SongTapLayout role="staff" title="Cola Musical">
       <div className="space-y-6 animate-slide-up">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Cola de canciones</h2>
-          <p className="text-sm text-muted-foreground">Peticiones musicales de los clientes — en orden de llegada</p>
+          <h2 className="text-xl font-bold text-foreground">Gestión de Reproductor & Cola Musical</h2>
+          <p className="text-sm text-muted-foreground">Controla las canciones solicitadas por las mesas y marca la que está sonando actualmente.</p>
         </div>
 
+        {/* Canción Actual */}
+        <Card className="bg-gradient-to-r from-primary/20 via-card to-card border-primary/40">
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold text-primary flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+              </span>
+              REPRODUCIENDO AHORA
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {currentSong ? (
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">{currentSong.songName}</h3>
+                  <p className="text-sm text-muted-foreground">{currentSong.artist} • <span className="text-primary font-medium">{currentSong.addedByTableName}</span></p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs bg-primary/20 text-primary px-3 py-1.5 rounded-full font-medium">En vivo</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <Music2 size={32} className="mx-auto mb-2 text-muted-foreground opacity-30" />
+                <p className="text-muted-foreground text-sm">No hay ninguna canción reproduciéndose actualmente. Selecciona una de la cola abajo.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Cola de Canciones */}
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Music2 size={16} className="text-primary" />
-              En cola ({queue?.length ?? 0} canciones)
+              Cola de Peticiones ({queueList.length} canciones)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {!queue?.length ? (
+            {queueList.length === 0 ? (
               <div className="text-center py-12">
                 <Music2 size={48} className="mx-auto mb-4 text-muted-foreground opacity-30" />
-                <p className="text-muted-foreground text-sm">No hay canciones en cola. ¡Silencio total!</p>
+                <p className="text-muted-foreground text-sm">No hay canciones en la cola en este momento.</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {queue.map((req, index) => (
+                {queueList.map((song, index) => (
                   <div
-                    key={req.id}
+                    key={song.id}
                     className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                      req.status === "playing"
-                        ? "bg-primary/10 border-primary/30 neon-glow"
-                        : "bg-secondary/30 border-border"
+                      song.isCurrentlyPlaying
+                        ? "bg-primary/10 border-primary/30"
+                        : "bg-secondary/30 border-border hover:border-border/80"
                     }`}
                   >
                     {/* Position */}
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                      index === 0 ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                      song.isCurrentlyPlaying ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
                     }`}>
-                      {req.status === "playing" ? <Play size={14} /> : index + 1}
+                      {song.isCurrentlyPlaying ? <Play size={14} /> : index + 1}
                     </div>
 
                     {/* Song info */}
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground truncate">{req.songTitle}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-foreground truncate">{song.songName}</p>
+                        {song.isCurrentlyPlaying && (
+                          <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-bold">SONANDO</span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-3 mt-0.5">
-                        {req.artist && <p className="text-xs text-muted-foreground truncate">{req.artist}</p>}
+                        <p className="text-xs text-muted-foreground truncate">{song.artist}</p>
+                        <span className="text-xs text-primary font-medium">• Pedida por: {song.addedByTableName}</span>
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock size={10} /> {new Date(req.createdAt).toLocaleTimeString()}
+                          <Clock size={10} /> {new Date(song.createdAt).toLocaleTimeString()}
                         </p>
-                        <p className="text-xs text-primary">— {req.clientName}</p>
                       </div>
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {req.status === "queued" && (
+                      {!song.isCurrentlyPlaying && (
                         <Button
                           size="sm"
                           className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs h-8"
-                          onClick={() => updateStatus.mutate({ id: req.id, venueId: venueId!, status: "playing" })}
+                          onClick={() => playSong.mutate({ venueId: venueId!, songId: song.id })}
                         >
                           <Play size={12} className="mr-1" /> Reproducir
-                        </Button>
-                      )}
-                      {req.status === "playing" && (
-                        <Button
-                          size="sm"
-                          className="bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 text-xs h-8"
-                          onClick={() => updateStatus.mutate({ id: req.id, venueId: venueId!, status: "played" })}
-                        >
-                          <CheckCircle2 size={12} className="mr-1" /> Marcar reproducida
                         </Button>
                       )}
                       <Button
                         size="sm"
                         variant="ghost"
                         className="text-red-400 hover:bg-red-400/10 h-8 w-8 p-0"
-                        onClick={() => updateStatus.mutate({ id: req.id, venueId: venueId!, status: "rejected" })}
+                        onClick={() => removeSong.mutate({ venueId: venueId!, songId: song.id })}
                       >
-                        <XCircle size={14} />
+                        <Trash2 size={14} />
                       </Button>
                     </div>
                   </div>

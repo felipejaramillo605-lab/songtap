@@ -1,18 +1,34 @@
 import { trpc } from "@/lib/trpc";
+import { useState, useEffect, useMemo } from "react";
+import { useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import MusicQueue from "@/components/MusicQueue";
+import ApplauseVoting from "@/components/ApplauseVoting";
 import { toast } from "sonner";
-import {
-  Music2, ShoppingBag, Plus, Minus, Trash2, Send, ClipboardList,
-  UtensilsCrossed, CheckCircle2, Clock, ChefHat, XCircle
+import { 
+  UtensilsCrossed, 
+  ShoppingBag, 
+  Music2, 
+  ClipboardList, 
+  Plus, 
+  Minus, 
+  Trash2, 
+  Send, 
+  Clock 
 } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
-import { useLocation } from "wouter";
+
+interface SessionData {
+  sessionToken: string;
+  sessionId: number;
+  venueId: number;
+  tableId: number;
+  tableName: string;
+}
 
 interface CartItem {
   menuItemId: number;
@@ -22,69 +38,68 @@ interface CartItem {
   notes?: string;
 }
 
-interface SessionData {
-  sessionToken: string;
-  sessionId: number;
-  tableId: number;
-  venueId: number;
-  tableName: string;
-}
-
 const statusConfig = {
-  pending: { label: "Pendiente", icon: <Clock size={12} />, color: "status-pending" },
-  preparing: { label: "En preparación", icon: <ChefHat size={12} />, color: "status-preparing" },
-  delivered: { label: "Entregado", icon: <CheckCircle2 size={12} />, color: "status-delivered" },
-  cancelled: { label: "Cancelado", icon: <XCircle size={12} />, color: "status-cancelled" },
+  pending: { label: "Pendiente", color: "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30", icon: <Clock size={12} /> },
+  preparing: { label: "Preparando", color: "bg-blue-500/20 text-blue-400 border border-blue-500/30", icon: <Clock size={12} /> },
+  delivered: { label: "Entregado", color: "bg-green-500/20 text-green-400 border border-green-500/30", icon: <UtensilsCrossed size={12} /> },
+  cancelled: { label: "Cancelado", color: "bg-red-500/20 text-red-400 border border-red-500/30", icon: <Trash2 size={12} /> },
 };
 
 export default function ClientMenu() {
+  const searchString = useSearch();
   const [, navigate] = useLocation();
   const [session, setSession] = useState<SessionData | null>(null);
+  const [activeCategory, setActiveCategory] = useState<number>(0);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [musicForm, setMusicForm] = useState({ songTitle: "", artist: "" });
-  const [musicOpen, setMusicOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<number | null>(null);
 
   useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    const token = params.get("session");
     const stored = sessionStorage.getItem("songtap_session");
-    if (!stored) { navigate("/"); return; }
-    try {
-      const s = JSON.parse(stored);
-      // Validate session has required fields
-      if (!s.sessionToken || !s.venueId) { navigate("/"); return; }
-      // sessionId might be missing in older format, derive from token
-      setSession({ ...s, sessionId: s.sessionId ?? s.id ?? 1 });
-    } catch { navigate("/"); }
-  }, [navigate]);
 
-  const venueId = session?.venueId;
-  const { data: menu } = trpc.menu.getPublicMenu.useQuery({ venueId: venueId! }, { enabled: !!venueId });
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        const tokenMatches = !token || parsed.sessionToken === token;
+        if (tokenMatches && parsed.sessionToken && parsed.venueId && parsed.tableId) {
+          setSession({
+            sessionToken: parsed.sessionToken,
+            sessionId: parsed.sessionId ?? parsed.id,
+            venueId: parsed.venueId,
+            tableId: parsed.tableId,
+            tableName: parsed.tableName ?? `Mesa ${parsed.tableId}`,
+          });
+          return;
+        }
+      } catch {
+        sessionStorage.removeItem("songtap_session");
+      }
+    }
+
+    // El portal solo puede operar con la sesión emitida por el QR; no se crean datos demo en producción.
+    navigate("/");
+  }, [searchString, navigate]);
+
+  const venueId = session?.venueId ?? 0;
+
+  const { data: menu } = trpc.menu.getPublicMenu.useQuery({ venueId }, { enabled: !!session?.venueId });
   const { data: myOrders, refetch: refetchOrders } = trpc.orders.getBySession.useQuery(
-    { sessionId: session?.sessionId ?? 0 },
-    { enabled: !!session?.sessionId, refetchInterval: 8000 }
+    { sessionId: session?.sessionId ?? 1 },
+    { enabled: !!session?.sessionId, refetchInterval: 5000 }
+  );
+
+  const { data: musicData, refetch: refetchMusic } = trpc.music.getClientQueue.useQuery(
+    { venueId },
+    { enabled: !!venueId, refetchInterval: 5000 }
   );
 
   useEffect(() => {
-    if (menu?.length && activeCategory === null) setActiveCategory(menu[0].id);
+    if (menu && menu.length > 0 && activeCategory === 0) {
+      setActiveCategory(menu[0].id);
+    }
   }, [menu, activeCategory]);
-
-  const addToCart = (item: { id: number; name: string; price: string | number }) => {
-    setCart((prev) => {
-      const existing = prev.find((c) => c.menuItemId === item.id);
-      if (existing) return prev.map((c) => c.menuItemId === item.id ? { ...c, quantity: c.quantity + 1 } : c);
-      return [...prev, { menuItemId: item.id, name: item.name, price: Number(item.price), quantity: 1 }];
-    });
-    toast.success(`${item.name} agregado al pedido`);
-  };
-
-  const removeFromCart = (id: number) => setCart((prev) => prev.filter((c) => c.menuItemId !== id));
-  const updateQty = (id: number, delta: number) => {
-    setCart((prev) => prev.map((c) => c.menuItemId === id ? { ...c, quantity: Math.max(1, c.quantity + delta) } : c));
-  };
-
-  const total = cart.reduce((sum, c) => sum + c.price * c.quantity, 0);
-  const cartCount = cart.reduce((sum, c) => sum + c.quantity, 0);
 
   const createOrder = trpc.orders.create.useMutation({
     onSuccess: () => {
@@ -93,20 +108,53 @@ export default function ClientMenu() {
       setCartOpen(false);
       refetchOrders();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message),
   });
 
-  const requestMusic = trpc.music.request.useMutation({
+  const requestMusic = trpc.music.requestSong.useMutation({
     onSuccess: () => {
-      toast.success("¡Canción solicitada! El staff la pondrá pronto.");
+      toast.success("¡Canción solicitada correctamente!");
       setMusicForm({ songTitle: "", artist: "" });
-      setMusicOpen(false);
+      refetchMusic();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message),
   });
+
+  const { data: applauseScore } = trpc.music.getApplauseScore.useQuery(
+    { venueId, songId: musicData?.current?.id ?? 0 },
+    { enabled: !!session?.venueId && !!musicData?.current?.id, refetchInterval: 5000 }
+  );
+
+  const addToCart = (item: any) => {
+    setCart((prev) => {
+      const existing = prev.find((i) => i.menuItemId === item.id);
+      if (existing) {
+        return prev.map((i) => i.menuItemId === item.id ? { ...i, quantity: i.quantity + 1 } : i);
+      }
+      return [...prev, { menuItemId: item.id, name: item.name, price: Number(item.price), quantity: 1 }];
+    });
+    toast.success(`${item.name} agregado al pedido`);
+  };
+
+  const updateQty = (menuItemId: number, delta: number) => {
+    setCart((prev) => prev.map((item) => {
+      if (item.menuItemId === menuItemId) {
+        const newQty = item.quantity + delta;
+        return newQty > 0 ? { ...item, quantity: newQty } : null;
+      }
+      return item;
+    }).filter(Boolean) as CartItem[]);
+  };
+
+  const removeFromCart = (menuItemId: number) => {
+    setCart((prev) => prev.filter((i) => i.menuItemId !== menuItemId));
+  };
+
+  const total = useMemo(() => cart.reduce((sum, i) => sum + i.price * i.quantity, 0), [cart]);
+  const cartCount = useMemo(() => cart.reduce((sum, i) => sum + i.quantity, 0), [cart]);
 
   const handleOrder = () => {
-    if (!session) return;
+    if (!session || cart.length === 0) return;
     createOrder.mutate({
       sessionToken: session.sessionToken,
       sessionId: session.sessionId,
@@ -121,15 +169,15 @@ export default function ClientMenu() {
     if (!session || !musicForm.songTitle.trim()) return;
     requestMusic.mutate({
       venueId: session.venueId,
-      sessionId: session.sessionId,
-      clientName: "Cliente",
-      songTitle: musicForm.songTitle,
-      artist: musicForm.artist || undefined,
+      songName: musicForm.songTitle,
+      artist: musicForm.artist || "Artista desconocido",
+      addedByTableId: session.tableId,
+      addedByTableName: session.tableName,
     });
   };
 
   const currentItems = useMemo(() =>
-    menu?.find((c) => c.id === activeCategory)?.items ?? [],
+    menu?.find((c: any) => c.id === activeCategory)?.items ?? [],
     [menu, activeCategory]
   );
 
@@ -168,16 +216,16 @@ export default function ClientMenu() {
       </header>
 
       <div className="max-w-lg mx-auto px-4 pt-4">
-        <Tabs defaultValue="menu">
+        <Tabs defaultValue={new URLSearchParams(searchString).get("tab") === "music" ? "music" : "menu"}>
           <TabsList className="w-full bg-secondary border border-border mb-4">
             <TabsTrigger value="menu" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <UtensilsCrossed size={14} className="mr-1.5" /> Menú
             </TabsTrigger>
             <TabsTrigger value="orders" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <ClipboardList size={14} className="mr-1.5" /> Mis pedidos
-              {myOrders?.filter(o => o.status !== "delivered" && o.status !== "cancelled").length ? (
+              {myOrders?.filter((o: any) => o.status !== "delivered" && o.status !== "cancelled").length ? (
                 <span className="ml-1 w-4 h-4 rounded-full bg-yellow-400 text-black text-[10px] font-bold flex items-center justify-center">
-                  {myOrders.filter(o => o.status !== "delivered" && o.status !== "cancelled").length}
+                  {myOrders.filter((o: any) => o.status !== "delivered" && o.status !== "cancelled").length}
                 </span>
               ) : null}
             </TabsTrigger>
@@ -190,7 +238,7 @@ export default function ClientMenu() {
           <TabsContent value="menu" className="space-y-4">
             {/* Category pills */}
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-              {menu?.map((cat) => (
+              {menu?.map((cat: any) => (
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
@@ -207,7 +255,7 @@ export default function ClientMenu() {
 
             {/* Items grid */}
             <div className="grid grid-cols-2 gap-3">
-              {currentItems.map((item) => (
+              {currentItems.map((item: any) => (
                 <Card key={item.id} className="bg-card border-border overflow-hidden">
                   {item.imageUrl && (
                     <div className="h-28 overflow-hidden">
@@ -250,8 +298,8 @@ export default function ClientMenu() {
                 <p className="text-sm">Aún no has hecho pedidos</p>
               </div>
             ) : (
-              myOrders.map((order) => {
-                const cfg = statusConfig[order.status as keyof typeof statusConfig];
+              myOrders.map((order: any) => {
+                const cfg = statusConfig[order.status as keyof typeof statusConfig] || statusConfig.pending;
                 return (
                   <Card key={order.id} className="bg-card border-border">
                     <CardContent className="p-4">
@@ -274,21 +322,39 @@ export default function ClientMenu() {
 
           {/* MUSIC TAB */}
           <TabsContent value="music" className="space-y-4">
+            <MusicQueue current={musicData?.current} queue={musicData?.queue ?? []} />
+
+            {musicData?.current && (
+              <Card className="bg-card border-border">
+                <CardContent className="p-5">
+                  <ApplauseVoting
+                    venueId={venueId}
+                    songId={musicData.current.id}
+                    votingTableId={session.tableId}
+                    votingTableName={session.tableName}
+                    performingTableId={musicData.current.addedByTableId}
+                    performingTableName={musicData.current.addedByTableName}
+                    averageRating={applauseScore?.averageRating}
+                    totalVotes={applauseScore?.totalVotes}
+                    onSubmitted={refetchMusic}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Solicitar Canción */}
             <Card className="bg-card border-border">
               <CardContent className="p-5 space-y-4">
-                <div className="text-center">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                    <Music2 size={22} className="text-primary" />
-                  </div>
-                  <h3 className="font-semibold text-foreground">¿Qué quieres escuchar?</h3>
-                  <p className="text-xs text-muted-foreground mt-1">Solicita una canción al staff</p>
+                <div>
+                  <h3 className="font-semibold text-foreground text-sm">Pedir una canción</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Agrégala a la cola para que el staff la reproduzca</p>
                 </div>
                 <div className="space-y-3">
                   <div>
                     <Label className="text-xs text-muted-foreground">Canción *</Label>
                     <Input
-                      className="mt-1 bg-input border-border text-foreground"
-                      placeholder="Nombre de la canción"
+                      className="mt-1 bg-input border-border text-foreground text-sm"
+                      placeholder="Ej. Despacito"
                       value={musicForm.songTitle}
                       onChange={(e) => setMusicForm({ ...musicForm, songTitle: e.target.value })}
                     />
@@ -296,14 +362,14 @@ export default function ClientMenu() {
                   <div>
                     <Label className="text-xs text-muted-foreground">Artista (opcional)</Label>
                     <Input
-                      className="mt-1 bg-input border-border text-foreground"
-                      placeholder="Nombre del artista"
+                      className="mt-1 bg-input border-border text-foreground text-sm"
+                      placeholder="Ej. Luis Fonsi"
                       value={musicForm.artist}
                       onChange={(e) => setMusicForm({ ...musicForm, artist: e.target.value })}
                     />
                   </div>
                   <Button
-                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-sm"
                     onClick={handleMusicRequest}
                     disabled={!musicForm.songTitle.trim() || requestMusic.isPending}
                   >
@@ -311,6 +377,32 @@ export default function ClientMenu() {
                     {requestMusic.isPending ? "Enviando..." : "Solicitar canción"}
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Cola Musical */}
+            <Card className="bg-card border-border">
+              <CardContent className="p-5 space-y-3">
+                <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+                  <Music2 size={16} className="text-primary" /> Cola Próxima ({musicData?.queue?.length ?? 0})
+                </h3>
+                {(!musicData?.queue || musicData.queue.length === 0) ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">No hay canciones en cola. ¡Sé el primero en pedir una!</p>
+                ) : (
+                  <div className="space-y-2">
+                    {musicData.queue.map((song, idx) => (
+                      <div key={song.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
+                        <div className="min-w-0 pr-2">
+                          <p className="font-medium text-foreground text-sm truncate">{song.songName}</p>
+                          <p className="text-xs text-muted-foreground truncate">{song.artist} • <span className="text-primary">{song.addedByTableName}</span></p>
+                        </div>
+                        <span className="text-xs bg-secondary text-muted-foreground px-2 py-1 rounded-full font-mono flex-shrink-0">
+                          #{idx + 1}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
