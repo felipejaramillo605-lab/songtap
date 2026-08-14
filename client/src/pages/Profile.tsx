@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { User, Lock, Phone, CreditCard, Home, Mail, FileText, ShieldCheck } from "lucide-react";
+import { User, Lock, Phone, CreditCard, Home, Mail, FileText, ShieldCheck, Upload, CheckCircle2 } from "lucide-react";
 import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
 
 export default function Profile() {
@@ -25,6 +25,59 @@ export default function Profile() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadingCv, setUploadingCv] = useState(false);
+
+  const uploadMutation = trpc.upload.uploadFile.useMutation();
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "photo" | "cv") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tamaño (máx 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("El archivo supera el tamaño máximo de 5MB");
+      return;
+    }
+
+    if (type === "photo") {
+      setUploadingPhoto(true);
+    } else {
+      setUploadingCv(true);
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64Data = reader.result as string;
+        const res = await uploadMutation.mutateAsync({
+          filename: file.name,
+          base64Data,
+          contentType: file.type || "application/octet-stream",
+        });
+
+        if (type === "photo") {
+          setPhotoUrl(res.url);
+          toast.success("Foto de perfil cargada correctamente");
+        } else {
+          setCvUrl(res.url);
+          toast.success("Hoja de vida (CV) cargada correctamente");
+        }
+      } catch (err: any) {
+        toast.error(`Error al subir archivo: ${err.message}`);
+      } finally {
+        if (type === "photo") setUploadingPhoto(false);
+        else setUploadingCv(false);
+      }
+    };
+    reader.onerror = () => {
+      toast.error("No se pudo leer el archivo");
+      if (type === "photo") setUploadingPhoto(false);
+      else setUploadingCv(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const updateProfileMutation = trpc.users.updateProfile.useMutation({
     onSuccess: () => {
@@ -98,7 +151,7 @@ export default function Profile() {
           <User className="h-8 w-8 text-primary" /> Mi Perfil de Usuario
         </h1>
         <p className="text-muted-foreground">
-          Gestiona tu información personal, credenciales de acceso y preferencias regionales en SongTap.
+          Gestiona tu información personal, documentos, credenciales de acceso y preferencias regionales en SongTap.
         </p>
       </div>
 
@@ -107,13 +160,13 @@ export default function Profile() {
         <Card className="bg-card border-border md:col-span-1">
           <CardHeader className="text-center">
             <div className="mx-auto w-24 h-24 rounded-full bg-secondary/50 flex items-center justify-center overflow-hidden border-2 border-primary/50 mb-2">
-              {user.photoUrl ? (
-                <img src={user.photoUrl} alt={user.name || "User"} className="w-full h-full object-cover" />
+              {photoUrl ? (
+                <img src={photoUrl} alt={name || "User"} className="w-full h-full object-cover" />
               ) : (
                 <User className="w-12 h-12 text-muted-foreground" />
               )}
             </div>
-            <CardTitle className="text-xl">{user.name}</CardTitle>
+            <CardTitle className="text-xl">{name || user.name}</CardTitle>
             <CardDescription className="capitalize font-medium text-primary">
               Rol: {user.role} {user.venueId ? `(Venue #${user.venueId})` : ""}
             </CardDescription>
@@ -121,7 +174,7 @@ export default function Profile() {
           <CardContent className="space-y-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-primary" />
-              <span className="truncate">{user.email || "Sin correo"}</span>
+              <span className="truncate">{email || user.email || "Sin correo"}</span>
             </div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-green-500" />
@@ -151,7 +204,7 @@ export default function Profile() {
                 <FileText className="h-5 w-5 text-primary" /> Información Personal y DIAN / Habeas Data
               </CardTitle>
               <CardDescription>
-                Actualiza tus datos de contacto y documentación para validación de empleados y facturación.
+                Actualiza tus datos de contacto y carga tu foto y hoja de vida desde tu dispositivo.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -218,33 +271,53 @@ export default function Profile() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Subida local de Foto y CV */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
                   <div className="space-y-2">
-                    <Label htmlFor="photoUrl">URL de Fotografía</Label>
-                    <Input
-                      id="photoUrl"
-                      value={photoUrl}
-                      onChange={(e) => setPhotoUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="bg-background border-border"
-                    />
+                    <Label className="flex items-center gap-1.5 font-medium">
+                      <Upload className="h-4 w-4 text-primary" /> Fotografía de Perfil
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(e, "photo")}
+                        className="bg-background border-border text-xs cursor-pointer file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                      />
+                    </div>
+                    {uploadingPhoto && <p className="text-xs text-primary animate-pulse">Subiendo foto...</p>}
+                    {photoUrl && !uploadingPhoto && (
+                      <p className="text-xs text-green-400 flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Foto cargada correctamente
+                      </p>
+                    )}
                   </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="cvUrl">URL de CV / Hoja de Vida</Label>
-                    <Input
-                      id="cvUrl"
-                      value={cvUrl}
-                      onChange={(e) => setCvUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="bg-background border-border"
-                    />
+                    <Label className="flex items-center gap-1.5 font-medium">
+                      <Upload className="h-4 w-4 text-primary" /> Hoja de Vida (CV - PDF/Doc)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept=".pdf,.doc,.docx,application/pdf"
+                        onChange={(e) => handleFileUpload(e, "cv")}
+                        className="bg-background border-border text-xs cursor-pointer file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                      />
+                    </div>
+                    {uploadingCv && <p className="text-xs text-primary animate-pulse">Subiendo CV...</p>}
+                    {cvUrl && !uploadingCv && (
+                      <p className="text-xs text-green-400 flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> CV cargado correctamente
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <Button
                   type="submit"
-                  disabled={updateProfileMutation.isPending}
-                  className="w-full bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold mt-2"
+                  disabled={updateProfileMutation.isPending || uploadingPhoto || uploadingCv}
+                  className="w-full bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold mt-4"
                 >
                   {updateProfileMutation.isPending ? "Guardando cambios..." : "Guardar Cambios de Perfil"}
                 </Button>
