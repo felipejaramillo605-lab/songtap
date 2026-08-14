@@ -42,4 +42,19 @@ describe("Auth Register & Manager Venue Request Tests", () => {
     expect(res.user?.role).toBe("manager");
     expect(res.user?.email).toBe(uniqueEmail);
   });
+
+  it("should reject manager registration when venueName is missing", async () => {
+    const caller = appRouter.createCaller(mockContext);
+
+    const uniqueEmail = `testmanager_fail_${Date.now()}@example.com`;
+    const promise = caller.auth.registerPassword({
+      email: uniqueEmail,
+      password: "password123",
+      name: "Test Manager Bad",
+      accountType: "manager",
+      venueName: "",
+    });
+
+    await expect(promise).rejects.toThrow("El nombre del local es obligatorio");
+  });
 });

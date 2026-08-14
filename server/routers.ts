@@ -66,6 +66,13 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        if (input.accountType === "manager" && (!input.venueName || input.venueName.trim() === "")) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "El nombre del local es obligatorio para cuentas de tipo Manager.",
+          });
+        }
+
         const existing = await getUserByEmail(input.email);
         if (existing) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "El correo ya está registrado" });

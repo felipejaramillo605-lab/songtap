@@ -143,7 +143,7 @@
 - [x] Router tRPC: venues.approveRequest (Owner aprueba)
 - [x] Router tRPC: venues.rejectRequest (Owner rechaza)
 - [x] Panel Owner: lista de solicitudes pendientes
-- [ ] Actualizar flujo de registro de Manager
+- [x] Actualizar flujo de registro de Manager
 - [x] Pruebas visuales
 
 ## Módulo de Lista de Reproducción (Completado)
@@ -168,7 +168,7 @@
 
 ## Notas de alcance
 - [x] Integración manual del reproductor por Staff implementada (Spotify API pendiente de expansión futura)
-- [ ] Flujo de registro Manager con solicitud durante el alta de cuenta y validación de reglas de negocio
+- [x] Flujo de registro Manager con solicitud durante el alta de cuenta y validación de reglas de negocio
 
 ## Pruebas
 - [x] Verificar contrato de solicitud de canción y posición FIFO con Vitest
