@@ -11,6 +11,7 @@ export default function ClientPortal() {
   const { qrToken } = useParams<{ qrToken: string }>();
   const [, navigate] = useLocation();
   const [clientName, setClientName] = useState("");
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [step, setStep] = useState<"loading" | "enter-name" | "error">("loading");
 
   // Check if already has a session
@@ -134,10 +135,27 @@ export default function ClientPortal() {
             />
           </div>
 
+          <div className="flex items-start gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="privacy"
+              checked={acceptedPrivacy}
+              onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+              className="mt-1 rounded border-border text-primary focus:ring-primary"
+            />
+            <label htmlFor="privacy" className="text-xs text-muted-foreground leading-relaxed cursor-pointer">
+              Acepto la{" "}
+              <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+                Política de Tratamiento de Datos Personales
+              </a>{" "}
+              (Habeas Data) y el uso de mis datos para la gestión del pedido y música.
+            </label>
+          </div>
+
           <Button
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold h-12 text-base neon-glow"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold h-12 text-base neon-glow mt-2"
             onClick={() => startSession.mutate({ qrToken: qrToken ?? "", clientName: clientName.trim() })}
-            disabled={!clientName.trim() || startSession.isPending}
+            disabled={!clientName.trim() || !acceptedPrivacy || startSession.isPending}
           >
             {startSession.isPending ? "Entrando..." : (
               <>Ver el menú <ChevronRight size={18} className="ml-1" /></>

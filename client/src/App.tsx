@@ -9,6 +9,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import ClientPortal from "./pages/client/ClientPortal";
 import ClientMenu from "./pages/client/ClientMenu";
+import PrivacyPolicy from "./pages/client/PrivacyPolicy";
 
 // Auth
 import Login from "./pages/Login";
@@ -43,6 +44,7 @@ function Router() {
       {/* Client QR Portal */}
       <Route path="/mesa/:qrToken" component={ClientPortal} />
       <Route path="/menu" component={ClientMenu} />
+      <Route path="/privacy-policy" component={PrivacyPolicy} />
 
       {/* Owner */}
       <Route path="/owner" component={OwnerDashboard} />
