@@ -126,6 +126,15 @@ export default function ClientMenu() {
   );
 
   const addToCart = (item: any) => {
+    if (item.isAlcoholic) {
+      setPendingAlcoholItem(item);
+      setAlcoholWarningOpen(true);
+      return;
+    }
+    executeAddToCart(item);
+  };
+
+  const executeAddToCart = (item: any) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.menuItemId === item.id);
       if (existing) {
@@ -133,7 +142,7 @@ export default function ClientMenu() {
       }
       return [...prev, { menuItemId: item.id, name: item.name, price: Number(item.price), quantity: 1 }];
     });
-    toast.success(`${item.name} agregado al pedido`);
+    toast.success(lang === "es" ? `${item.name} agregado al pedido` : `${item.name} added to order`);
   };
 
   const updateQty = (menuItemId: number, delta: number) => {
@@ -154,6 +163,9 @@ export default function ClientMenu() {
   const cartCount = useMemo(() => cart.reduce((sum, i) => sum + i.quantity, 0), [cart]);
 
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [lang, setLang] = useState<"es" | "en">("es");
+  const [pendingAlcoholItem, setPendingAlcoholItem] = useState<any | null>(null);
+  const [alcoholWarningOpen, setAlcoholWarningOpen] = useState(false);
 
   const handleOrder = () => {
     if (!session || cart.length === 0) return;
@@ -196,9 +208,18 @@ export default function ClientMenu() {
               <Music2 size={14} className="text-primary-foreground" />
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground leading-tight">SongTap</p>
-              <p className="text-[10px] text-primary">{session.tableName}</p>
+              <h1 className="font-bold text-foreground text-sm leading-tight">SongTap</h1>
+              <p className="text-xs text-muted-foreground">{session.tableName}</p>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setLang(lang === "es" ? "en" : "es")}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border"
+              title="Cambiar idioma / Change language"
+            >
+              {lang === "es" ? "🇺🇸 EN" : "🇨🇴 ES"}
+            </button>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -426,6 +447,53 @@ export default function ClientMenu() {
           </div>
         </div>
       )}
+
+      {/* Alcohol Warning Dialog */}
+      <Dialog open={alcoholWarningOpen} onOpenChange={setAlcoholWarningOpen}>
+        <DialogContent className="bg-card border-border max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-foreground flex items-center gap-2 text-yellow-400">
+              ⚠️ {lang === "es" ? "Consumo Responsable" : "Responsible Consumption"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-sm text-muted-foreground">
+            <p>
+              {lang === "es"
+                ? `Estás a punto de agregar "${pendingAlcoholItem?.name}" que contiene alcohol.`
+                : `You are about to add "${pendingAlcoholItem?.name}" which contains alcohol.`}
+            </p>
+            <p className="font-semibold text-foreground">
+              {lang === "es"
+                ? "El consumo de alcohol es exclusivo para mayores de 18 años. Al confirmar, certificas que cumples con la mayoría de edad legal."
+                : "Alcohol consumption is restricted to adults over 18. By confirming, you certify that you meet the legal drinking age."}
+            </p>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="outline"
+              className="flex-1 border-border text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setAlcoholWarningOpen(false);
+                setPendingAlcoholItem(null);
+              }}
+            >
+              {lang === "es" ? "Cancelar" : "Cancel"}
+            </Button>
+            <Button
+              className="flex-1 bg-primary text-primary-foreground font-bold"
+              onClick={() => {
+                if (pendingAlcoholItem) {
+                  executeAddToCart(pendingAlcoholItem);
+                }
+                setAlcoholWarningOpen(false);
+                setPendingAlcoholItem(null);
+              }}
+            >
+              {lang === "es" ? "Soy mayor de 18" : "I am over 18"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Cart dialog */}
       <Dialog open={cartOpen} onOpenChange={setCartOpen}>
