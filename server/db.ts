@@ -385,7 +385,7 @@ export async function getRevenueByHour(venueId: number, dateFrom: Date, dateTo: 
 
   return db
     .select({
-      hour: sql<number>`HOUR(${orders.createdAt})`,
+      hour: sql<number>`CAST(DATE_FORMAT(${orders.createdAt}, '%H') AS UNSIGNED)`,
       revenue: sql<number>`COALESCE(SUM(CAST(${orders.totalAmount} AS DECIMAL(10,2))), 0)`,
       orderCount: sql<number>`COUNT(*)`,
     })
@@ -398,8 +398,8 @@ export async function getRevenueByHour(venueId: number, dateFrom: Date, dateTo: 
         lte(orders.createdAt, dateTo)
       )
     )
-    .groupBy(sql`HOUR(${orders.createdAt})`)
-    .orderBy(sql`HOUR(${orders.createdAt})`);
+    .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%H')`)
+    .orderBy(sql`DATE_FORMAT(${orders.createdAt}, '%H')`);
 }
 
 export async function getOrderHistory(venueId: number, dateFrom: Date, dateTo: Date) {
