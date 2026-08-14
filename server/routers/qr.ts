@@ -42,7 +42,10 @@ export const qrRouter = router({
         isActive: true,
       });
 
-      return { sessionToken, tableId: table.id, venueId: table.venueId, tableName: table.name };
+      const session = await getQrSessionByToken(sessionToken);
+      if (!session) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      return { sessionId: session.id, sessionToken, tableId: table.id, venueId: table.venueId, tableName: table.name };
     }),
 
   // Validar sesión activa del cliente

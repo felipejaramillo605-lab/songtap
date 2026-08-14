@@ -56,12 +56,22 @@ export default function ClientPortal() {
   if (step === "error") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-5 max-w-sm mx-auto p-6 rounded-2xl bg-card border border-border shadow-2xl">
           <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto">
             <QrCode size={28} className="text-red-400" />
           </div>
-          <h2 className="text-xl font-bold text-foreground">Mesa no disponible</h2>
-          <p className="text-muted-foreground text-sm">El código QR no es válido o la mesa está inactiva.</p>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-foreground">¡Código QR no disponible!</h2>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              Lo sentimos, este código QR no corresponde a una mesa activa o ya ha expirado. Por favor, solicita asistencia a nuestro personal o escanea nuevamente el código ubicado en tu mesa.
+            </p>
+          </div>
+          <Button
+            className="w-full bg-primary text-primary-foreground font-bold hover:bg-primary/90"
+            onClick={() => navigate("/")}
+          >
+            Volver al inicio
+          </Button>
         </div>
       </div>
     );

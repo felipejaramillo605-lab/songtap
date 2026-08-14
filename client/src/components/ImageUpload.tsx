@@ -88,30 +88,24 @@ export default function ImageUpload({
           onDrop={handleDrop}
           onClick={handleClick}
           className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all ${
-            isDragging
-              ? "border-primary bg-primary/5"
-              : "border-border hover:border-primary/50"
-          } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+            isDragging ? "border-primary bg-primary/10" : "border-border hover:border-primary/50 bg-secondary/20"
+          }`}
         >
-          <Upload size={32} className="mx-auto mb-2 text-muted-foreground" />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={accept}
+            className="hidden"
+            onChange={handleFileSelect}
+            disabled={disabled}
+          />
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3 text-primary">
+            <Upload size={20} />
+          </div>
           <p className="text-sm font-medium text-foreground">{label}</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Arrastra la imagen aquí o haz clic para seleccionar
-          </p>
-          <p className="text-xs text-muted-foreground mt-2">
-            Formatos: JPG, PNG, GIF, WebP
-          </p>
+          <p className="text-xs text-muted-foreground mt-1">Arrastra tu imagen aquí o haz clic para buscar</p>
         </div>
       )}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={accept}
-        onChange={handleFileSelect}
-        className="hidden"
-        disabled={disabled}
-      />
     </div>
   );
 }
