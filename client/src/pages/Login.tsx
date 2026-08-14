@@ -1,4 +1,4 @@
-import { Music2, Lock, Mail, User, ArrowRight } from "lucide-react";
+import { Music2, Lock, Mail, User, ArrowRight, ShieldAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
@@ -62,6 +62,12 @@ export default function Login() {
     onError: (e) => toast.error(e.message),
   });
 
+  const handleSocialLogin = (provider: string) => {
+    toast.error(
+      `El inicio de sesión con ${provider} requiere credenciales de API (Client ID / Secret). Actualmente está disponible Manus OAuth o Correo y Contraseña.`
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
@@ -91,9 +97,45 @@ export default function Login() {
               >
                 <Mail size={16} className="mr-2" /> Correo y Contraseña
               </Button>
+
+              <div className="pt-2 border-t border-border/50 grid grid-cols-4 gap-2">
+                <Button
+                  variant="outline"
+                  className="w-full text-xs py-2 border-border"
+                  title="Google (Configuración pendiente)"
+                  onClick={() => handleSocialLogin("Google")}
+                >
+                  Google
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full text-xs py-2 border-border"
+                  title="Apple (Configuración pendiente)"
+                  onClick={() => handleSocialLogin("Apple")}
+                >
+                  Apple
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full text-xs py-2 border-border"
+                  title="Facebook (Configuración pendiente)"
+                  onClick={() => handleSocialLogin("Facebook")}
+                >
+                  Meta
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full text-xs py-2 border-border"
+                  title="Microsoft (Configuración pendiente)"
+                  onClick={() => handleSocialLogin("Microsoft")}
+                >
+                  MS
+                </Button>
+              </div>
+
               <Button
                 variant="ghost"
-                className="w-full text-xs text-muted-foreground hover:text-foreground"
+                className="w-full text-xs text-muted-foreground hover:text-foreground pt-1"
                 onClick={() => setMode("register")}
               >
                 ¿No tienes cuenta? Regístrate aquí
