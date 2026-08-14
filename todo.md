@@ -180,3 +180,9 @@
 - [x] Verificar en navegador el flujo real QR → solicitar canción → aparece en cola del portal y Staff
 - [x] Verificar en navegador que Staff pueda reproducir/remover canciones y el portal refleje la canción actual
 - [x] Revisar y documentar el flujo seguro basado en sesiones QR emitidas
+
+
+## Editor inteligente de foto de perfil
+- [ ] Añadir detección automática de rostro y centrado inteligente al recortador de foto de perfil
+- [ ] Mantener ajuste manual, previsualización, confirmación y subida de la foto
+- [ ] Validar formatos, accesibilidad, pruebas y checkpoint
