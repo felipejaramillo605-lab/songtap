@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
-import { Bell, Mail, Phone, Volume2, ShieldAlert, CheckCheck, Clock3, Inbox, CircleCheck } from "lucide-react";
+import { filterNotificationHistory } from "@/lib/notificationFilters";
+import { Bell, Mail, Phone, Volume2, ShieldAlert, CheckCheck, Clock3, Inbox, CircleCheck, Search, RotateCcw, CalendarDays } from "lucide-react";
 
 export default function OwnerNotificationsSettings() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -30,6 +31,9 @@ export default function OwnerNotificationsSettings() {
   const [notificationPhone, setNotificationPhone] = useState("");
   const [senderAccountEmail, setSenderAccountEmail] = useState("");
   const [soundType, setSoundType] = useState("chime");
+  const [historySearch, setHistorySearch] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   useEffect(() => {
     if (!loading && !isAuthenticated) window.location.href = getLoginUrl();
@@ -75,6 +79,17 @@ export default function OwnerNotificationsSettings() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const filteredHistory = useMemo(
+    () => filterNotificationHistory(history, { query: historySearch, startDate, endDate }),
+    [history, historySearch, startDate, endDate]
+  );
+
+  const clearHistoryFilters = () => {
+    setHistorySearch("");
+    setStartDate("");
+    setEndDate("");
+  };
 
   const playTestSound = (type: string) => {
     try {
@@ -282,6 +297,56 @@ export default function OwnerNotificationsSettings() {
           </Button>
         </div>
 
+        <div className="grid grid-cols-1 gap-3 border-b border-border bg-secondary/10 p-5 md:grid-cols-[minmax(0,1fr)_11rem_11rem_auto] md:items-end" aria-label="Filtros del historial de notificaciones">
+          <div className="space-y-2">
+            <Label htmlFor="notification-search" className="text-xs text-muted-foreground">Buscar alertas</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                id="notification-search"
+                value={historySearch}
+                onChange={(event) => setHistorySearch(event.target.value)}
+                placeholder="Buscar por local, manager o contenido..."
+                className="border-border bg-input pl-9 text-foreground"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="notification-start-date" className="text-xs text-muted-foreground">Desde</Label>
+            <Input
+              id="notification-start-date"
+              type="date"
+              value={startDate}
+              onChange={(event) => setStartDate(event.target.value)}
+              className="border-border bg-input text-foreground"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="notification-end-date" className="text-xs text-muted-foreground">Hasta</Label>
+            <Input
+              id="notification-end-date"
+              type="date"
+              min={startDate || undefined}
+              value={endDate}
+              onChange={(event) => setEndDate(event.target.value)}
+              className="border-border bg-input text-foreground"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-muted-foreground hover:bg-secondary hover:text-foreground"
+            onClick={clearHistoryFilters}
+            disabled={!historySearch && !startDate && !endDate}
+          >
+            <RotateCcw size={15} className="mr-2" /> Limpiar
+          </Button>
+          <p className="md:col-span-4 text-xs text-muted-foreground" aria-live="polite">
+            <CalendarDays size={13} className="mr-1 inline" aria-hidden="true" />
+            Mostrando {filteredHistory.length} de {history.length} {history.length === 1 ? "alerta" : "alertas"}.
+          </p>
+        </div>
+
         <div className="divide-y divide-border" aria-live="polite">
           {isLoadingHistory ? (
             <div className="p-8 text-center text-sm text-muted-foreground">Cargando alertas anteriores...</div>
@@ -291,8 +356,17 @@ export default function OwnerNotificationsSettings() {
               <p className="mt-3 text-sm font-medium text-foreground">No hay notificaciones registradas</p>
               <p className="mt-1 text-xs text-muted-foreground">Las nuevas solicitudes de Manager aparecerán aquí.</p>
             </div>
+          ) : filteredHistory.length === 0 ? (
+            <div className="p-10 text-center">
+              <Search className="mx-auto h-8 w-8 text-muted-foreground/60" aria-hidden="true" />
+              <p className="mt-3 text-sm font-medium text-foreground">No encontramos alertas con esos filtros</p>
+              <p className="mt-1 text-xs text-muted-foreground">Prueba con otro texto o amplía el rango de fechas.</p>
+              <Button type="button" variant="outline" className="mt-4 border-border" onClick={clearHistoryFilters}>
+                <RotateCcw size={15} className="mr-2" /> Limpiar filtros
+              </Button>
+            </div>
           ) : (
-            history.map((notification) => (
+            filteredHistory.map((notification) => (
               <article
                 key={notification.id}
                 className={`flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between ${

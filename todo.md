@@ -195,3 +195,8 @@
 - [x] Crear procedimientos seguros para consultar, marcar una y marcar todas las alertas como leídas
 - [x] Añadir historial de notificaciones y acciones de lectura al submódulo Owner
 - [x] Validar accesibilidad, pruebas y checkpoint
+
+## Búsqueda y filtros del historial de notificaciones
+- [x] Añadir búsqueda por texto en título y contenido de alertas
+- [x] Añadir filtros de fecha inicial y final con opción de limpiar resultados
+- [x] Validar accesibilidad, pruebas funcionales y checkpoint
