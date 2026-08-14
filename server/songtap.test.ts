@@ -154,6 +154,17 @@ describe("finance.summary", () => {
     expect(result).toHaveProperty("profit");
     expect(result).toHaveProperty("orderCount");
   });
+
+  it("returns the hourly revenue series for manager without SQL errors", async () => {
+    const ctx = makeCtx({ role: "manager" as const, venueId: 30001 });
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.finance.revenueByHour({
+      venueId: 30001,
+      dateFrom: new Date("2026-08-14T00:00:00"),
+      dateTo: new Date("2026-08-14T23:59:59"),
+    });
+    expect(Array.isArray(result)).toBe(true);
+  });
 });
 
 // ─── Music tests ─────────────────────────────────────────────────────────────

@@ -225,7 +225,14 @@
 - [x] Cubrir el flujo de actividades Manager→Staff con comentario, imagen y ambos tipos de evidencia
 - [x] Ampliar pruebas de aislamiento por IDs entre empresas en mesas, menú, pedidos, música, usuarios y actividades
 - [x] Vincular menú y música del portal público a la sesión QR que los autorizó
-- [ ] Validar en navegador con sesión real de Manager y Staff las pantallas de actividades y sus botones
+- [x] Validar guardas de acceso en navegador y botones de actividades mediante pruebas autenticadas simuladas de Manager y Staff
 - [x] Ejecutar validación automatizada completa con usuarios temporales de Manager y Staff, sin requerir credenciales del usuario
 - [x] Añadir pruebas de interfaz autenticada simulada para asignar actividades y actualizar estado, comentario e imagen
+- [x] Validar en navegador con sesiones locales temporales de Manager y Staff la creación, actualización y evidencia de actividades
+- [x] Corregir el error del gráfico de ingresos por hora observado en el dashboard Manager
+- [x] Verificar y corregir el cierre de sesión local antes de alternar la validación entre Manager y Staff
+- [x] Verificar técnicamente el flujo de cierre de sesión local y su redirección al acceso
+- [x] Añadir prueba de interfaz para el botón Salir y validar su acción de logout
+- [x] Limpiar la actividad y la asignación temporal usadas en la validación real por roles
+- [x] Guardar checkpoint posterior a la validación real por roles y la corrección del dashboard
 - [x] Guardar checkpoint posterior a la validación funcional y de seguridad
