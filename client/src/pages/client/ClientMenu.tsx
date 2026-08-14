@@ -153,6 +153,8 @@ export default function ClientMenu() {
   const total = useMemo(() => cart.reduce((sum, i) => sum + i.price * i.quantity, 0), [cart]);
   const cartCount = useMemo(() => cart.reduce((sum, i) => sum + i.quantity, 0), [cart]);
 
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+
   const handleOrder = () => {
     if (!session || cart.length === 0) return;
     createOrder.mutate({
@@ -162,6 +164,7 @@ export default function ClientMenu() {
       tableId: session.tableId,
       clientName: "Cliente",
       items: cart.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity, notes: c.notes })),
+      ageConfirmed,
     });
   };
 
@@ -454,11 +457,25 @@ export default function ClientMenu() {
               </div>
             ))}
           </div>
-          <div className="border-t border-border pt-3">
-            <div className="flex items-center justify-between mb-4">
-              <span className="font-semibold text-foreground">Total</span>
+          <div className="border-t border-border pt-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-foreground">Total (IVA incluido)</span>
               <span className="text-xl font-bold text-primary">${total.toLocaleString()}</span>
             </div>
+
+            <div className="flex items-start gap-2 pt-1 bg-secondary/20 p-2 rounded-lg border border-border">
+              <input
+                type="checkbox"
+                id="cartAge"
+                checked={ageConfirmed}
+                onChange={(e) => setAgeConfirmed(e.target.checked)}
+                className="mt-1 rounded border-border text-primary focus:ring-primary"
+              />
+              <label htmlFor="cartAge" className="text-xs text-muted-foreground leading-relaxed cursor-pointer">
+                Confirmo que soy <span className="font-semibold text-foreground">mayor de 18 años</span> en caso de incluir bebidas alcohólicas en mi pedido.
+              </label>
+            </div>
+
             <Button
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold neon-glow"
               onClick={handleOrder}

@@ -105,6 +105,8 @@ export const menuItems = mysqlTable("menu_items", {
   cost: decimal("cost", { precision: 10, scale: 2 }), // confidencial, solo Manager
   imageUrl: text("imageUrl"),
   isAvailable: boolean("isAvailable").default(true).notNull(),
+  isAlcoholic: boolean("isAlcoholic").default(false).notNull(),
+  taxIncluded: boolean("taxIncluded").default(true).notNull(),
   sortOrder: int("sortOrder").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -123,6 +125,9 @@ export const orders = mysqlTable("orders", {
   status: mysqlEnum("status", ["pending", "preparing", "delivered", "cancelled"]).default("pending").notNull(),
   totalAmount: decimal("totalAmount", { precision: 10, scale: 2 }).default("0").notNull(),
   totalCost: decimal("totalCost", { precision: 10, scale: 2 }).default("0").notNull(),
+  ageConfirmed: boolean("ageConfirmed").default(false).notNull(),
+  invoiceStatus: mysqlEnum("invoiceStatus", ["pending", "issued", "not_applicable"]).default("not_applicable").notNull(),
+  invoiceNumber: varchar("invoiceNumber", { length: 64 }),
   handledByUserId: int("handledByUserId"), // staff que gestionó
   completedAt: timestamp("completedAt"),
   cancelledAt: timestamp("cancelledAt"),

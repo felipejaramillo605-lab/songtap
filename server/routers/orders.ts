@@ -32,15 +32,17 @@ export const ordersRouter = router({
             notes: z.string().optional(),
           })
         ),
+        ageConfirmed: z.boolean().optional(),
       })
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // Obtener precios actuales de los ítems
+      // Obtener precios actuales de los ítems y verificar alcohol
       let totalAmount = 0;
       let totalCost = 0;
+      let hasAlcohol = false;
       const enrichedItems: {
         menuItemId: number;
         menuItemName: string;
@@ -55,6 +57,9 @@ export const ordersRouter = router({
         const [menuItem] = await db.select().from(menuItems).where(eq(menuItems.id, item.menuItemId)).limit(1);
         if (!menuItem || !menuItem.isAvailable) {
           throw new TRPCError({ code: "BAD_REQUEST", message: `Ítem ${item.menuItemId} no disponible` });
+        }
+        if (menuItem.isAlcoholic) {
+          hasAlcohol = true;
         }
         const unitPrice = Number(menuItem.price);
         const unitCost = menuItem.cost ? Number(menuItem.cost) : null;
@@ -72,6 +77,10 @@ export const ordersRouter = router({
         });
       }
 
+      if (hasAlcohol && !input.ageConfirmed) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Este pedido incluye bebidas alcohólicas y requiere confirmar que eres mayor de 18 años." });
+      }
+
       // Crear la orden
       await createOrder({
         venueId: input.venueId,
@@ -81,6 +90,7 @@ export const ordersRouter = router({
         status: "pending",
         totalAmount: totalAmount.toFixed(2),
         totalCost: totalCost.toFixed(2),
+        ageConfirmed: !!input.ageConfirmed,
       });
 
       // Obtener el ID de la orden recién creada
