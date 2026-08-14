@@ -1,7 +1,7 @@
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
-import { getUserByEmail, createUserWithPassword } from "./db";
+import { getUserByEmail, createUserWithPassword, setPasswordResetToken, getUserByResetToken, updateUserPassword } from "./db";
 import bcrypt from "bcrypt";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -66,6 +66,32 @@ export const appRouter = router({
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 365 * 24 * 60 * 60 * 1000 });
         return { success: true, user: newUser };
+      }),
+    forgotPassword: publicProcedure
+      .input(z.object({ email: z.string().email() }))
+      .mutation(async ({ input }) => {
+        const user = await getUserByEmail(input.email);
+        if (!user) {
+          // Por seguridad respondemos éxito aunque no exista el correo
+          return { success: true, message: "Si el correo está registrado, recibirás instrucciones." };
+        }
+        const token = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+        const expires = new Date(Date.now() + 3600 * 1000); // 1 hora
+        await setPasswordResetToken(input.email, token, expires);
+        // En entorno de desarrollo mostramos un log con el token simulando envío de correo
+        console.log(`[Password Reset] Token para ${input.email}: ${token}`);
+        return { success: true, message: "Instrucciones enviadas al correo electrónico." };
+      }),
+    resetPassword: publicProcedure
+      .input(z.object({ token: z.string(), newPassword: z.string().min(6) }))
+      .mutation(async ({ input }) => {
+        const user = await getUserByResetToken(input.token);
+        if (!user || !user.resetPasswordExpires || user.resetPasswordExpires < new Date()) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "El token es inválido o ha expirado" });
+        }
+        const passwordHash = await bcrypt.hash(input.newPassword, 10);
+        await updateUserPassword(user.id, passwordHash);
+        return { success: true, message: "Contraseña actualizada con éxito" };
       }),
   }),
   venues: venuesRouter,

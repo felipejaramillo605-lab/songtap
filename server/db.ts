@@ -654,3 +654,29 @@ export async function createUserWithPassword(data: {
   });
   return getUserByEmail(data.email);
 }
+
+export async function setPasswordResetToken(email: string, token: string, expires: Date) {
+  const db = await getDb();
+  if (!db) return false;
+  await db
+    .update(users)
+    .set({ resetPasswordToken: token, resetPasswordExpires: expires })
+    .where(eq(users.email, email));
+  return true;
+}
+
+export async function getUserByResetToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.resetPasswordToken, token)).limit(1);
+  return result[0];
+}
+
+export async function updateUserPassword(userId: number, passwordHash: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(users)
+    .set({ passwordHash, resetPasswordToken: null, resetPasswordExpires: null })
+    .where(eq(users.id, userId));
+}

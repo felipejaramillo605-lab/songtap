@@ -1,4 +1,3 @@
-import { getLoginUrl } from "@/const";
 import { Music2, Lock, Mail, User, ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -8,15 +7,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { getLoginUrl } from "@/const";
 
 export default function Login() {
   const { user, isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
   const [, navigate] = useLocation();
-  const [mode, setMode] = useState<"choose" | "password" | "register">("choose");
+  const [mode, setMode] = useState<"choose" | "password" | "register" | "forgot" | "reset">("choose");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [resetToken, setResetToken] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -39,6 +41,22 @@ export default function Login() {
     onSuccess: async () => {
       toast.success("¡Cuenta creada con éxito!");
       await utils.auth.me.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const forgotPassword = trpc.auth.forgotPassword.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setMode("reset");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const resetPassword = trpc.auth.resetPassword.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setMode("password");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -102,7 +120,16 @@ export default function Login() {
                 />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Contraseña</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Contraseña</Label>
+                  <button
+                    type="button"
+                    onClick={() => setMode("forgot")}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                </div>
                 <Input
                   type="password"
                   required
@@ -186,6 +213,95 @@ export default function Login() {
                 onClick={() => setMode("choose")}
               >
                 ← Volver a opciones
+              </Button>
+            </form>
+          )}
+
+          {mode === "forgot" && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                forgotPassword.mutate({ email });
+              }}
+              className="space-y-4 text-left"
+            >
+              <div>
+                <Label className="text-xs text-muted-foreground">Correo electrónico de recuperación</Label>
+                <Input
+                  type="email"
+                  required
+                  className="mt-1 bg-input border-border text-foreground"
+                  placeholder="correo@ejemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  Te enviaremos un código/token de recuperación (revisa la consola del servidor en entorno de desarrollo).
+                </p>
+              </div>
+              <Button
+                type="submit"
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3 neon-glow"
+                disabled={forgotPassword.isPending}
+              >
+                {forgotPassword.isPending ? "Enviando..." : "Enviar enlace de recuperación"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setMode("password")}
+              >
+                ← Volver a inicio de sesión
+              </Button>
+            </form>
+          )}
+
+          {mode === "reset" && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                resetPassword.mutate({ token: resetToken, newPassword });
+              }}
+              className="space-y-4 text-left"
+            >
+              <div>
+                <Label className="text-xs text-muted-foreground">Token de recuperación</Label>
+                <Input
+                  type="text"
+                  required
+                  className="mt-1 bg-input border-border text-foreground"
+                  placeholder="Pega tu token aquí"
+                  value={resetToken}
+                  onChange={(e) => setResetToken(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Nueva contraseña (mín. 6 caracteres)</Label>
+                <Input
+                  type="password"
+                  required
+                  minLength={6}
+                  className="mt-1 bg-input border-border text-foreground"
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </div>
+              <Button
+                type="submit"
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3 neon-glow"
+                disabled={resetPassword.isPending}
+              >
+                {resetPassword.isPending ? "Actualizando..." : "Restablecer contraseña"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setMode("password")}
+              >
+                ← Volver a inicio de sesión
               </Button>
             </form>
           )}
