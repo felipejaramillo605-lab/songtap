@@ -5,12 +5,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import SongTapLayout from "@/components/SongTapLayout";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
-import { Bell, Mail, Phone, Volume2, ShieldAlert } from "lucide-react";
+import { Bell, Mail, Phone, Volume2, ShieldAlert, CheckCheck, Clock3, Inbox, CircleCheck } from "lucide-react";
 
 export default function OwnerNotificationsSettings() {
+  const { user, isAuthenticated, loading } = useAuth();
+  const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   const { data: settings, isLoading } = trpc.notifications.getSettings.useQuery();
+  const { data: history = [], isLoading: isLoadingHistory } = trpc.notifications.getHistory.useQuery(undefined, {
+    refetchInterval: 10000,
+  });
+  const { data: unreadCount = 0 } = trpc.notifications.getUnreadCount.useQuery(undefined, {
+    refetchInterval: 10000,
+  });
 
   const [enabled, setEnabled] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -18,6 +30,11 @@ export default function OwnerNotificationsSettings() {
   const [notificationPhone, setNotificationPhone] = useState("");
   const [senderAccountEmail, setSenderAccountEmail] = useState("");
   const [soundType, setSoundType] = useState("chime");
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) window.location.href = getLoginUrl();
+    if (!loading && isAuthenticated && user?.role !== "owner") navigate("/");
+  }, [loading, isAuthenticated, user?.role, navigate]);
 
   useEffect(() => {
     if (settings) {
@@ -34,6 +51,27 @@ export default function OwnerNotificationsSettings() {
     onSuccess: () => {
       toast.success("Ajustes de notificación actualizados correctamente.");
       utils.notifications.getSettings.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const markReadMutation = trpc.notifications.markRead.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.notifications.getHistory.invalidate(),
+        utils.notifications.getUnreadCount.invalidate(),
+      ]);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const markAllReadMutation = trpc.notifications.markAllRead.useMutation({
+    onSuccess: async () => {
+      toast.success("Todas las notificaciones fueron marcadas como leídas.");
+      await Promise.all([
+        utils.notifications.getHistory.invalidate(),
+        utils.notifications.getUnreadCount.invalidate(),
+      ]);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -78,11 +116,20 @@ export default function OwnerNotificationsSettings() {
     });
   };
 
+  if (loading || !isAuthenticated || user?.role !== "owner") {
+    return null;
+  }
+
   if (isLoading) {
-    return <div className="p-8 text-muted-foreground text-center">Cargando configuración...</div>;
+    return (
+      <SongTapLayout role="owner" title="Notificaciones">
+        <div className="p-8 text-center text-muted-foreground">Cargando configuración...</div>
+      </SongTapLayout>
+    );
   }
 
   return (
+    <SongTapLayout role="owner" title="Notificaciones">
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -207,6 +254,87 @@ export default function OwnerNotificationsSettings() {
           </Button>
         </div>
       </form>
+
+      <section className="glass-card rounded-xl border border-border bg-card overflow-hidden" aria-labelledby="notification-history-title">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-6 border-b border-border">
+          <div>
+            <h2 id="notification-history-title" className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Inbox className="h-5 w-5 text-primary" /> Historial de Notificaciones
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary" aria-label={`${unreadCount} alertas sin leer`}>
+                  {unreadCount} nuevas
+                </span>
+              )}
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Revisa las alertas enviadas por solicitudes de Manager y conserva el control de su lectura.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-border text-foreground hover:bg-secondary"
+            onClick={() => markAllReadMutation.mutate()}
+            disabled={unreadCount === 0 || markAllReadMutation.isPending}
+          >
+            <CheckCheck size={16} className="mr-2" />
+            {markAllReadMutation.isPending ? "Actualizando..." : "Marcar todas como leídas"}
+          </Button>
+        </div>
+
+        <div className="divide-y divide-border" aria-live="polite">
+          {isLoadingHistory ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">Cargando alertas anteriores...</div>
+          ) : history.length === 0 ? (
+            <div className="p-10 text-center">
+              <Inbox className="mx-auto h-8 w-8 text-muted-foreground/60" aria-hidden="true" />
+              <p className="mt-3 text-sm font-medium text-foreground">No hay notificaciones registradas</p>
+              <p className="mt-1 text-xs text-muted-foreground">Las nuevas solicitudes de Manager aparecerán aquí.</p>
+            </div>
+          ) : (
+            history.map((notification) => (
+              <article
+                key={notification.id}
+                className={`flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between ${
+                  notification.isRead ? "bg-card" : "bg-primary/[0.045]"
+                }`}
+              >
+                <div className="flex min-w-0 gap-3">
+                  <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${notification.isRead ? "bg-secondary text-muted-foreground" : "bg-primary/15 text-primary"}`}>
+                    {notification.isRead ? <CircleCheck size={18} aria-hidden="true" /> : <Bell size={18} aria-hidden="true" />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-semibold text-foreground">{notification.title}</h3>
+                      {!notification.isRead && <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">NUEVA</span>}
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">{notification.content}</p>
+                    <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Clock3 size={12} aria-hidden="true" />
+                      {new Date(notification.createdAt).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })}
+                      {notification.isRead && notification.readAt ? " · Leída" : " · Sin leer"}
+                    </p>
+                  </div>
+                </div>
+                {!notification.isRead && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 text-primary hover:bg-primary/10 hover:text-primary"
+                    onClick={() => markReadMutation.mutate({ id: notification.id })}
+                    disabled={markReadMutation.isPending}
+                    aria-label={`Marcar como leída: ${notification.title}`}
+                  >
+                    <CheckCheck size={15} className="mr-1.5" /> Marcar leída
+                  </Button>
+                )}
+              </article>
+            ))
+          )}
+        </div>
+      </section>
     </div>
+    </SongTapLayout>
   );
 }

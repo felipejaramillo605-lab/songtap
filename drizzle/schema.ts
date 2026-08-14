@@ -282,3 +282,19 @@ export const venueNotificationSettings = mysqlTable("venue_notification_settings
 
 export type VenueNotificationSettings = typeof venueNotificationSettings.$inferSelect;
 export type InsertVenueNotificationSettings = typeof venueNotificationSettings.$inferInsert;
+
+// ─── OWNER NOTIFICATION HISTORY ──────────────────────────────────────────────
+export const ownerNotificationHistory = mysqlTable("owner_notification_history", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerId: int("ownerId").notNull(),
+  type: varchar("type", { length: 64 }).default("venue_request").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  relatedRequestId: int("relatedRequestId"),
+  isRead: boolean("isRead").default(false).notNull(),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type OwnerNotificationHistory = typeof ownerNotificationHistory.$inferSelect;
+export type InsertOwnerNotificationHistory = typeof ownerNotificationHistory.$inferInsert;

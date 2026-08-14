@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getNotificationSettings, updateNotificationSettings, getPendingVenueRequests } from "../db";
+import {
+  getNotificationSettings,
+  updateNotificationSettings,
+  getPendingVenueRequests,
+  getOwnerNotificationHistory,
+  getUnreadOwnerNotificationCount,
+  markOwnerNotificationRead,
+  markAllOwnerNotificationsRead,
+} from "../db";
 import { TRPCError } from "@trpc/server";
 
 export const notificationsRouter = router({
@@ -35,5 +43,39 @@ export const notificationsRouter = router({
     }
     const pending = await getPendingVenueRequests();
     return pending.length;
+  }),
+
+  getHistory: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (ctx.user.role !== "owner") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return getOwnerNotificationHistory(ctx.user.id, input?.limit ?? 50);
+    }),
+
+  getUnreadCount: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "owner") {
+      return 0;
+    }
+    return getUnreadOwnerNotificationCount(ctx.user.id);
+  }),
+
+  markRead: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "owner") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      await markOwnerNotificationRead(ctx.user.id, input.id);
+      return { success: true };
+    }),
+
+  markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user.role !== "owner") {
+      throw new TRPCError({ code: "FORBIDDEN" });
+    }
+    await markAllOwnerNotificationsRead(ctx.user.id);
+    return { success: true };
   }),
 });

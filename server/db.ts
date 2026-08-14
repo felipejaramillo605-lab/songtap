@@ -17,6 +17,7 @@ import {
   venueRequests,
   venues,
   venueNotificationSettings,
+  ownerNotificationHistory,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
@@ -473,15 +474,32 @@ export async function createVenueRequest(data: typeof venueRequests.$inferInsert
   if (!db) throw new Error("DB not available");
   const result = await db.insert(venueRequests).values(data);
   
-  // Enviar notificación al owner si está habilitada
+  // Guardar la alerta para cada Owner y enviar el aviso del proyecto si procede.
   try {
-    // Buscar si hay configuración de notificaciones y si está habilitada
-    const [settings] = await db.select().from(venueNotificationSettings).limit(1);
-    if (!settings || settings.enabled) {
-      await notifyOwner({
-        title: `Nueva Solicitud de Local: ${data.venueName}`,
-        content: `El manager ha solicitado registrar el local "${data.venueName}" (Dirección: ${data.venueAddress || "N/A"}). Ingresa al panel de SongTap para aprobarla o rechazarla.`,
+    const owners = await db.select({ id: users.id }).from(users).where(eq(users.role, "owner"));
+    const title = `Nueva Solicitud de Local: ${data.venueName}`;
+    const content = `El manager ha solicitado registrar el local "${data.venueName}" (Dirección: ${data.venueAddress || "N/A"}). Ingresa al panel de SongTap para aprobarla o rechazarla.`;
+
+    for (const owner of owners) {
+      await db.insert(ownerNotificationHistory).values({
+        ownerId: owner.id,
+        type: "venue_request",
+        title,
+        content,
       });
+
+      const [settings] = await db
+        .select()
+        .from(venueNotificationSettings)
+        .where(eq(venueNotificationSettings.ownerId, owner.id))
+        .limit(1);
+
+      if (!settings || settings.enabled) {
+        await notifyOwner({
+          title,
+          content,
+        });
+      }
     }
   } catch (err) {
     console.warn("[VenueRequest] Error enviando notificación al owner:", err);
@@ -744,4 +762,43 @@ export async function updateNotificationSettings(ownerId: number, data: {
     }).where(eq(venueNotificationSettings.ownerId, ownerId));
   }
   return getNotificationSettings(ownerId);
+}
+
+export async function getOwnerNotificationHistory(ownerId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(ownerNotificationHistory)
+    .where(eq(ownerNotificationHistory.ownerId, ownerId))
+    .orderBy(desc(ownerNotificationHistory.createdAt))
+    .limit(limit);
+}
+
+export async function getUnreadOwnerNotificationCount(ownerId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db
+    .select()
+    .from(ownerNotificationHistory)
+    .where(and(eq(ownerNotificationHistory.ownerId, ownerId), eq(ownerNotificationHistory.isRead, false)));
+  return rows.length;
+}
+
+export async function markOwnerNotificationRead(ownerId: number, notificationId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db
+    .update(ownerNotificationHistory)
+    .set({ isRead: true, readAt: new Date() })
+    .where(and(eq(ownerNotificationHistory.id, notificationId), eq(ownerNotificationHistory.ownerId, ownerId)));
+}
+
+export async function markAllOwnerNotificationsRead(ownerId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db
+    .update(ownerNotificationHistory)
+    .set({ isRead: true, readAt: new Date() })
+    .where(and(eq(ownerNotificationHistory.ownerId, ownerId), eq(ownerNotificationHistory.isRead, false)));
 }

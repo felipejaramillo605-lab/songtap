@@ -189,3 +189,9 @@
 - [x] Mejorar accesibilidad de controles del recortador y soporte de navegación por teclado/touch
 - [x] Ampliar la suite de pruebas unitarias para validar la carga y seguridad de archivos y verificar 18/18 tests pasando
 - [x] Guardar checkpoint final consolidado
+
+## Historial de notificaciones del Owner
+- [x] Persistir alertas de solicitudes de Manager con estado de lectura por Owner
+- [x] Crear procedimientos seguros para consultar, marcar una y marcar todas las alertas como leídas
+- [x] Añadir historial de notificaciones y acciones de lectura al submódulo Owner
+- [x] Validar accesibilidad, pruebas y checkpoint
