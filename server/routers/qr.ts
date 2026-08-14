@@ -50,8 +50,7 @@ export const qrRouter = router({
     const session = await getQrSessionByToken(input.sessionToken);
     if (!session || !session.isActive) throw new TRPCError({ code: "UNAUTHORIZED", message: "Sesión inválida o expirada" });
 
-    const table = await getTableByToken("");
-    void table; // unused, session has tableId
+
 
     return {
       sessionId: session.id,
