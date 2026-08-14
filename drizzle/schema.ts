@@ -12,9 +12,12 @@ import {
 // ─── USERS (autenticación base) ──────────────────────────────────────────────
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+  openId: varchar("openId", { length: 64 }).notNull(),
   name: text("name"),
-  email: varchar("email", { length: 320 }),
+  email: varchar("email", { length: 320 }).unique(),
+  passwordHash: varchar("passwordHash", { length: 255 }),
+  googleId: varchar("googleId", { length: 128 }),
+  appleId: varchar("appleId", { length: 128 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["owner", "manager", "staff", "user"]).default("user").notNull(),
   venueId: int("venueId"), // null = owner global

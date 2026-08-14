@@ -43,6 +43,13 @@
       "when": 1786686296776,
       "tag": "0005_huge_robbie_robertson",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1786686927707,
+      "tag": "0006_wealthy_slapstick",
+      "breakpoints": true
     }
   ]
 }

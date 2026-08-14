@@ -625,3 +625,32 @@ export async function getAppauseVotesByTable(venueId: number, performingTableId:
     and(eq(appauseVotes.venueId, venueId), eq(appauseVotes.performingTableId, performingTableId))
   ).orderBy(desc(appauseVotes.createdAt));
 }
+
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return result[0];
+}
+
+export async function createUserWithPassword(data: {
+  email: string;
+  passwordHash: string;
+  name: string;
+  role?: "owner" | "manager" | "staff" | "user";
+  venueId?: number | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  const openId = `local_${Math.random().toString(36).substring(2, 15)}_${Date.now()}`;
+  await db.insert(users).values({
+    openId,
+    email: data.email,
+    passwordHash: data.passwordHash,
+    name: data.name,
+    role: data.role ?? "user",
+    venueId: data.venueId ?? null,
+    loginMethod: "password",
+  });
+  return getUserByEmail(data.email);
+}
