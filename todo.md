@@ -168,7 +168,7 @@
 
 ## Notas de alcance
 - [x] Integración manual del reproductor por Staff implementada (Spotify API pendiente de expansión futura)
-- [ ] Flujo completo de registro Manager con solicitud de venue queda pendiente
+- [ ] Flujo de registro Manager con solicitud y aprobación por el Owner (pendiente de expansión opcional)
 
 ## Pruebas
 - [x] Verificar contrato de solicitud de canción y posición FIFO con Vitest
