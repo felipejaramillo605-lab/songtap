@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { User, Lock, Phone, CreditCard, Home, Mail, FileText, ShieldCheck, Upload, CheckCircle2 } from "lucide-react";
+import { User, Lock, Phone, CreditCard, Home, Mail, FileText, ShieldCheck, Upload, CheckCircle2, Scissors } from "lucide-react";
 import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
+import { ProfilePhotoCropper } from "@/components/ProfilePhotoCropper";
 
 export default function Profile() {
   const { user, refresh } = useAuth();
@@ -29,24 +30,56 @@ export default function Profile() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingCv, setUploadingCv] = useState(false);
 
+  // Estados para el cropper de foto
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [rawImageSrc, setRawImageSrc] = useState("");
+
   const uploadMutation = trpc.upload.uploadFile.useMutation();
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "photo" | "cv") => {
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validar tamaño (máx 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("La imagen supera el tamaño máximo de 5MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setRawImageSrc(reader.result as string);
+      setCropperOpen(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCropComplete = async (croppedBase64: string) => {
+    setUploadingPhoto(true);
+    try {
+      const res = await uploadMutation.mutateAsync({
+        filename: "profile-cropped.jpg",
+        base64Data: croppedBase64,
+        contentType: "image/jpeg",
+      });
+      setPhotoUrl(res.url);
+      toast.success("Foto de perfil recortada y cargada con éxito");
+    } catch (err: any) {
+      toast.error(`Error al subir foto: ${err.message}`);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleCvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     if (file.size > 5 * 1024 * 1024) {
       toast.error("El archivo supera el tamaño máximo de 5MB");
       return;
     }
 
-    if (type === "photo") {
-      setUploadingPhoto(true);
-    } else {
-      setUploadingCv(true);
-    }
-
+    setUploadingCv(true);
     const reader = new FileReader();
     reader.onload = async () => {
       try {
@@ -56,25 +89,13 @@ export default function Profile() {
           base64Data,
           contentType: file.type || "application/octet-stream",
         });
-
-        if (type === "photo") {
-          setPhotoUrl(res.url);
-          toast.success("Foto de perfil cargada correctamente");
-        } else {
-          setCvUrl(res.url);
-          toast.success("Hoja de vida (CV) cargada correctamente");
-        }
+        setCvUrl(res.url);
+        toast.success("Hoja de vida (CV) cargada correctamente");
       } catch (err: any) {
-        toast.error(`Error al subir archivo: ${err.message}`);
+        toast.error(`Error al subir CV: ${err.message}`);
       } finally {
-        if (type === "photo") setUploadingPhoto(false);
-        else setUploadingCv(false);
+        setUploadingCv(false);
       }
-    };
-    reader.onerror = () => {
-      toast.error("No se pudo leer el archivo");
-      if (type === "photo") setUploadingPhoto(false);
-      else setUploadingCv(false);
     };
     reader.readAsDataURL(file);
   };
@@ -204,7 +225,7 @@ export default function Profile() {
                 <FileText className="h-5 w-5 text-primary" /> Información Personal y DIAN / Habeas Data
               </CardTitle>
               <CardDescription>
-                Actualiza tus datos de contacto y carga tu foto y hoja de vida desde tu dispositivo.
+                Actualiza tus datos de contacto, recorta tu foto de perfil y carga tu hoja de vida.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -271,24 +292,24 @@ export default function Profile() {
                   />
                 </div>
 
-                {/* Subida local de Foto y CV */}
+                {/* Subida y Recorte de Foto y CV */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1.5 font-medium">
-                      <Upload className="h-4 w-4 text-primary" /> Fotografía de Perfil
+                      <Scissors className="h-4 w-4 text-primary" /> Recortar Foto de Perfil
                     </Label>
                     <div className="flex items-center gap-2">
                       <Input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleFileUpload(e, "photo")}
+                        onChange={handlePhotoSelect}
                         className="bg-background border-border text-xs cursor-pointer file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                       />
                     </div>
-                    {uploadingPhoto && <p className="text-xs text-primary animate-pulse">Subiendo foto...</p>}
+                    {uploadingPhoto && <p className="text-xs text-primary animate-pulse">Procesando y subiendo foto...</p>}
                     {photoUrl && !uploadingPhoto && (
                       <p className="text-xs text-green-400 flex items-center gap-1">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Foto cargada correctamente
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Foto lista y guardada
                       </p>
                     )}
                   </div>
@@ -301,7 +322,7 @@ export default function Profile() {
                       <Input
                         type="file"
                         accept=".pdf,.doc,.docx,application/pdf"
-                        onChange={(e) => handleFileUpload(e, "cv")}
+                        onChange={handleCvUpload}
                         className="bg-background border-border text-xs cursor-pointer file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                       />
                     </div>
@@ -389,6 +410,14 @@ export default function Profile() {
           </Card>
         </div>
       </div>
+
+      {/* Modal de recorte de foto */}
+      <ProfilePhotoCropper
+        isOpen={cropperOpen}
+        imageSrc={rawImageSrc}
+        onClose={() => setCropperOpen(false)}
+        onCropComplete={handleCropComplete}
+      />
     </div>
   );
 }
