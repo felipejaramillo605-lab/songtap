@@ -105,13 +105,15 @@ export const usersRouter = router({
       
       // No permitir eliminar al owner
       const userToDelete = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
-      if (userToDelete[0]?.role === "owner") {
+      if (userToDelete[0]?.role === ("owner" as any)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No se puede eliminar al owner" });
       }
       
-      // Manager solo puede eliminar staff de su venue
-      if (ctx.user.role === "manager" && userToDelete[0]?.venueId !== ctx.user.venueId) {
-        throw new TRPCError({ code: "FORBIDDEN" });
+      // Manager solo puede eliminar staff de su venue y nunca a otro manager u owner
+      if (ctx.user.role === "manager") {
+        if (userToDelete[0]?.venueId !== ctx.user.venueId || userToDelete[0]?.role === "manager" || userToDelete[0]?.role === ("owner" as any)) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
       }
       
       await db.delete(users).where(eq(users.id, input.userId));
