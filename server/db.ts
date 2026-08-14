@@ -448,10 +448,26 @@ export async function updateMusicRequestStatus(
 
 // ─── AUDIT LOGS ───────────────────────────────────────────────────────────────
 
+function deriveAuditModule(action: string) {
+  if (action.includes("ORDER")) return "Pedidos";
+  if (action.includes("TABLE") || action.includes("QR")) return "Mesas y QR";
+  if (action.includes("MENU") || action.includes("CATEGORY")) return "Menú";
+  if (action.includes("VENUE")) return "Compañías";
+  if (action.includes("USER") || action.includes("STAFF")) return "Equipo y usuarios";
+  if (action.includes("MUSIC") || action.includes("SONG")) return "Música";
+  return "Sistema";
+}
+
 export async function createAuditLog(data: typeof auditLogs.$inferInsert) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(auditLogs).values(data).catch(() => {});
+  await db
+    .insert(auditLogs)
+    .values({
+      ...data,
+      module: data.module ?? deriveAuditModule(data.action),
+    })
+    .catch(() => {});
 }
 
 export async function getAuditLogs(venueId?: number, limit = 100) {
@@ -459,8 +475,25 @@ export async function getAuditLogs(venueId?: number, limit = 100) {
   if (!db) return [];
   const conditions = venueId ? [eq(auditLogs.venueId, venueId)] : [];
   return db
-    .select()
+    .select({
+      id: auditLogs.id,
+      venueId: auditLogs.venueId,
+      companyName: venues.name,
+      userId: auditLogs.userId,
+      executorName: users.name,
+      executorEmail: users.email,
+      userRole: auditLogs.userRole,
+      module: auditLogs.module,
+      action: auditLogs.action,
+      entity: auditLogs.entity,
+      entityId: auditLogs.entityId,
+      details: auditLogs.details,
+      ipAddress: auditLogs.ipAddress,
+      createdAt: auditLogs.createdAt,
+    })
     .from(auditLogs)
+    .leftJoin(venues, eq(auditLogs.venueId, venues.id))
+    .leftJoin(users, eq(auditLogs.userId, users.id))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(auditLogs.createdAt))
     .limit(limit);

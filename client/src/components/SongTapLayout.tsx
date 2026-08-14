@@ -19,11 +19,13 @@ import {
   UtensilsCrossed,
   User,
   Bell,
+  Menu,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 interface NavItem {
   label: string;
@@ -64,6 +66,7 @@ const roleColors = {
 
 export default function SongTapLayout({ children, role, title }: SongTapLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
   const { user, logout } = useAuth();
 
@@ -124,11 +127,11 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
   const navItems = roleNavMap[role];
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen min-w-0 bg-background">
       {/* Sidebar */}
       <aside
         className={cn(
-          "flex flex-col border-r border-border bg-sidebar transition-all duration-300 ease-out",
+          "hidden md:flex md:sticky md:top-0 md:h-screen flex-col border-r border-border bg-sidebar transition-all duration-300 ease-out",
           collapsed ? "w-16" : "w-60"
         )}
       >
@@ -230,25 +233,101 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
         </div>
       </aside>
 
+      {/* Navegación móvil: el sidebar se abre como drawer y no consume el ancho del contenido. */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" className="w-[86vw] max-w-sm gap-0 border-r border-border bg-sidebar p-0 text-sidebar-foreground sm:w-80">
+          <SheetHeader className="border-b border-border px-5 py-5 text-left">
+            <SheetTitle className="flex items-center gap-3 text-foreground">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground neon-glow">
+                <Music2 size={18} />
+              </span>
+              <span>
+                <span className="block text-sm font-bold leading-tight">SongTap</span>
+                <span className="block text-[10px] font-normal text-muted-foreground">by CS2 · {roleLabels[role]}</span>
+              </span>
+            </SheetTitle>
+          </SheetHeader>
+
+          <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Navegación principal">
+            {navItems.map((item) => {
+              const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    "flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium transition-colors",
+                    isActive ? "bg-primary text-primary-foreground neon-glow" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <span className="flex items-center gap-3">
+                    {item.icon}
+                    {item.label}
+                  </span>
+                  {item.badge !== undefined && (
+                    <span className="rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="border-t border-border p-4">
+            {user && (
+              <div className="mb-3 flex min-w-0 items-center gap-3 rounded-lg bg-secondary/30 px-3 py-2">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary uppercase">
+                  {user.name?.[0] || "U"}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-foreground">{user.name}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">{user.email || role}</p>
+                </div>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-2 text-muted-foreground hover:bg-destructive/10 hover:text-foreground"
+              onClick={() => logout()}
+            >
+              <LogOut size={16} /> Salir
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-background">
-        <header className="h-16 border-b border-border px-6 flex items-center justify-between bg-sidebar/50 backdrop-blur">
-          <h1 className="text-lg font-bold text-foreground">{title || "SongTap"}</h1>
-          <div className="flex items-center gap-3">
+        <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border bg-sidebar/50 px-4 py-3 backdrop-blur sm:px-6 sm:py-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 md:hidden"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Abrir menú de navegación"
+            >
+              <Menu size={20} />
+            </Button>
+            <h1 className="truncate text-base font-bold text-foreground sm:text-lg">{title || "SongTap"}</h1>
+          </div>
+          <div className="flex min-w-0 items-center justify-end gap-2">
             {role === "owner" && pendingCount > 0 && (
               <Link href="/owner/venue-requests">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary/20 text-primary border border-primary/30 cursor-pointer animate-pulse">
-                  <Bell size={13} /> {pendingCount} {pendingCount === 1 ? "solicitud pendiente" : "solicitudes pendientes"}
+                <span className="inline-flex max-w-36 items-center gap-1.5 truncate rounded-full border border-primary/30 bg-primary/20 px-2.5 py-1 text-[11px] font-semibold text-primary animate-pulse sm:max-w-none sm:px-3 sm:text-xs">
+                  <Bell size={13} className="shrink-0" /> <span className="truncate">{pendingCount} {pendingCount === 1 ? "solicitud" : "solicitudes"} pendientes</span>
                 </span>
               </Link>
             )}
-            <span className="text-xs text-muted-foreground capitalize">
+            <span className="hidden text-xs text-muted-foreground capitalize sm:block">
               {user?.name || role}
             </span>
           </div>
         </header>
 
-        <div className="flex-1 p-6 overflow-y-auto">{children}</div>
+        <div className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6">{children}</div>
       </main>
     </div>
   );

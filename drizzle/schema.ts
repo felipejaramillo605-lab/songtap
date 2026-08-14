@@ -186,6 +186,7 @@ export const auditLogs = mysqlTable("audit_logs", {
   venueId: int("venueId"), // null = acción global
   userId: int("userId"),
   userRole: varchar("userRole", { length: 32 }),
+  module: varchar("module", { length: 64 }).default("Sistema").notNull(),
   action: varchar("action", { length: 128 }).notNull(),
   entity: varchar("entity", { length: 64 }),
   entityId: int("entityId"),

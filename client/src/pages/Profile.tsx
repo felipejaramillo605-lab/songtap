@@ -166,12 +166,12 @@ export default function Profile() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-12">
+    <div className="w-full max-w-4xl mx-auto space-y-6 pb-12">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-          <User className="h-8 w-8 text-primary" /> Mi Perfil de Usuario
+        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+          <User className="h-6 w-6 shrink-0 text-primary sm:h-8 sm:w-8" /> Mi Perfil de Usuario
         </h1>
-        <p className="text-muted-foreground">
+        <p className="mt-1 text-sm text-muted-foreground sm:text-base">
           Gestiona tu información personal, documentos, credenciales de acceso y preferencias regionales en SongTap.
         </p>
       </div>

@@ -200,3 +200,11 @@
 - [x] Añadir búsqueda por texto en título y contenido de alertas
 - [x] Añadir filtros de fecha inicial y final con opción de limpiar resultados
 - [x] Validar accesibilidad, pruebas funcionales y checkpoint
+
+## Experiencia móvil y auditoría ampliada
+- [x] Corregir navegación y layout de paneles en pantallas móviles
+- [x] Adaptar la vista de perfil y formularios para un ancho móvil utilizable
+- [x] Ampliar los logs con compañía, módulo, usuario ejecutor, fecha y hora
+- [x] Rediseñar la vista de auditoría con las nuevas columnas y formato responsive
+- [x] Validar el drawer y contenido de los paneles principales en móvil
+- [x] Añadir prueba de contrato para auditoría enriquecida y guardar checkpoint

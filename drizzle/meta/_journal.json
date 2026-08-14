@@ -78,6 +78,13 @@
       "when": 1786730596337,
       "tag": "0010_soft_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1786731816241,
+      "tag": "0011_magenta_wendell_vaughn",
+      "breakpoints": true
     }
   ]
 }

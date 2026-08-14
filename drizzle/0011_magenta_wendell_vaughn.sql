@@ -1,0 +1,1 @@
+ALTER TABLE `audit_logs` ADD `module` varchar(64) DEFAULT 'Sistema' NOT NULL;
