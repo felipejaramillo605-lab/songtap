@@ -1,9 +1,11 @@
-import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { Toaster } from "sonner";
+import { useAuth } from "./_core/hooks/useAuth";
+import SongTapLayout from "./components/SongTapLayout";
 
 // Public pages
 import Home from "./pages/Home";
@@ -13,6 +15,9 @@ import PrivacyPolicy from "./pages/client/PrivacyPolicy";
 
 // Auth
 import Login from "./pages/Login";
+
+// Profile Page
+import Profile from "./pages/Profile";
 
 // Owner pages
 import OwnerDashboard from "./pages/owner/OwnerDashboard";
@@ -34,6 +39,16 @@ import StaffOrders from "./pages/staff/StaffOrders";
 import StaffMusic from "./pages/staff/StaffMusic";
 import StaffTables from "./pages/staff/StaffTables";
 
+function ProfilePageWrapper() {
+  const { user } = useAuth();
+  const role = user?.role === "owner" ? "owner" : user?.role === "manager" ? "manager" : "staff";
+  return (
+    <SongTapLayout role={role} title="Mi Perfil">
+      <Profile />
+    </SongTapLayout>
+  );
+}
+
 function Router() {
   return (
     <Switch>
@@ -45,6 +60,9 @@ function Router() {
       <Route path="/mesa/:qrToken" component={ClientPortal} />
       <Route path="/menu" component={ClientMenu} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
+
+      {/* Profile */}
+      <Route path="/profile" component={ProfilePageWrapper} />
 
       {/* Owner */}
       <Route path="/owner" component={OwnerDashboard} />

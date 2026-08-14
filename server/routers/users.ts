@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { createAuditLog, getAllUsers, getUsersByVenue, updateUserRole, getDb } from "../db";
 import { users } from "../../drizzle/schema";
+import bcrypt from "bcrypt";
 
 export const usersRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -48,7 +49,6 @@ export const usersRouter = router({
       }
       await updateUserRole(input.userId, input.role, input.venueId);
       await createAuditLog({
-        venueId: input.venueId,
         userId: ctx.user.id,
         userRole: ctx.user.role,
         action: "ASSIGN_USER_TO_VENUE",
@@ -73,7 +73,6 @@ export const usersRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Solo el usuario puede editar su propio perfil, o un manager/owner de su venue
       if (ctx.user.id !== input.userId && ctx.user.role !== "owner" && ctx.user.role !== "manager") {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
@@ -103,13 +102,11 @@ export const usersRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       
-      // No permitir eliminar al owner
       const userToDelete = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
       if (userToDelete[0]?.role === ("owner" as any)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No se puede eliminar al owner" });
       }
       
-      // Manager solo puede eliminar staff de su venue y nunca a otro manager u owner
       if (ctx.user.role === "manager") {
         if (userToDelete[0]?.venueId !== ctx.user.venueId || userToDelete[0]?.role === "manager" || userToDelete[0]?.role === ("owner" as any)) {
           throw new TRPCError({ code: "FORBIDDEN" });
@@ -124,8 +121,34 @@ export const usersRouter = router({
         action: "DELETE_USER",
         entity: "user",
         entityId: input.userId,
-        details: JSON.stringify({}),
       });
       return { success: true };
+    }),
+
+  updateMyPreferences: protectedProcedure
+    .input(z.object({ language: z.enum(["es", "en"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(users).set({ language: input.language }).where(eq(users.id, ctx.user.id));
+      return { success: true };
+    }),
+
+  updateMyPassword: protectedProcedure
+    .input(z.object({ currentPassword: z.string(), newPassword: z.string().min(6) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const userRecord = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      if (!userRecord[0] || !userRecord[0].passwordHash) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Este usuario no usa contraseña local (inicio por OAuth)" });
+      }
+      const valid = await bcrypt.compare(input.currentPassword, userRecord[0].passwordHash);
+      if (!valid) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "La contraseña actual es incorrecta" });
+      }
+      const newHash = await bcrypt.hash(input.newPassword, 10);
+      await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, ctx.user.id));
+      return { success: true, message: "Contraseña actualizada con éxito" };
     }),
 });

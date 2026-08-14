@@ -28,6 +28,7 @@ export const users = mysqlTable("users", {
   cvUrl: text("cvUrl"),
   resetPasswordToken: varchar("resetPasswordToken", { length: 255 }),
   resetPasswordExpires: timestamp("resetPasswordExpires"),
+  language: varchar("language", { length: 16 }).default("es").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

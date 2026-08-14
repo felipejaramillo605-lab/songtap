@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `language` varchar(16) DEFAULT 'es' NOT NULL;

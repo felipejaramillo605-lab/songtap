@@ -18,6 +18,7 @@ import {
   Table2,
   Users,
   UtensilsCrossed,
+  User,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -40,6 +41,7 @@ const ownerNav: NavItem[] = [
   { label: "Solicitudes", href: "/owner/venue-requests", icon: <ClipboardList size={18} /> },
   { label: "Usuarios", href: "/owner/users", icon: <Users size={18} /> },
   { label: "Auditoría", href: "/owner/audit", icon: <Shield size={18} /> },
+  { label: "Mi Perfil", href: "/profile", icon: <User size={18} /> },
 ];
 
 const managerNav: NavItem[] = [
@@ -49,12 +51,14 @@ const managerNav: NavItem[] = [
   { label: "Personal", href: "/manager/staff", icon: <Users size={18} /> },
   { label: "Finanzas", href: "/manager/finance", icon: <DollarSign size={18} /> },
   { label: "Configuración", href: "/manager/settings", icon: <Cog size={18} /> },
+  { label: "Mi Perfil", href: "/profile", icon: <User size={18} /> },
 ];
 
 const staffNav: NavItem[] = [
   { label: "Pedidos", href: "/staff", icon: <ClipboardList size={18} /> },
   { label: "Mesas", href: "/staff/tables", icon: <Table2 size={18} /> },
   { label: "Música", href: "/staff/music", icon: <Music2 size={18} /> },
+  { label: "Mi Perfil", href: "/profile", icon: <User size={18} /> },
 ];
 
 const roleNavMap = { owner: ownerNav, manager: managerNav, staff: staffNav };
@@ -95,82 +99,90 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
 
         {/* Role badge */}
         {!collapsed && (
-          <div className="px-4 py-3 border-b border-border">
-            <span className={cn("text-xs font-semibold uppercase tracking-wider", roleColors[role])}>
-              {roleLabels[role]}
-            </span>
+          <div className="px-4 py-3 border-b border-border bg-secondary/20">
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Modo Panel</p>
+            <p className={cn("text-xs font-bold capitalize", roleColors[role])}>{roleLabels[role]}</p>
           </div>
         )}
 
-        {/* Nav */}
-        <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto">
+        {/* Navigation Items */}
+        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
-            const isActive = location === item.href;
+            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
             return (
-              <Link key={item.href} href={item.href}>
-                <div
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150",
-                    "hover:bg-sidebar-accent hover:text-foreground",
-                    isActive
-                      ? "bg-primary/15 text-primary border border-primary/20"
-                      : "text-muted-foreground",
-                    collapsed && "justify-center px-2"
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <span className={cn("flex-shrink-0", isActive && "text-primary")}>{item.icon}</span>
-                  {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
-                </div>
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-sm neon-glow"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  collapsed && "justify-center px-2"
+                )}
+                title={collapsed ? item.label : undefined}
+              >
+                <span className="flex-shrink-0">{item.icon}</span>
+                {!collapsed && <span className="truncate">{item.label}</span>}
               </Link>
             );
           })}
         </nav>
 
-        {/* User + logout */}
-        <div className={cn("border-t border-border p-3 space-y-2", collapsed && "px-2")}>
+        {/* Footer / User info & Collapse */}
+        <div className="p-3 border-t border-border space-y-2">
           {!collapsed && user && (
-            <div className="px-2 py-1">
-              <p className="text-xs font-medium text-foreground truncate">{user.name}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+            <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg bg-secondary/30">
+              <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs uppercase flex-shrink-0">
+                {user.name?.[0] || "U"}
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-xs font-semibold text-foreground truncate">{user.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{user.email || role}</p>
+              </div>
             </div>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={logout}
-            className={cn("w-full text-muted-foreground hover:text-destructive hover:bg-destructive/10", collapsed && "px-2")}
-            title="Cerrar sesión"
-          >
-            <LogOut size={16} />
-            {!collapsed && <span className="ml-2 text-xs">Cerrar sesión</span>}
-          </Button>
-        </div>
 
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="absolute left-[calc(var(--sidebar-w)-12px)] top-20 w-6 h-6 rounded-full bg-border border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary transition-colors z-10"
-          style={{ "--sidebar-w": collapsed ? "64px" : "240px" } as React.CSSProperties}
-        >
-          {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-        </button>
+          <div className="flex items-center justify-between gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => logout()}
+              className={cn("w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10", collapsed && "justify-center px-0")}
+              title="Cerrar sesión"
+            >
+              <LogOut size={16} />
+              {!collapsed && <span className="ml-2 text-xs">Salir</span>}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setCollapsed(!collapsed)}
+              className="text-muted-foreground hover:text-foreground"
+              title={collapsed ? "Expandir" : "Contraer"}
+            >
+              {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </Button>
+          </div>
+        </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top bar */}
-        <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-          <h1 className="text-lg font-semibold text-foreground">{title || "SongTap"}</h1>
-          <div className="flex items-center gap-2">
-            <span className={cn("text-xs font-medium px-2 py-1 rounded-full border", roleColors[role], "border-current/30 bg-current/10")}>
-              {roleLabels[role]}
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <header className="h-16 border-b border-border bg-card/50 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-20">
+          <h1 className="text-lg font-bold text-foreground">{title || "SongTap Management"}</h1>
+          <div className="flex items-center gap-3">
+            <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium border border-primary/20">
+              {role.toUpperCase()}
             </span>
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-6">{children}</div>
-      </main>
+        <main className="flex-1 p-6 lg:p-8 bg-background">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
