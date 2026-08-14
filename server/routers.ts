@@ -1,13 +1,19 @@
+import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
-import { getUserByEmail, createUserWithPassword, setPasswordResetToken, getUserByResetToken, updateUserPassword } from "./db";
-import bcrypt from "bcrypt";
-import { z } from "zod";
-import { TRPCError } from "@trpc/server";
-import { COOKIE_NAME } from "@shared/const";
+import {
+  getUserByEmail,
+  createUserWithPassword,
+  setPasswordResetToken,
+  getUserByResetToken,
+  updateUserPassword,
+  createVenueRequest,
+} from "./db";
 import { sdk } from "./_core/sdk";
-import { ENV } from "./_core/env";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import bcrypt from "bcrypt";
 import { venuesRouter } from "./routers/venues";
 import { usersRouter } from "./routers/users";
 import { tablesRouter } from "./routers/tables";
@@ -21,11 +27,13 @@ import { uploadRouter } from "./routers/upload";
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query((opts) => opts.ctx.user),
+    me: publicProcedure.query(({ ctx }) => {
+      return ctx.user || null;
+    }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return { success: true } as const;
+      ctx.res.clearCookie(COOKIE_NAME, cookieOptions);
+      return { success: true };
     }),
     loginPassword: publicProcedure
       .input(z.object({ email: z.string().email(), password: z.string() }))
@@ -38,7 +46,6 @@ export const appRouter = router({
         if (!valid) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "Correo o contraseña incorrectos" });
         }
-        // Emit session cookie using SDK session signing
         const sessionToken = await sdk.createSessionToken(user.openId, {
           name: user.name || user.email || "Usuario",
         });
@@ -47,20 +54,42 @@ export const appRouter = router({
         return { success: true, user };
       }),
     registerPassword: publicProcedure
-      .input(z.object({ email: z.string().email(), password: z.string().min(6), name: z.string() }))
+      .input(
+        z.object({
+          email: z.string().email(),
+          password: z.string().min(6),
+          name: z.string(),
+          accountType: z.enum(["user", "manager"]).optional().default("user"),
+          venueName: z.string().optional(),
+          venueAddress: z.string().optional(),
+          venuePhone: z.string().optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const existing = await getUserByEmail(input.email);
         if (existing) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "El correo ya está registrado" });
         }
         const passwordHash = await bcrypt.hash(input.password, 10);
+        const role = input.accountType === "manager" ? "manager" : "user";
         const newUser = await createUserWithPassword({
           email: input.email,
           passwordHash,
           name: input.name,
-          role: "user",
+          role,
         });
         if (!newUser) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        if (role === "manager" && input.venueName) {
+          await createVenueRequest({
+            managerId: newUser.id,
+            venueName: input.venueName,
+            venueAddress: input.venueAddress,
+            venuePhone: input.venuePhone,
+            venueEmail: newUser.email,
+          });
+        }
+
         const sessionToken = await sdk.createSessionToken(newUser.openId, {
           name: newUser.name || newUser.email || "Usuario",
         });
@@ -73,13 +102,11 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const user = await getUserByEmail(input.email);
         if (!user) {
-          // Por seguridad respondemos éxito aunque no exista el correo
           return { success: true, message: "Si el correo está registrado, recibirás instrucciones." };
         }
         const token = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
-        const expires = new Date(Date.now() + 3600 * 1000); // 1 hora
+        const expires = new Date(Date.now() + 3600 * 1000);
         await setPasswordResetToken(input.email, token, expires);
-        // En entorno de desarrollo mostramos un log con el token simulando envío de correo
         console.log(`[Password Reset] Token para ${input.email}: ${token}`);
         return { success: true, message: "Instrucciones enviadas al correo electrónico." };
       }),

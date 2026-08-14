@@ -168,7 +168,7 @@
 
 ## Notas de alcance
 - [x] Integración manual del reproductor por Staff implementada (Spotify API pendiente de expansión futura)
-- [ ] Flujo de registro Manager con solicitud durante el alta de cuenta (pendiente de integración final en UI de registro)
+- [ ] Flujo de registro Manager con solicitud durante el alta de cuenta y validación de reglas de negocio
 
 ## Pruebas
 - [x] Verificar contrato de solicitud de canción y posición FIFO con Vitest

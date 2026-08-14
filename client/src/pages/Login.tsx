@@ -1,4 +1,3 @@
-import { Music2, Lock, Mail, User, ArrowRight, ShieldAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
@@ -9,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
+import { Music2, Mail, Building2, User } from "lucide-react";
 
 export default function Login() {
   const { user, isAuthenticated } = useAuth();
@@ -18,6 +18,10 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [accountType, setAccountType] = useState<"user" | "manager">("user");
+  const [venueName, setVenueName] = useState("");
+  const [venueAddress, setVenueAddress] = useState("");
+  const [venuePhone, setVenuePhone] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
@@ -39,8 +43,12 @@ export default function Login() {
   });
 
   const registerPassword = trpc.auth.registerPassword.useMutation({
-    onSuccess: async () => {
-      toast.success("¡Cuenta creada con éxito!");
+    onSuccess: async (data) => {
+      if (data.user?.role === "manager") {
+        toast.success("¡Cuenta de Manager creada! Tu solicitud de local fue enviada al Owner para aprobación.");
+      } else {
+        toast.success("¡Cuenta creada con éxito!");
+      }
       await utils.auth.me.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -64,14 +72,14 @@ export default function Login() {
 
   const handleSocialLogin = (provider: string) => {
     toast.error(
-      `El inicio de sesión con ${provider} requiere credenciales de API (Client ID / Secret). Actualmente está disponible Manus OAuth o Correo y Contraseña.`
+      `El inicio de sesión con ${provider} requiere credenciales de API. Utiliza Manus OAuth o Correo y Contraseña.`
     );
   };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        <div className="glass-card rounded-2xl p-8 text-center space-y-6 border border-border bg-card">
+        <div className="glass-card rounded-2xl p-8 text-center space-y-6 border border-border bg-card shadow-xl">
           <div className="flex justify-center">
             <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center neon-glow">
               <Music2 size={28} className="text-primary-foreground" />
@@ -102,7 +110,6 @@ export default function Login() {
                 <Button
                   variant="outline"
                   className="w-full text-xs py-2 border-border"
-                  title="Google (Configuración pendiente)"
                   onClick={() => handleSocialLogin("Google")}
                 >
                   Google
@@ -110,7 +117,6 @@ export default function Login() {
                 <Button
                   variant="outline"
                   className="w-full text-xs py-2 border-border"
-                  title="Apple (Configuración pendiente)"
                   onClick={() => handleSocialLogin("Apple")}
                 >
                   Apple
@@ -118,7 +124,6 @@ export default function Login() {
                 <Button
                   variant="outline"
                   className="w-full text-xs py-2 border-border"
-                  title="Facebook (Configuración pendiente)"
                   onClick={() => handleSocialLogin("Facebook")}
                 >
                   Meta
@@ -126,7 +131,6 @@ export default function Login() {
                 <Button
                   variant="outline"
                   className="w-full text-xs py-2 border-border"
-                  title="Microsoft (Configuración pendiente)"
                   onClick={() => handleSocialLogin("Microsoft")}
                 >
                   MS
@@ -204,48 +208,124 @@ export default function Login() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                registerPassword.mutate({ email, password, name });
+                registerPassword.mutate({
+                  email,
+                  password,
+                  name,
+                  accountType,
+                  venueName: accountType === "manager" ? venueName : undefined,
+                  venueAddress: accountType === "manager" ? venueAddress : undefined,
+                  venuePhone: accountType === "manager" ? venuePhone : undefined,
+                });
               }}
-              className="space-y-4 text-left"
+              className="space-y-3 text-left max-h-[75vh] overflow-y-auto px-1"
             >
+              <div>
+                <Label className="text-xs text-muted-foreground">Tipo de cuenta</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setAccountType("user")}
+                    className={`flex items-center justify-center gap-2 p-2 rounded-lg border text-xs font-medium transition-all ${
+                      accountType === "user"
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-card text-muted-foreground hover:border-border/80"
+                    }`}
+                  >
+                    <User size={14} /> Cliente / General
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountType("manager")}
+                    className={`flex items-center justify-center gap-2 p-2 rounded-lg border text-xs font-medium transition-all ${
+                      accountType === "manager"
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-card text-muted-foreground hover:border-border/80"
+                    }`}
+                  >
+                    <Building2 size={14} /> Manager / Local
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <Label className="text-xs text-muted-foreground">Nombre completo</Label>
                 <Input
                   type="text"
                   required
-                  className="mt-1 bg-input border-border text-foreground"
+                  className="mt-1 bg-input border-border text-foreground text-xs"
                   placeholder="Tu Nombre"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
+
               <div>
                 <Label className="text-xs text-muted-foreground">Correo electrónico</Label>
                 <Input
                   type="email"
                   required
-                  className="mt-1 bg-input border-border text-foreground"
+                  className="mt-1 bg-input border-border text-foreground text-xs"
                   placeholder="correo@ejemplo.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
+
               <div>
                 <Label className="text-xs text-muted-foreground">Contraseña (mín. 6 caracteres)</Label>
                 <Input
                   type="password"
                   required
                   minLength={6}
-                  className="mt-1 bg-input border-border text-foreground"
+                  className="mt-1 bg-input border-border text-foreground text-xs"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
                 <PasswordStrengthIndicator password={password} />
               </div>
+
+              {accountType === "manager" && (
+                <div className="pt-2 border-t border-border/50 space-y-3">
+                  <p className="text-xs font-semibold text-primary">Información de tu Local / Empresa</p>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Nombre del local / bar / karaoke</Label>
+                    <Input
+                      type="text"
+                      required={accountType === "manager"}
+                      className="mt-1 bg-input border-border text-foreground text-xs"
+                      placeholder="Ej. Bar La Noche"
+                      value={venueName}
+                      onChange={(e) => setVenueName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Dirección</Label>
+                    <Input
+                      type="text"
+                      className="mt-1 bg-input border-border text-foreground text-xs"
+                      placeholder="Calle 50 #10-20, Medellín"
+                      value={venueAddress}
+                      onChange={(e) => setVenueAddress(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Teléfono de contacto</Label>
+                    <Input
+                      type="text"
+                      className="mt-1 bg-input border-border text-foreground text-xs"
+                      placeholder="+57 300 123 4567"
+                      value={venuePhone}
+                      onChange={(e) => setVenuePhone(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
               <Button
                 type="submit"
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3 neon-glow"
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3 neon-glow mt-2"
                 disabled={registerPassword.isPending}
               >
                 {registerPassword.isPending ? "Registrando..." : "Crear cuenta"}
@@ -279,9 +359,6 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Te enviaremos un código/token de recuperación (revisa la consola del servidor en entorno de desarrollo).
-                </p>
               </div>
               <Button
                 type="submit"
@@ -321,7 +398,7 @@ export default function Login() {
                 />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Nueva contraseña (mín. 6 caracteres)</Label>
+                <Label className="text-xs text-muted-foreground">Nueva contraseña</Label>
                 <Input
                   type="password"
                   required
@@ -350,13 +427,6 @@ export default function Login() {
               </Button>
             </form>
           )}
-
-          <p className="text-xs text-muted-foreground pt-2 border-t border-border/50">
-            Al ingresar aceptas nuestra{" "}
-            <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-              Política de Privacidad
-            </a>
-          </p>
         </div>
       </div>
     </div>
