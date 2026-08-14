@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { Crop, RotateCw, Check, X, ScanFace, Sparkles, RefreshCw } from "lucide-react";
+import { Crop, RotateCw, Check, X, ScanFace, Sparkles, RefreshCw, Loader2 } from "lucide-react";
 
 interface ProfilePhotoCropperProps {
   isOpen: boolean;
@@ -212,11 +212,11 @@ export function ProfilePhotoCropper({
   };
 
   const statusMessage = {
-    detecting: "Buscando rostro para centrado automático…",
-    detected: "¡Rostro detectado y centrado automáticamente!",
-    "not-found": "No se detectó un rostro. Puedes mover la foto manualmente.",
-    unsupported: "Detección automática no soportada en este navegador. Usa el ajuste manual.",
-    error: "No se pudo completar la detección. Usa el ajuste manual.",
+    detecting: "Analizando imagen y buscando rostro automáticamente…",
+    detected: "¡Rostro detectado y centrado con éxito!",
+    "not-found": "No se detectó un rostro. Puedes ajustar el encuadre manualmente.",
+    unsupported: "Detección automática no soportada en este navegador. Ajusta manualmente.",
+    error: "No se pudo completar la detección. Ajusta manualmente.",
     idle: "",
   }[faceStatus];
 
@@ -228,7 +228,7 @@ export function ProfilePhotoCropper({
             <Crop className="h-5 w-5 text-primary" /> Recortar y Ajustar Foto
           </DialogTitle>
           <DialogDescription>
-            SongTap detecta tu rostro y centra el recorte automáticamente. También puedes arrastrar, usar zoom o reintentar.
+            SongTap escanea tu rostro y centra el recorte de forma automática con asistencia inteligente.
           </DialogDescription>
         </DialogHeader>
 
@@ -261,12 +261,25 @@ export function ProfilePhotoCropper({
               className="absolute pointer-events-none object-contain"
             />
             <div className="absolute inset-0 border-2 border-dashed border-white/30 rounded-full pointer-events-none" />
+
+            {/* Overlay de animación de escaneo mientras detecta */}
+            {faceStatus === "detecting" && (
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-center p-4 z-10 animate-fade-in">
+                <Loader2 className="h-10 w-10 text-primary animate-spin mb-2" />
+                <p className="text-xs font-semibold text-foreground">Detectando rostro...</p>
+                <div className="w-32 h-1 bg-secondary rounded-full overflow-hidden mt-2">
+                  <div className="w-full h-full bg-primary animate-pulse" />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="w-full rounded-md bg-secondary/40 px-3 py-2 text-xs text-muted-foreground flex items-center justify-between gap-2" aria-live="polite">
             <div className="flex items-center gap-2 overflow-hidden">
-              {faceStatus === "detected" || faceStatus === "detecting" ? (
-                <Sparkles className="h-4 w-4 text-primary shrink-0 animate-spin" />
+              {faceStatus === "detected" ? (
+                <Sparkles className="h-4 w-4 text-primary shrink-0" />
+              ) : faceStatus === "detecting" ? (
+                <Loader2 className="h-4 w-4 text-primary shrink-0 animate-spin" />
               ) : (
                 <ScanFace className="h-4 w-4 text-muted-foreground shrink-0" />
               )}
