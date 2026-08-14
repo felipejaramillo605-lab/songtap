@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { Crop, RotateCw, Check, X, ScanFace, Sparkles } from "lucide-react";
+import { Crop, RotateCw, Check, X, ScanFace, Sparkles, RefreshCw } from "lucide-react";
 
 interface ProfilePhotoCropperProps {
   isOpen: boolean;
@@ -58,20 +58,57 @@ export function ProfilePhotoCropper({
     "idle" | "detecting" | "detected" | "not-found" | "unsupported" | "error"
   >("idle");
   const dragStart = useRef({ x: 0, y: 0 });
+  const imageObjRef = useRef<HTMLImageElement | null>(null);
+
+  const detectFaceAndCenter = useCallback((image: HTMLImageElement, scale: number) => {
+    setFaceStatus("detecting");
+    const FaceDetector = (window as FaceDetectionWindow).FaceDetector;
+    if (!FaceDetector) {
+      setFaceStatus("unsupported");
+      return;
+    }
+
+    try {
+      const detector = new FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
+      detector
+        .detect(image)
+        .then((faces) => {
+          const face = faces[0]?.boundingBox;
+          if (!face) {
+            setFaceStatus("not-found");
+            return;
+          }
+
+          const faceCenterX = face.x + face.width / 2;
+          const faceCenterY = face.y + face.height / 2;
+          const imageCenterX = image.naturalWidth / 2;
+          const imageCenterY = image.naturalHeight / 2;
+
+          setOffsetX(-(faceCenterX - imageCenterX) * scale);
+          setOffsetY(-(faceCenterY - imageCenterY) * scale);
+          setFaceStatus("detected");
+        })
+        .catch(() => {
+          setFaceStatus("error");
+        });
+    } catch {
+      setFaceStatus("error");
+    }
+  }, []);
 
   useEffect(() => {
     if (!isOpen || !imageSrc) return;
 
     let cancelled = false;
     const image = new Image();
+    imageObjRef.current = image;
 
     setZoom(1);
     setRotation(0);
     setOffsetX(0);
     setOffsetY(0);
-    setFaceStatus("detecting");
 
-    image.onload = async () => {
+    image.onload = () => {
       if (cancelled) return;
 
       const scale = Math.max(
@@ -84,34 +121,7 @@ export function ProfilePhotoCropper({
         height: image.naturalHeight * scale,
       });
 
-      const FaceDetector = (window as FaceDetectionWindow).FaceDetector;
-      if (!FaceDetector) {
-        setFaceStatus("unsupported");
-        return;
-      }
-
-      try {
-        const detector = new FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
-        const faces = await detector.detect(image);
-        if (cancelled) return;
-
-        const face = faces[0]?.boundingBox;
-        if (!face) {
-          setFaceStatus("not-found");
-          return;
-        }
-
-        const faceCenterX = face.x + face.width / 2;
-        const faceCenterY = face.y + face.height / 2;
-        const imageCenterX = image.naturalWidth / 2;
-        const imageCenterY = image.naturalHeight / 2;
-
-        setOffsetX(-(faceCenterX - imageCenterX) * scale);
-        setOffsetY(-(faceCenterY - imageCenterY) * scale);
-        setFaceStatus("detected");
-      } catch {
-        setFaceStatus("error");
-      }
+      detectFaceAndCenter(image, scale);
     };
 
     image.onerror = () => {
@@ -122,7 +132,13 @@ export function ProfilePhotoCropper({
     return () => {
       cancelled = true;
     };
-  }, [imageSrc, isOpen]);
+  }, [imageSrc, isOpen, detectFaceAndCenter]);
+
+  const handleRetryDetection = () => {
+    if (imageObjRef.current && displayScale) {
+      detectFaceAndCenter(imageObjRef.current, displayScale);
+    }
+  };
 
   const handlePointerDown = (e: React.PointerEvent) => {
     setIsDragging(true);
@@ -196,11 +212,11 @@ export function ProfilePhotoCropper({
   };
 
   const statusMessage = {
-    detecting: "Buscando un rostro para centrarlo automáticamente…",
-    detected: "Rostro detectado y centrado automáticamente. Puedes ajustar el resultado manualmente.",
-    "not-found": "No se detectó un rostro. Puedes centrar la imagen manualmente arrastrándola.",
-    unsupported: "La detección automática no está disponible en este navegador. Puedes centrar la imagen manualmente.",
-    error: "No fue posible detectar el rostro. Puedes centrar la imagen manualmente.",
+    detecting: "Buscando rostro para centrado automático…",
+    detected: "¡Rostro detectado y centrado automáticamente!",
+    "not-found": "No se detectó un rostro. Puedes mover la foto manualmente.",
+    unsupported: "Detección automática no soportada en este navegador. Usa el ajuste manual.",
+    error: "No se pudo completar la detección. Usa el ajuste manual.",
     idle: "",
   }[faceStatus];
 
@@ -212,7 +228,7 @@ export function ProfilePhotoCropper({
             <Crop className="h-5 w-5 text-primary" /> Recortar y Ajustar Foto
           </DialogTitle>
           <DialogDescription>
-            SongTap intentará detectar tu rostro y centrarlo automáticamente. También puedes arrastrar, ampliar o rotar la imagen.
+            SongTap detecta tu rostro y centra el recorte automáticamente. También puedes arrastrar, usar zoom o reintentar.
           </DialogDescription>
         </DialogHeader>
 
@@ -247,13 +263,26 @@ export function ProfilePhotoCropper({
             <div className="absolute inset-0 border-2 border-dashed border-white/30 rounded-full pointer-events-none" />
           </div>
 
-          <div className="w-full min-h-10 rounded-md bg-secondary/40 px-3 py-2 text-xs text-muted-foreground flex items-start gap-2" aria-live="polite">
-            {faceStatus === "detected" || faceStatus === "detecting" ? (
-              <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-            ) : (
-              <ScanFace className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-            )}
-            <span>{statusMessage}</span>
+          <div className="w-full rounded-md bg-secondary/40 px-3 py-2 text-xs text-muted-foreground flex items-center justify-between gap-2" aria-live="polite">
+            <div className="flex items-center gap-2 overflow-hidden">
+              {faceStatus === "detected" || faceStatus === "detecting" ? (
+                <Sparkles className="h-4 w-4 text-primary shrink-0 animate-spin" />
+              ) : (
+                <ScanFace className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+              <span className="truncate">{statusMessage}</span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleRetryDetection}
+              disabled={faceStatus === "detecting"}
+              className="h-7 px-2 text-[11px] text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+              title="Reintentar detección facial"
+            >
+              <RefreshCw className="h-3 w-3 mr-1" /> Reintentar
+            </Button>
           </div>
 
           <div className="w-full space-y-3 px-2">
