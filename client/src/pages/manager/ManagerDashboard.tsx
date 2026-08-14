@@ -4,7 +4,7 @@ import SongTapLayout from "@/components/SongTapLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, TrendingUp, ShoppingBag, TrendingDown, BarChart3, Clock, Zap } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { RevenueByHourChart } from "@/components/RevenueByHourChart";
@@ -20,16 +20,20 @@ export default function ManagerDashboard() {
   }, [loading, isAuthenticated, user, navigate]);
 
   const venueId = user?.venueId;
-  const [dateFrom] = useState(() => {
+  const [selectedDate, setSelectedDate] = useState(() => {
     const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
+    return d.toISOString().split("T")[0];
   });
-  const [dateTo] = useState(() => {
-    const d = new Date();
-    d.setHours(23, 59, 59, 999);
+
+  const dateFrom = useMemo(() => {
+    const d = new Date(selectedDate + "T00:00:00");
     return d;
-  });
+  }, [selectedDate]);
+
+  const dateTo = useMemo(() => {
+    const d = new Date(selectedDate + "T23:59:59.999");
+    return d;
+  }, [selectedDate]);
 
   const { data: summary } = trpc.finance.summary.useQuery(
     { venueId: venueId!, dateFrom, dateTo },
@@ -100,9 +104,20 @@ export default function ManagerDashboard() {
                 {new Date().toLocaleDateString("es-CO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
               </p>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/30">
-              <Zap size={14} className="text-primary" />
-              <span className="text-xs font-semibold text-primary">En Vivo</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-card border border-border px-3 py-1.5 rounded-lg">
+                <span className="text-xs text-muted-foreground font-medium">Filtrar día:</span>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-transparent text-sm text-foreground focus:outline-none cursor-pointer"
+                />
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/30">
+                <Zap size={14} className="text-primary" />
+                <span className="text-xs font-semibold text-primary">En Vivo</span>
+              </div>
             </div>
           </div>
         </div>
