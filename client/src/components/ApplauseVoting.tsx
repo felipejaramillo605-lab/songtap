@@ -6,6 +6,8 @@ import { toast } from "sonner";
 
 interface ApplauseVotingProps {
   venueId: number;
+  sessionId: number;
+  sessionToken: string;
   songId: number;
   votingTableId: number;
   votingTableName: string;
@@ -27,6 +29,8 @@ interface FloatingParticle {
 
 export default function ApplauseVoting({
   venueId,
+  sessionId,
+  sessionToken,
   songId,
   votingTableId,
   votingTableName,
@@ -118,6 +122,8 @@ export default function ApplauseVoting({
           className="ml-auto bg-primary text-primary-foreground font-bold text-xs h-9 active:scale-95 transition-transform"
           onClick={() => submitApplause.mutate({
             venueId,
+            sessionId,
+            sessionToken,
             songId,
             votingTableId,
             votingTableName,

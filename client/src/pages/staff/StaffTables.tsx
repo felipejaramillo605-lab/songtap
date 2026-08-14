@@ -4,7 +4,7 @@ import SongTapLayout from "@/components/SongTapLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Table2, RefreshCw, QrCode } from "lucide-react";
+import { Table2, QrCode } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
@@ -21,10 +21,6 @@ export default function StaffTables() {
   const venueId = user?.venueId;
   const { data: tables, refetch } = trpc.tables.list.useQuery({ venueId: venueId! }, { enabled: !!venueId });
   const { data: orders } = trpc.orders.getByVenue.useQuery({ venueId: venueId! }, { enabled: !!venueId, refetchInterval: 8000 });
-
-  const resetQr = trpc.tables.resetQr.useMutation({
-    onSuccess: () => { toast.success("QR regenerado"); refetch(); },
-  });
 
   if (loading) return null;
 
@@ -81,9 +77,9 @@ export default function StaffTables() {
                     variant="outline"
                     size="sm"
                     className="w-full border-border text-muted-foreground hover:text-primary hover:border-primary/30 text-xs"
-                    onClick={() => resetQr.mutate({ id: table.id, venueId: venueId! })}
+                    onClick={() => window.open(getQrUrl(table.qrToken), "_blank")}
                   >
-                    <RefreshCw size={11} className="mr-1" /> Resetear QR
+                    <QrCode size={11} className="mr-1" /> Ver enlace QR
                   </Button>
                 </CardContent>
               </Card>

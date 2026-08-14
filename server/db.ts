@@ -12,6 +12,7 @@ import {
   orders,
   qrSessions,
   songQueue,
+  staffActivities,
   tables,
   users,
   venueRequests,
@@ -98,6 +99,46 @@ export async function updateUserRole(userId: number, role: "owner" | "manager" |
   await db.update(users).set({ role, venueId: venueId ?? null }).where(eq(users.id, userId));
 }
 
+// ─── STAFF ACTIVITIES ─────────────────────────────────────────────────────────
+
+export async function createStaffActivity(data: typeof staffActivities.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(staffActivities).values(data);
+  return result[0];
+}
+
+export async function getStaffActivitiesByVenue(venueId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(staffActivities).where(eq(staffActivities.venueId, venueId)).orderBy(desc(staffActivities.createdAt));
+}
+
+export async function getStaffActivitiesByAssignee(venueId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(staffActivities)
+    .where(and(eq(staffActivities.venueId, venueId), eq(staffActivities.assignedToUserId, userId)))
+    .orderBy(desc(staffActivities.createdAt));
+}
+
+export async function updateStaffActivityForAssignee(
+  activityId: number,
+  venueId: number,
+  userId: number,
+  data: Pick<typeof staffActivities.$inferInsert, "status" | "completionComment" | "evidenceImageUrl" | "completedAt">
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db
+    .update(staffActivities)
+    .set(data)
+    .where(and(eq(staffActivities.id, activityId), eq(staffActivities.venueId, venueId), eq(staffActivities.assignedToUserId, userId)));
+  return (result[0] as { affectedRows: number }).affectedRows > 0;
+}
+
 // ─── VENUES ───────────────────────────────────────────────────────────────────
 
 export async function getAllVenues() {
@@ -147,16 +188,18 @@ export async function createTable(data: typeof tables.$inferInsert) {
   await db.insert(tables).values(data);
 }
 
-export async function updateTable(id: number, data: Partial<typeof tables.$inferInsert>) {
+export async function updateTable(id: number, venueId: number, data: Partial<typeof tables.$inferInsert>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(tables).set(data).where(eq(tables.id, id));
+  const result = await db.update(tables).set(data).where(and(eq(tables.id, id), eq(tables.venueId, venueId)));
+  return (result[0] as { affectedRows: number }).affectedRows > 0;
 }
 
-export async function deleteTable(id: number) {
+export async function deleteTable(id: number, venueId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(tables).where(eq(tables.id, id));
+  const result = await db.delete(tables).where(and(eq(tables.id, id), eq(tables.venueId, venueId)));
+  return (result[0] as { affectedRows: number }).affectedRows > 0;
 }
 
 // ─── QR SESSIONS ──────────────────────────────────────────────────────────────
@@ -194,16 +237,18 @@ export async function createCategory(data: typeof menuCategories.$inferInsert) {
   await db.insert(menuCategories).values(data);
 }
 
-export async function updateCategory(id: number, data: Partial<typeof menuCategories.$inferInsert>) {
+export async function updateCategory(id: number, venueId: number, data: Partial<typeof menuCategories.$inferInsert>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(menuCategories).set(data).where(eq(menuCategories.id, id));
+  const result = await db.update(menuCategories).set(data).where(and(eq(menuCategories.id, id), eq(menuCategories.venueId, venueId)));
+  return (result[0] as { affectedRows: number }).affectedRows > 0;
 }
 
-export async function deleteCategory(id: number) {
+export async function deleteCategory(id: number, venueId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(menuCategories).set({ isActive: false }).where(eq(menuCategories.id, id));
+  const result = await db.update(menuCategories).set({ isActive: false }).where(and(eq(menuCategories.id, id), eq(menuCategories.venueId, venueId)));
+  return (result[0] as { affectedRows: number }).affectedRows > 0;
 }
 
 // ─── MENU ITEMS ───────────────────────────────────────────────────────────────
@@ -226,16 +271,18 @@ export async function createMenuItem(data: typeof menuItems.$inferInsert) {
   await db.insert(menuItems).values(data);
 }
 
-export async function updateMenuItem(id: number, data: Partial<typeof menuItems.$inferInsert>) {
+export async function updateMenuItem(id: number, venueId: number, data: Partial<typeof menuItems.$inferInsert>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(menuItems).set(data).where(eq(menuItems.id, id));
+  const result = await db.update(menuItems).set(data).where(and(eq(menuItems.id, id), eq(menuItems.venueId, venueId)));
+  return (result[0] as { affectedRows: number }).affectedRows > 0;
 }
 
-export async function deleteMenuItem(id: number) {
+export async function deleteMenuItem(id: number, venueId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(menuItems).set({ isAvailable: false }).where(eq(menuItems.id, id));
+  const result = await db.update(menuItems).set({ isAvailable: false }).where(and(eq(menuItems.id, id), eq(menuItems.venueId, venueId)));
+  return (result[0] as { affectedRows: number }).affectedRows > 0;
 }
 
 // ─── ORDERS ───────────────────────────────────────────────────────────────────
@@ -279,6 +326,7 @@ export async function createOrderItems(data: (typeof orderItems.$inferInsert)[])
 
 export async function updateOrderStatus(
   id: number,
+  venueId: number,
   status: "pending" | "preparing" | "delivered" | "cancelled",
   handledByUserId?: number,
   cancelReason?: string,
@@ -288,7 +336,8 @@ export async function updateOrderStatus(
   if (!db) throw new Error("DB not available");
   
   // Obtener el estado anterior
-  const [currentOrder] = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+  const [currentOrder] = await db.select().from(orders).where(and(eq(orders.id, id), eq(orders.venueId, venueId))).limit(1);
+  if (!currentOrder) return false;
   const previousStatus = currentOrder?.status;
   
   const update: Record<string, unknown> = { status };
@@ -298,7 +347,7 @@ export async function updateOrderStatus(
     update.cancelledAt = new Date();
     if (cancelReason) update.cancelReason = cancelReason;
   }
-  await db.update(orders).set(update).where(eq(orders.id, id));
+  await db.update(orders).set(update).where(and(eq(orders.id, id), eq(orders.venueId, venueId)));
   
   // Crear log de cambio de estado
   if (handledByUserId && previousStatus !== status) {
@@ -311,6 +360,7 @@ export async function updateOrderStatus(
       reason: cancelReason,
     });
   }
+  return true;
 }
 
 export async function createOrderStatusHistory(data: typeof orderStatusHistory.$inferInsert) {
@@ -620,6 +670,9 @@ export async function getSongQueue(venueId: number) {
 export async function updateCurrentSong(venueId: number, songId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+
+  const [targetSong] = await db.select().from(songQueue).where(and(eq(songQueue.id, songId), eq(songQueue.venueId, venueId))).limit(1);
+  if (!targetSong) return false;
   
   // Marcar la canción anterior como tocada
   await db.update(songQueue).set({ isCurrentlyPlaying: false, playedAt: new Date() }).where(
@@ -627,7 +680,8 @@ export async function updateCurrentSong(venueId: number, songId: number) {
   );
   
   // Marcar la nueva canción como tocándose
-  await db.update(songQueue).set({ isCurrentlyPlaying: true }).where(eq(songQueue.id, songId));
+  await db.update(songQueue).set({ isCurrentlyPlaying: true }).where(and(eq(songQueue.id, songId), eq(songQueue.venueId, venueId)));
+  return true;
 }
 
 export async function removeSongFromQueue(songId: number, venueId?: number) {

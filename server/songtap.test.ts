@@ -103,16 +103,14 @@ describe("users.list", () => {
 // ─── Menu tests ──────────────────────────────────────────────────────────────
 
 describe("menu.getPublicMenu", () => {
-  it("returns empty array for non-existent venue", async () => {
+  it("rechaza una consulta pública sin sesión QR válida", async () => {
     const ctx: TrpcContext = {
       user: null,
       req: { protocol: "https", headers: {} } as TrpcContext["req"],
       res: { clearCookie: () => {} } as TrpcContext["res"],
     };
     const caller = appRouter.createCaller(ctx);
-    const result = await caller.menu.getPublicMenu({ venueId: 99999 });
-    expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBe(0);
+    await expect(caller.menu.getPublicMenu({ venueId: 99999 } as any)).rejects.toThrow();
   });
 });
 

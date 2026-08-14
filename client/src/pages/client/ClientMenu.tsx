@@ -84,15 +84,18 @@ export default function ClientMenu() {
 
   const venueId = session?.venueId ?? 0;
 
-  const { data: menu } = trpc.menu.getPublicMenu.useQuery({ venueId }, { enabled: !!session?.venueId });
+  const { data: menu } = trpc.menu.getPublicMenu.useQuery(
+    { venueId, sessionId: session?.sessionId ?? 0, sessionToken: session?.sessionToken ?? "" },
+    { enabled: !!session?.venueId && !!session?.sessionId && !!session?.sessionToken }
+  );
   const { data: myOrders, refetch: refetchOrders } = trpc.orders.getBySession.useQuery(
-    { sessionId: session?.sessionId ?? 1 },
-    { enabled: !!session?.sessionId, refetchInterval: 5000 }
+    { sessionId: session?.sessionId ?? 1, sessionToken: session?.sessionToken ?? "" },
+    { enabled: !!session?.sessionId && !!session?.sessionToken, refetchInterval: 5000 }
   );
 
   const { data: musicData, refetch: refetchMusic } = trpc.music.getClientQueue.useQuery(
-    { venueId },
-    { enabled: !!venueId, refetchInterval: 5000 }
+    { venueId, sessionId: session?.sessionId ?? 0, sessionToken: session?.sessionToken ?? "" },
+    { enabled: !!venueId && !!session?.sessionId && !!session?.sessionToken, refetchInterval: 5000 }
   );
 
   useEffect(() => {
@@ -121,8 +124,8 @@ export default function ClientMenu() {
   });
 
   const { data: applauseScore } = trpc.music.getApplauseScore.useQuery(
-    { venueId, songId: musicData?.current?.id ?? 0 },
-    { enabled: !!session?.venueId && !!musicData?.current?.id, refetchInterval: 5000 }
+    { venueId, sessionId: session?.sessionId ?? 0, sessionToken: session?.sessionToken ?? "", songId: musicData?.current?.id ?? 0 },
+    { enabled: !!session?.venueId && !!session?.sessionId && !!session?.sessionToken && !!musicData?.current?.id, refetchInterval: 5000 }
   );
 
   const addToCart = (item: any) => {
@@ -184,6 +187,8 @@ export default function ClientMenu() {
     if (!session || !musicForm.songTitle.trim()) return;
     requestMusic.mutate({
       venueId: session.venueId,
+      sessionId: session.sessionId,
+      sessionToken: session.sessionToken,
       songName: musicForm.songTitle,
       artist: musicForm.artist || "Artista desconocido",
       addedByTableId: session.tableId,
@@ -353,6 +358,8 @@ export default function ClientMenu() {
                 <CardContent className="p-5">
                   <ApplauseVoting
                     venueId={venueId}
+                    sessionId={session.sessionId}
+                    sessionToken={session.sessionToken}
                     songId={musicData.current.id}
                     votingTableId={session.tableId}
                     votingTableName={session.tableName}

@@ -34,11 +34,13 @@ import ManagerTables from "./pages/manager/ManagerTables";
 import ManagerStaff from "./pages/manager/ManagerStaff";
 import ManagerFinance from "./pages/manager/ManagerFinance";
 import ManagerSettings from "./pages/manager/ManagerSettings";
+import ManagerActivities from "./pages/manager/ManagerActivities";
 
 // Staff pages
 import StaffOrders from "./pages/staff/StaffOrders";
 import StaffMusic from "./pages/staff/StaffMusic";
 import StaffTables from "./pages/staff/StaffTables";
+import StaffActivities from "./pages/staff/StaffActivities";
 
 function ProfilePageWrapper() {
   const { user } = useAuth();
@@ -81,11 +83,13 @@ function Router() {
       <Route path="/manager/staff" component={ManagerStaff} />
       <Route path="/manager/finance" component={ManagerFinance} />
       <Route path="/manager/settings" component={ManagerSettings} />
+      <Route path="/manager/activities" component={ManagerActivities} />
 
       {/* Staff */}
       <Route path="/staff" component={StaffOrders} />
       <Route path="/staff/music" component={StaffMusic} />
       <Route path="/staff/tables" component={StaffTables} />
+      <Route path="/staff/activities" component={StaffActivities} />
 
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

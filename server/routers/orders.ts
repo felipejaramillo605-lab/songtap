@@ -9,6 +9,7 @@ import {
   getOrdersByVenue,
   getOrderWithItems,
   getOrderStatusHistory,
+  getQrSessionByToken,
   updateOrderStatus,
 } from "../db";
 import { getDb } from "../db";
@@ -39,6 +40,11 @@ export const ordersRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      const session = await getQrSessionByToken(input.sessionToken);
+      if (!session || !session.isActive || session.id !== input.sessionId || session.venueId !== input.venueId || session.tableId !== input.tableId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "La sesión QR no es válida para este pedido" });
+      }
+
       // Obtener precios actuales de los ítems y verificar alcohol
       let totalAmount = 0;
       let totalCost = 0;
@@ -55,7 +61,7 @@ export const ordersRouter = router({
 
       for (const item of input.items) {
         const [menuItem] = await db.select().from(menuItems).where(eq(menuItems.id, item.menuItemId)).limit(1);
-        if (!menuItem || !menuItem.isAvailable) {
+        if (!menuItem || !menuItem.isAvailable || menuItem.venueId !== session.venueId) {
           throw new TRPCError({ code: "BAD_REQUEST", message: `Ítem ${item.menuItemId} no disponible` });
         }
         if (menuItem.isAlcoholic) {
@@ -116,8 +122,12 @@ export const ordersRouter = router({
 
   // Cliente: ver sus pedidos de la sesión
   getBySession: publicProcedure
-    .input(z.object({ sessionId: z.number() }))
+    .input(z.object({ sessionId: z.number(), sessionToken: z.string().min(16) }))
     .query(async ({ input }) => {
+      const session = await getQrSessionByToken(input.sessionToken);
+      if (!session || !session.isActive || session.id !== input.sessionId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "La sesión QR no es válida" });
+      }
       return getOrdersBySession(input.sessionId);
     }),
 
@@ -155,7 +165,12 @@ export const ordersRouter = router({
       if (ctx.user.role !== "owner" && ctx.user.venueId !== input.venueId) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
-      await updateOrderStatus(input.orderId, input.status, ctx.user.id, input.cancelReason, ctx.user.name || undefined);
+      const order = await getOrderWithItems(input.orderId);
+      if (!order || order.venueId !== input.venueId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Pedido no encontrado en este local" });
+      }
+      const updated = await updateOrderStatus(input.orderId, input.venueId, input.status, ctx.user.id, input.cancelReason, ctx.user.name || undefined);
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Pedido no encontrado en este local" });
       await createAuditLog({
         venueId: input.venueId,
         userId: ctx.user.id,

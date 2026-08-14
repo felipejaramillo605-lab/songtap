@@ -8,6 +8,7 @@ const dbMocks = vi.hoisted(() => ({
   removeSongFromQueue: vi.fn(),
   submitAppauseVote: vi.fn(),
   getAppauseScore: vi.fn(),
+  getQrSessionByToken: vi.fn(),
 }));
 
 vi.mock("./db", () => dbMocks);
@@ -28,6 +29,7 @@ describe("music router", () => {
     dbMocks.addSongToQueue.mockResolvedValue(undefined);
     dbMocks.submitAppauseVote.mockResolvedValue(undefined);
     dbMocks.getAppauseScore.mockResolvedValue({ averageRating: 0, totalVotes: 0, ratingsByPerformingTable: [] });
+    dbMocks.getQrSessionByToken.mockResolvedValue({ id: 70, venueId: 7, tableId: 3, isActive: true });
   });
 
   it("adds a requested song at the end of the FIFO queue", async () => {
@@ -39,6 +41,8 @@ describe("music router", () => {
     const caller = musicRouter.createCaller(publicContext as any);
     const result = await caller.requestSong({
       venueId: 7,
+      sessionId: 70,
+      sessionToken: "valid-music-session-token",
       songName: "La Camisa Negra",
       artist: "Juanes",
       addedByTableId: 3,
@@ -64,7 +68,7 @@ describe("music router", () => {
     dbMocks.getSongQueue.mockResolvedValue(queue);
 
     const caller = musicRouter.createCaller(publicContext as any);
-    const result = await caller.getClientQueue({ venueId: 7 });
+    const result = await caller.getClientQueue({ venueId: 7, sessionId: 70, sessionToken: "valid-music-session-token" });
 
     expect(result).toEqual({ current, queue });
     expect(dbMocks.getCurrentSong).toHaveBeenCalledWith(7);
@@ -76,6 +80,8 @@ describe("music router", () => {
 
     await caller.submitApplause({
       venueId: 7,
+      sessionId: 70,
+      sessionToken: "valid-music-session-token",
       songId: 12,
       votingTableId: 3,
       votingTableName: "Mesa 3",
@@ -93,6 +99,8 @@ describe("music router", () => {
 
     await expect(caller.submitApplause({
       venueId: 7,
+      sessionId: 70,
+      sessionToken: "valid-music-session-token",
       songId: 12,
       votingTableId: 3,
       rating: 3.5,
@@ -104,7 +112,7 @@ describe("music router", () => {
     dbMocks.getAppauseScore.mockResolvedValue(score);
 
     const caller = musicRouter.createCaller(publicContext as any);
-    await expect(caller.getApplauseScore({ venueId: 7, songId: 12 })).resolves.toEqual(score);
+    await expect(caller.getApplauseScore({ venueId: 7, sessionId: 70, sessionToken: "valid-music-session-token", songId: 12 })).resolves.toEqual(score);
     expect(dbMocks.getAppauseScore).toHaveBeenCalledWith(7, 12);
   });
 });

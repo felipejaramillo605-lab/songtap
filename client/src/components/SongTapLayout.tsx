@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  ClipboardCheck,
   Cog,
   DollarSign,
   Globe,
@@ -45,6 +46,7 @@ const managerNav: NavItem[] = [
   { label: "Menú", href: "/manager/menu", icon: <UtensilsCrossed size={18} /> },
   { label: "Mesas & QR", href: "/manager/tables", icon: <QrCode size={18} /> },
   { label: "Personal", href: "/manager/staff", icon: <Users size={18} /> },
+  { label: "Actividades", href: "/manager/activities", icon: <ClipboardCheck size={18} /> },
   { label: "Finanzas", href: "/manager/finance", icon: <DollarSign size={18} /> },
   { label: "Configuración", href: "/manager/settings", icon: <Cog size={18} /> },
   { label: "Mi Perfil", href: "/profile", icon: <User size={18} /> },
@@ -54,6 +56,7 @@ const staffNav: NavItem[] = [
   { label: "Pedidos", href: "/staff", icon: <ClipboardList size={18} /> },
   { label: "Mesas", href: "/staff/tables", icon: <Table2 size={18} /> },
   { label: "Música", href: "/staff/music", icon: <Music2 size={18} /> },
+  { label: "Mis actividades", href: "/staff/activities", icon: <ClipboardCheck size={18} /> },
   { label: "Mi Perfil", href: "/profile", icon: <User size={18} /> },
 ];
 

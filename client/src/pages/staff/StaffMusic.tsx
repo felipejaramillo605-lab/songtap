@@ -19,7 +19,7 @@ export default function StaffMusic() {
   }, [loading, isAuthenticated, user, navigate]);
 
   const venueId = user?.venueId;
-  const { data: musicData, refetch } = trpc.music.getClientQueue.useQuery(
+  const { data: musicData, refetch } = trpc.music.getStaffQueue.useQuery(
     { venueId: venueId! },
     { enabled: !!venueId, refetchInterval: 5000 }
   );

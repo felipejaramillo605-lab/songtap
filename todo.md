@@ -213,3 +213,19 @@
 - [x] Añadir filtros desplegables por compañía, módulo y usuario ejecutor
 - [x] Mostrar contador, estado vacío y acción para limpiar filtros
 - [x] Validar filtrado, responsive, pruebas y checkpoint
+
+## Seguridad Manager/Staff y actividades operativas
+- [x] Auditar rutas, procedimientos y botones críticos de Manager y Staff
+- [x] Impedir escalamiento de Staff a Manager y reforzar alcance por empresa en cada procedimiento
+- [x] Crear módulo de actividades con asignación por Manager, estados, comentarios e imágenes de evidencia
+- [x] Integrar vistas de actividades para Manager y Staff con acciones completas
+- [x] Añadir pruebas de autorización, aislamiento entre empresas y flujos de actividades
+- [x] Validar recorridos, responsive y checkpoint
+- [x] Validar automatizadamente los recorridos y botones críticos de Manager y Staff en las nuevas pantallas de actividades
+- [x] Cubrir el flujo de actividades Manager→Staff con comentario, imagen y ambos tipos de evidencia
+- [x] Ampliar pruebas de aislamiento por IDs entre empresas en mesas, menú, pedidos, música, usuarios y actividades
+- [x] Vincular menú y música del portal público a la sesión QR que los autorizó
+- [ ] Validar en navegador con sesión real de Manager y Staff las pantallas de actividades y sus botones
+- [x] Ejecutar validación automatizada completa con usuarios temporales de Manager y Staff, sin requerir credenciales del usuario
+- [x] Añadir pruebas de interfaz autenticada simulada para asignar actividades y actualizar estado, comentario e imagen
+- [x] Guardar checkpoint posterior a la validación funcional y de seguridad

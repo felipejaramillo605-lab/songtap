@@ -38,8 +38,10 @@ export const tablesRouter = router({
     .input(z.object({ id: z.number(), venueId: z.number(), name: z.string().min(1).optional(), isActive: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       requireVenueAccess(ctx.user.role, ctx.user.venueId, input.venueId);
+      if (ctx.user.role === "staff") throw new TRPCError({ code: "FORBIDDEN" });
       const { id, venueId: _v, ...data } = input;
-      await updateTable(id, data);
+      const updated = await updateTable(id, input.venueId, data);
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Mesa no encontrada en este local" });
       return { success: true };
     }),
 
@@ -47,8 +49,10 @@ export const tablesRouter = router({
     .input(z.object({ id: z.number(), venueId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       requireVenueAccess(ctx.user.role, ctx.user.venueId, input.venueId);
+      if (ctx.user.role === "staff") throw new TRPCError({ code: "FORBIDDEN" });
       const newToken = nanoid(32);
-      await updateTable(input.id, { qrToken: newToken });
+      const updated = await updateTable(input.id, input.venueId, { qrToken: newToken });
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Mesa no encontrada en este local" });
       await createAuditLog({
         venueId: input.venueId,
         userId: ctx.user.id,
@@ -65,7 +69,8 @@ export const tablesRouter = router({
     .mutation(async ({ ctx, input }) => {
       requireVenueAccess(ctx.user.role, ctx.user.venueId, input.venueId);
       if (ctx.user.role === "staff") throw new TRPCError({ code: "FORBIDDEN" });
-      await deleteTable(input.id);
+      const deleted = await deleteTable(input.id, input.venueId);
+      if (!deleted) throw new TRPCError({ code: "NOT_FOUND", message: "Mesa no encontrada en este local" });
       return { success: true };
     }),
 });

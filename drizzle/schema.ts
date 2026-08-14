@@ -198,6 +198,25 @@ export const auditLogs = mysqlTable("audit_logs", {
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
 
+// ─── STAFF ACTIVITIES ──────────────────────────────────────────────────────────
+export const staffActivities = mysqlTable("staff_activities", {
+  id: int("id").autoincrement().primaryKey(),
+  venueId: int("venueId").notNull(),
+  assignedToUserId: int("assignedToUserId").notNull(),
+  assignedByUserId: int("assignedByUserId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  status: mysqlEnum("status", ["pending", "in_progress", "completed"]).default("pending").notNull(),
+  completionComment: text("completionComment"),
+  evidenceImageUrl: text("evidenceImageUrl"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type StaffActivity = typeof staffActivities.$inferSelect;
+export type InsertStaffActivity = typeof staffActivities.$inferInsert;
+
 // ─── ORDER STATUS HISTORY ─────────────────────────────────────────────────────
 export const orderStatusHistory = mysqlTable("order_status_history", {
   id: int("id").autoincrement().primaryKey(),

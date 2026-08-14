@@ -1,13 +1,12 @@
 import { trpc } from "@/lib/trpc";
 import SongTapLayout from "@/components/SongTapLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Users, UserCheck, UserX, Trash2, Mail, Phone, FileText } from "lucide-react";
+import { Users, UserCheck, Trash2, Mail, Phone, FileText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
@@ -28,10 +27,6 @@ export default function ManagerStaff() {
 
   const venueId = user?.venueId;
   const { data: staff, refetch } = trpc.users.list.useQuery(undefined, { enabled: !!user });
-  const assignUser = trpc.users.assignToVenue.useMutation({
-    onSuccess: () => { toast.success("Rol actualizado"); refetch(); },
-    onError: (e) => toast.error(e.message),
-  });
   const updateProfile = trpc.users.updateProfile.useMutation({
     onSuccess: () => { toast.success("Perfil actualizado"); setSelectedUser(null); refetch(); },
     onError: (e) => toast.error(e.message),
@@ -41,7 +36,7 @@ export default function ManagerStaff() {
     onError: (e) => toast.error(e.message),
   });
 
-  const myStaff = staff?.filter((u) => u.venueId === venueId && u.id !== user?.id) ?? [];
+  const myStaff = staff?.filter((u) => u.venueId === venueId && u.id !== user?.id && u.role === "staff") ?? [];
 
   if (loading) return null;
 
@@ -87,8 +82,8 @@ export default function ManagerStaff() {
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-card border-border">
             <CardContent className="p-5 text-center">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Managers</p>
-              <p className="text-3xl font-bold text-blue-400">{myStaff.filter((u) => u.role === "manager").length}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Actividades por asignar</p>
+              <p className="text-3xl font-bold text-blue-400">{myStaff.length}</p>
             </CardContent>
           </Card>
           <Card className="bg-card border-border">
@@ -126,19 +121,8 @@ export default function ManagerStaff() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      {u.role === "staff" ? <UserCheck size={14} className="text-green-400" /> : <UserX size={14} className="text-blue-400" />}
-                      <Select
-                        value={u.role}
-                        onValueChange={(role) => assignUser.mutate({ userId: u.id, venueId: venueId!, role: role as "manager" | "staff" })}
-                      >
-                        <SelectTrigger className="h-7 w-28 text-xs bg-input border-border">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-popover border-border">
-                          <SelectItem value="manager">Manager</SelectItem>
-                          <SelectItem value="staff">Staff</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <UserCheck size={14} className="text-green-400" />
+                      <span className="rounded-full bg-green-400/10 px-2 py-1 text-xs font-medium text-green-400">Staff</span>
                     </div>
                   </div>
                 ))}

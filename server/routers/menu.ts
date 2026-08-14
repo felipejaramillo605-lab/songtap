@@ -8,6 +8,7 @@ import {
   deleteMenuItem,
   getCategoriesByVenue,
   getItemsByVenue,
+  getQrSessionByToken,
   updateCategory,
   updateMenuItem,
 } from "../db";
@@ -20,7 +21,11 @@ function requireVenueAccess(userRole: string, userVenueId: number | null | undef
 
 export const menuRouter = router({
   // Público: menú completo para el portal del cliente
-  getPublicMenu: publicProcedure.input(z.object({ venueId: z.number() })).query(async ({ input }) => {
+  getPublicMenu: publicProcedure.input(z.object({ venueId: z.number(), sessionId: z.number(), sessionToken: z.string().min(16) })).query(async ({ input }) => {
+    const session = await getQrSessionByToken(input.sessionToken);
+    if (!session || !session.isActive || session.id !== input.sessionId || session.venueId !== input.venueId) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "La sesión QR no es válida para consultar el menú" });
+    }
     const categories = await getCategoriesByVenue(input.venueId);
     const allItems = await getItemsByVenue(input.venueId);
 
@@ -60,7 +65,8 @@ export const menuRouter = router({
       requireVenueAccess(ctx.user.role, ctx.user.venueId, input.venueId);
       if (ctx.user.role === "staff") throw new TRPCError({ code: "FORBIDDEN" });
       const { id, venueId: _v, ...data } = input;
-      await updateCategory(id, data);
+      const updated = await updateCategory(id, input.venueId, data);
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Categoría no encontrada en este local" });
       return { success: true };
     }),
 
@@ -69,7 +75,8 @@ export const menuRouter = router({
     .mutation(async ({ ctx, input }) => {
       requireVenueAccess(ctx.user.role, ctx.user.venueId, input.venueId);
       if (ctx.user.role === "staff") throw new TRPCError({ code: "FORBIDDEN" });
-      await deleteCategory(input.id);
+      const deleted = await deleteCategory(input.id, input.venueId);
+      if (!deleted) throw new TRPCError({ code: "NOT_FOUND", message: "Categoría no encontrada en este local" });
       return { success: true };
     }),
 
@@ -90,6 +97,10 @@ export const menuRouter = router({
     .mutation(async ({ ctx, input }) => {
       requireVenueAccess(ctx.user.role, ctx.user.venueId, input.venueId);
       if (ctx.user.role === "staff") throw new TRPCError({ code: "FORBIDDEN" });
+      const categories = await getCategoriesByVenue(input.venueId);
+      if (!categories.some((category) => category.id === input.categoryId)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "La categoría no pertenece a este local" });
+      }
       await createMenuItem({ ...input, isAvailable: true });
       return { success: true };
     }),
@@ -113,7 +124,14 @@ export const menuRouter = router({
       requireVenueAccess(ctx.user.role, ctx.user.venueId, input.venueId);
       if (ctx.user.role === "staff") throw new TRPCError({ code: "FORBIDDEN" });
       const { id, venueId: _v, ...data } = input;
-      await updateMenuItem(id, data);
+      if (data.categoryId !== undefined) {
+        const categories = await getCategoriesByVenue(input.venueId);
+        if (!categories.some((category) => category.id === data.categoryId)) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "La categoría no pertenece a este local" });
+        }
+      }
+      const updated = await updateMenuItem(id, input.venueId, data);
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Ítem no encontrado en este local" });
       return { success: true };
     }),
 
@@ -122,7 +140,8 @@ export const menuRouter = router({
     .mutation(async ({ ctx, input }) => {
       requireVenueAccess(ctx.user.role, ctx.user.venueId, input.venueId);
       if (ctx.user.role === "staff") throw new TRPCError({ code: "FORBIDDEN" });
-      await deleteMenuItem(input.id);
+      const deleted = await deleteMenuItem(input.id, input.venueId);
+      if (!deleted) throw new TRPCError({ code: "NOT_FOUND", message: "Ítem no encontrado en este local" });
       return { success: true };
     }),
 });

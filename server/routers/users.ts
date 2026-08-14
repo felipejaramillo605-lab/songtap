@@ -26,6 +26,7 @@ export const usersRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "owner") throw new TRPCError({ code: "FORBIDDEN" });
       await updateUserRole(input.userId, input.role, input.venueId);
       await createAuditLog({
         userId: ctx.user.id,
@@ -47,6 +48,24 @@ export const usersRouter = router({
       if (ctx.user.role === "manager" && ctx.user.venueId !== input.venueId) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [targetUser] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "Usuario no encontrado" });
+
+      if (ctx.user.role === "manager") {
+        if (input.role !== "staff" || targetUser.id === ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Un Manager solo puede asignar personal Staff" });
+        }
+        if (targetUser.role === "owner" || targetUser.role === "manager") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No se puede modificar un usuario con rol superior" });
+        }
+        if (targetUser.venueId !== null && targetUser.venueId !== ctx.user.venueId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No se puede mover personal de otra empresa" });
+        }
+      }
+
       await updateUserRole(input.userId, input.role, input.venueId);
       await createAuditLog({
         userId: ctx.user.id,
@@ -73,11 +92,21 @@ export const usersRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.id !== input.userId && ctx.user.role !== "owner" && ctx.user.role !== "manager") {
-        throw new TRPCError({ code: "FORBIDDEN" });
-      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [targetUser] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "Usuario no encontrado" });
+
+      if (ctx.user.id !== input.userId) {
+        if (ctx.user.role === "owner") {
+          // El Owner tiene alcance global.
+        } else if (ctx.user.role === "manager" && targetUser.venueId === ctx.user.venueId && targetUser.role === "staff") {
+          // Un Manager solo edita perfiles de Staff de su propio local.
+        } else {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+      }
       
       const { userId, ...updateData } = input;
       await db.update(users).set(updateData).where(eq(users.id, userId));
@@ -103,6 +132,7 @@ export const usersRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       
       const userToDelete = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!userToDelete[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Usuario no encontrado" });
       if (userToDelete[0]?.role === ("owner" as any)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "No se puede eliminar al owner" });
       }
