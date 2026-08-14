@@ -183,6 +183,9 @@
 
 
 ## Editor inteligente de foto de perfil
-- [ ] Añadir detección automática de rostro y centrado inteligente al recortador de foto de perfil
-- [ ] Mantener ajuste manual, previsualización, confirmación y subida de la foto
-- [ ] Validar formatos, accesibilidad, pruebas y checkpoint
+- [x] Añadir detección automática de rostro y centrado inteligente al recortador de foto de perfil
+- [x] Mantener ajuste manual, previsualización, confirmación y subida de la foto
+- [x] Añadir validación estricta server-side en uploadRouter para tipos MIME permitidos y tamaños máximos
+- [x] Mejorar accesibilidad de controles del recortador y soporte de navegación por teclado/touch
+- [x] Ampliar la suite de pruebas unitarias para validar la carga y seguridad de archivos y verificar 18/18 tests pasando
+- [x] Guardar checkpoint final consolidado

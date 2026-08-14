@@ -124,19 +124,46 @@ export function ProfilePhotoCropper({
     };
   }, [imageSrc, isOpen]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     setIsDragging(true);
     dragStart.current = { x: e.clientX - offsetX, y: e.clientY - offsetY };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging) return;
     setOffsetX(e.clientX - dragStart.current.x);
     setOffsetY(e.clientY - dragStart.current.y);
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
     setIsDragging(false);
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const step = 15;
+    if (e.key === "ArrowUp") {
+      setOffsetY((prev) => prev - step);
+      e.preventDefault();
+    } else if (e.key === "ArrowDown") {
+      setOffsetY((prev) => prev + step);
+      e.preventDefault();
+    } else if (e.key === "ArrowLeft") {
+      setOffsetX((prev) => prev - step);
+      e.preventDefault();
+    } else if (e.key === "ArrowRight") {
+      setOffsetX((prev) => prev + step);
+      e.preventDefault();
+    } else if (e.key === "+" || e.key === "=") {
+      setZoom((prev) => Math.min(3, prev + 0.1));
+      e.preventDefault();
+    } else if (e.key === "-") {
+      setZoom((prev) => Math.max(0.5, prev - 0.1));
+      e.preventDefault();
+    }
   };
 
   const handleConfirm = () => {
@@ -191,13 +218,15 @@ export function ProfilePhotoCropper({
 
         <div className="flex flex-col items-center space-y-4 my-2">
           <div
-            className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-primary/50 bg-black/40 cursor-grab active:cursor-grabbing select-none flex items-center justify-center shadow-inner touch-none"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            role="img"
-            aria-label="Previsualización recortada de la foto de perfil"
+            className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-primary/50 bg-black/40 cursor-grab active:cursor-grabbing select-none flex items-center justify-center shadow-inner touch-none focus:outline-none focus:ring-2 focus:ring-primary"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            onKeyDown={handleKeyDown}
+            tabIndex={0}
+            role="region"
+            aria-label="Área de recorte de foto. Usa las flechas del teclado para mover la imagen y + / - para zoom."
           >
             <img
               src={imageSrc}
