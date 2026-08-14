@@ -23,6 +23,7 @@ import { ordersRouter } from "./routers/orders";
 import { musicRouter } from "./routers/music";
 import { financeRouter } from "./routers/finance";
 import { uploadRouter } from "./routers/upload";
+import { notificationsRouter } from "./routers/notifications";
 
 export const appRouter = router({
   system: systemRouter,
@@ -138,6 +139,7 @@ export const appRouter = router({
   music: musicRouter,
   finance: financeRouter,
   upload: uploadRouter,
+  notifications: notificationsRouter,
 });
 
 export type AppRouter = typeof appRouter;

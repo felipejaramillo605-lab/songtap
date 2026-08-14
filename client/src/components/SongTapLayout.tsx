@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -19,14 +18,18 @@ import {
   Users,
   UtensilsCrossed,
   User,
+  Bell,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  badge?: number;
 }
 
 interface SongTapLayoutProps {
@@ -34,15 +37,6 @@ interface SongTapLayoutProps {
   role: "owner" | "manager" | "staff";
   title?: string;
 }
-
-const ownerNav: NavItem[] = [
-  { label: "Dashboard", href: "/owner", icon: <LayoutDashboard size={18} /> },
-  { label: "Locales", href: "/owner/venues", icon: <Globe size={18} /> },
-  { label: "Solicitudes", href: "/owner/venue-requests", icon: <ClipboardList size={18} /> },
-  { label: "Usuarios", href: "/owner/users", icon: <Users size={18} /> },
-  { label: "Auditoría", href: "/owner/audit", icon: <Shield size={18} /> },
-  { label: "Mi Perfil", href: "/profile", icon: <User size={18} /> },
-];
 
 const managerNav: NavItem[] = [
   { label: "Dashboard", href: "/manager", icon: <LayoutDashboard size={18} /> },
@@ -61,7 +55,6 @@ const staffNav: NavItem[] = [
   { label: "Mi Perfil", href: "/profile", icon: <User size={18} /> },
 ];
 
-const roleNavMap = { owner: ownerNav, manager: managerNav, staff: staffNav };
 const roleLabels = { owner: "Owner", manager: "Manager", staff: "Staff" };
 const roleColors = {
   owner: "text-purple-400",
@@ -73,6 +66,61 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
   const [collapsed, setCollapsed] = useState(false);
   const [location] = useLocation();
   const { user, logout } = useAuth();
+
+  // Consultar solicitudes pendientes y configuración de notificaciones para Owner
+  const { data: pendingCount = 0 } = trpc.notifications.getPendingCount.useQuery(undefined, {
+    enabled: role === "owner",
+    refetchInterval: 10000, // cada 10s
+  });
+
+  const { data: notifSettings } = trpc.notifications.getSettings.useQuery(undefined, {
+    enabled: role === "owner",
+  });
+
+  const prevPendingRef = useRef(pendingCount);
+
+  useEffect(() => {
+    if (role === "owner" && pendingCount > prevPendingRef.current) {
+      // Hay nuevas solicitudes
+      if (notifSettings?.enabled) {
+        try {
+          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          const type = notifSettings.soundType || "chime";
+          if (type === "chime") {
+            osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.15);
+          } else if (type === "bell") {
+            osc.frequency.setValueAtTime(1046.5, audioCtx.currentTime);
+          } else {
+            osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+          }
+
+          gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.5);
+        } catch {}
+      }
+    }
+    prevPendingRef.current = pendingCount;
+  }, [pendingCount, role, notifSettings]);
+
+  const ownerNav: NavItem[] = [
+    { label: "Dashboard", href: "/owner", icon: <LayoutDashboard size={18} /> },
+    { label: "Locales", href: "/owner/venues", icon: <Globe size={18} /> },
+    { label: "Solicitudes", href: "/owner/venue-requests", icon: <ClipboardList size={18} />, badge: pendingCount > 0 ? pendingCount : undefined },
+    { label: "Notificaciones", href: "/owner/notifications", icon: <Bell size={18} /> },
+    { label: "Usuarios", href: "/owner/users", icon: <Users size={18} /> },
+    { label: "Auditoría", href: "/owner/audit", icon: <Shield size={18} /> },
+    { label: "Mi Perfil", href: "/profile", icon: <User size={18} /> },
+  ];
+
+  const roleNavMap = { owner: ownerNav, manager: managerNav, staff: staffNav };
   const navItems = roleNavMap[role];
 
   return (
@@ -99,9 +147,17 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
 
         {/* Role badge */}
         {!collapsed && (
-          <div className="px-4 py-3 border-b border-border bg-secondary/20">
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Modo Panel</p>
-            <p className={cn("text-xs font-bold capitalize", roleColors[role])}>{roleLabels[role]}</p>
+          <div className="px-4 py-3 border-b border-border bg-secondary/20 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Modo Panel</p>
+              <p className={cn("text-xs font-bold capitalize", roleColors[role])}>{roleLabels[role]}</p>
+            </div>
+            {role === "owner" && pendingCount > 0 && (
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+              </span>
+            )}
           </div>
         )}
 
@@ -114,7 +170,7 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                  "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                   isActive
                     ? "bg-primary text-primary-foreground shadow-sm neon-glow"
                     : "text-muted-foreground hover:bg-secondary hover:text-foreground",
@@ -122,8 +178,15 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
                 )}
                 title={collapsed ? item.label : undefined}
               >
-                <span className="flex-shrink-0">{item.icon}</span>
-                {!collapsed && <span className="truncate">{item.label}</span>}
+                <div className="flex items-center gap-3">
+                  <span className="flex-shrink-0">{item.icon}</span>
+                  {!collapsed && <span className="truncate">{item.label}</span>}
+                </div>
+                {!collapsed && item.badge !== undefined && (
+                  <span className="bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -148,19 +211,18 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
               variant="ghost"
               size="sm"
               onClick={() => logout()}
-              className={cn("w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10", collapsed && "justify-center px-0")}
-              title="Cerrar sesión"
+              className={cn("w-full text-muted-foreground hover:text-foreground hover:bg-destructive/10 text-xs flex items-center justify-center gap-2", collapsed && "px-0")}
+              title="Salir"
             >
               <LogOut size={16} />
-              {!collapsed && <span className="ml-2 text-xs">Salir</span>}
+              {!collapsed && <span>Salir</span>}
             </Button>
-
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setCollapsed(!collapsed)}
-              className="text-muted-foreground hover:text-foreground"
-              title={collapsed ? "Expandir" : "Contraer"}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              title={collapsed ? "Expandir" : "Colapsar"}
             >
               {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
             </Button>
@@ -169,20 +231,25 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <header className="h-16 border-b border-border bg-card/50 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-20">
-          <h1 className="text-lg font-bold text-foreground">{title || "SongTap Management"}</h1>
+      <main className="flex-1 flex flex-col min-w-0 bg-background">
+        <header className="h-16 border-b border-border px-6 flex items-center justify-between bg-sidebar/50 backdrop-blur">
+          <h1 className="text-lg font-bold text-foreground">{title || "SongTap"}</h1>
           <div className="flex items-center gap-3">
-            <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium border border-primary/20">
-              {role.toUpperCase()}
+            {role === "owner" && pendingCount > 0 && (
+              <Link href="/owner/venue-requests">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary/20 text-primary border border-primary/30 cursor-pointer animate-pulse">
+                  <Bell size={13} /> {pendingCount} {pendingCount === 1 ? "solicitud pendiente" : "solicitudes pendientes"}
+                </span>
+              </Link>
+            )}
+            <span className="text-xs text-muted-foreground capitalize">
+              {user?.name || role}
             </span>
           </div>
         </header>
 
-        <main className="flex-1 p-6 lg:p-8 bg-background">
-          {children}
-        </main>
-      </div>
+        <div className="flex-1 p-6 overflow-y-auto">{children}</div>
+      </main>
     </div>
   );
 }

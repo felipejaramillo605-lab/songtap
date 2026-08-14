@@ -265,3 +265,20 @@ export const appauseVotes = mysqlTable("applause_votes", {
 
 export type AppauseVote = typeof appauseVotes.$inferSelect;
 export type InsertAppauseVote = typeof appauseVotes.$inferInsert;
+
+// ─── NOTIFICATION SETTINGS ───────────────────────────────────────────────────
+export const venueNotificationSettings = mysqlTable("venue_notification_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerId: int("ownerId").notNull().unique(),
+  enabled: boolean("enabled").default(true).notNull(),
+  emailNotifications: boolean("emailNotifications").default(true).notNull(),
+  notificationEmail: varchar("notificationEmail", { length: 320 }),
+  notificationPhone: varchar("notificationPhone", { length: 64 }),
+  senderAccountEmail: varchar("senderAccountEmail", { length: 320 }),
+  soundType: varchar("soundType", { length: 64 }).default("chime").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VenueNotificationSettings = typeof venueNotificationSettings.$inferSelect;
+export type InsertVenueNotificationSettings = typeof venueNotificationSettings.$inferInsert;

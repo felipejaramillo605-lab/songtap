@@ -25,6 +25,7 @@ import OwnerVenues from "./pages/owner/OwnerVenues";
 import OwnerUsers from "./pages/owner/OwnerUsers";
 import OwnerAudit from "./pages/owner/OwnerAudit";
 import OwnerVenueRequests from "./pages/owner/OwnerVenueRequests";
+import OwnerNotificationsSettings from "./pages/owner/OwnerNotificationsSettings";
 
 // Manager pages
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
@@ -70,6 +71,7 @@ function Router() {
       <Route path="/owner/venue-requests" component={OwnerVenueRequests} />
       <Route path="/owner/users" component={OwnerUsers} />
       <Route path="/owner/audit" component={OwnerAudit} />
+      <Route path="/owner/notifications" component={OwnerNotificationsSettings} />
 
       {/* Manager */}
       <Route path="/manager" component={ManagerDashboard} />

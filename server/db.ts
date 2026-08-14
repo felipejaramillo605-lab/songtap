@@ -16,8 +16,10 @@ import {
   users,
   venueRequests,
   venues,
+  venueNotificationSettings,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { notifyOwner } from "./_core/notification";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -470,6 +472,21 @@ export async function createVenueRequest(data: typeof venueRequests.$inferInsert
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.insert(venueRequests).values(data);
+  
+  // Enviar notificación al owner si está habilitada
+  try {
+    // Buscar si hay configuración de notificaciones y si está habilitada
+    const [settings] = await db.select().from(venueNotificationSettings).limit(1);
+    if (!settings || settings.enabled) {
+      await notifyOwner({
+        title: `Nueva Solicitud de Local: ${data.venueName}`,
+        content: `El manager ha solicitado registrar el local "${data.venueName}" (Dirección: ${data.venueAddress || "N/A"}). Ingresa al panel de SongTap para aprobarla o rechazarla.`,
+      });
+    }
+  } catch (err) {
+    console.warn("[VenueRequest] Error enviando notificación al owner:", err);
+  }
+
   return result;
 }
 
@@ -679,4 +696,52 @@ export async function updateUserPassword(userId: number, passwordHash: string) {
     .update(users)
     .set({ passwordHash, resetPasswordToken: null, resetPasswordExpires: null })
     .where(eq(users.id, userId));
+}
+
+// ─── NOTIFICATION SETTINGS HELPERS ───────────────────────────────────────────
+export async function getNotificationSettings(ownerId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [settings] = await db.select().from(venueNotificationSettings).where(eq(venueNotificationSettings.ownerId, ownerId)).limit(1);
+  if (!settings) {
+    // Retornar valores por defecto si no existen
+    return {
+      ownerId,
+      enabled: true,
+      emailNotifications: true,
+      notificationEmail: "",
+      notificationPhone: "",
+      senderAccountEmail: "",
+      soundType: "chime",
+    };
+  }
+  return settings;
+}
+
+export async function updateNotificationSettings(ownerId: number, data: {
+  enabled: boolean;
+  emailNotifications: boolean;
+  notificationEmail?: string;
+  notificationPhone?: string;
+  senderAccountEmail?: string;
+  soundType: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  const dbCheck = await getDb();
+  if (!dbCheck) throw new Error("DB not available");
+  const [existing] = await dbCheck.select().from(venueNotificationSettings).where(eq(venueNotificationSettings.ownerId, ownerId)).limit(1);
+  if (!existing) {
+    await db.insert(venueNotificationSettings).values({
+      ownerId,
+      ...data,
+    });
+  } else {
+    await db.update(venueNotificationSettings).set({
+      ...data,
+      updatedAt: new Date(),
+    }).where(eq(venueNotificationSettings.ownerId, ownerId));
+  }
+  return getNotificationSettings(ownerId);
 }
