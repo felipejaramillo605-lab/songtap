@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
+import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
 
 export default function Login() {
   const { user, isAuthenticated } = useAuth();
@@ -198,6 +199,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                <PasswordStrengthIndicator password={password} />
               </div>
               <Button
                 type="submit"
@@ -287,6 +289,7 @@ export default function Login() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                 />
+                <PasswordStrengthIndicator password={newPassword} />
               </div>
               <Button
                 type="submit"
