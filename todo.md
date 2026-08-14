@@ -208,3 +208,8 @@
 - [x] Rediseñar la vista de auditoría con las nuevas columnas y formato responsive
 - [x] Validar el drawer y contenido de los paneles principales en móvil
 - [x] Añadir prueba de contrato para auditoría enriquecida y guardar checkpoint
+
+## Filtros del log de auditoría
+- [x] Añadir filtros desplegables por compañía, módulo y usuario ejecutor
+- [x] Mostrar contador, estado vacío y acción para limpiar filtros
+- [x] Validar filtrado, responsive, pruebas y checkpoint

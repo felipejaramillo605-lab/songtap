@@ -1,11 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import SongTapLayout from "@/components/SongTapLayout";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getLoginUrl } from "@/const";
-import { Activity, Building2, CalendarDays, Clock3, Layers3, Shield, UserRound } from "lucide-react";
+import { filterAuditLogs } from "@/lib/auditFilters";
+import { Activity, Building2, CalendarDays, Clock3, Filter, RotateCcw, Shield, UserRound } from "lucide-react";
 
 const actionColors: Record<string, string> = {
   CREATE_VENUE: "text-green-400",
@@ -49,6 +52,39 @@ export default function OwnerAudit() {
   }, [loading, isAuthenticated, user?.role, navigate]);
 
   const { data: logs = [], isLoading } = trpc.finance.auditLogs.useQuery({ limit: 100 }, { enabled: !!user && user.role === "owner" });
+  const [companyFilter, setCompanyFilter] = useState("all");
+  const [moduleFilter, setModuleFilter] = useState("all");
+  const [userFilter, setUserFilter] = useState("all");
+
+  const filterOptions = useMemo(() => {
+    const companies = new Map<string, string>();
+    const modules = new Set<string>();
+    const users = new Map<string, string>();
+
+    logs.forEach((log) => {
+      companies.set(log.venueId ? String(log.venueId) : "global", log.companyName || "SongTap · Global");
+      modules.add(log.module || "Sistema");
+      users.set(String(log.userId ?? "unknown"), log.executorName || log.executorEmail || "Usuario no disponible");
+    });
+
+    return {
+      companies: Array.from(companies.entries()).sort(([, a], [, b]) => a.localeCompare(b, "es-CO")),
+      modules: Array.from(modules).sort((a, b) => a.localeCompare(b, "es-CO")),
+      users: Array.from(users.entries()).sort(([, a], [, b]) => a.localeCompare(b, "es-CO")),
+    };
+  }, [logs]);
+
+  const filteredLogs = useMemo(
+    () => filterAuditLogs(logs, { company: companyFilter, module: moduleFilter, user: userFilter }),
+    [logs, companyFilter, moduleFilter, userFilter]
+  );
+
+  const hasActiveFilters = companyFilter !== "all" || moduleFilter !== "all" || userFilter !== "all";
+  const clearFilters = () => {
+    setCompanyFilter("all");
+    setModuleFilter("all");
+    setUserFilter("all");
+  };
 
   if (loading || !isAuthenticated || user?.role !== "owner") return null;
 
@@ -67,14 +103,69 @@ export default function OwnerAudit() {
             <CardTitle className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
               <Shield size={16} className="text-primary" />
               Eventos recientes
-              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary">{logs.length}</span>
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary">{filteredLogs.length} / {logs.length}</span>
             </CardTitle>
           </CardHeader>
+          {!isLoading && logs.length > 0 && (
+            <div className="grid grid-cols-1 gap-3 border-b border-border bg-secondary/10 p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end" aria-label="Filtros del log de auditoría">
+              <div className="space-y-2">
+                <label htmlFor="audit-company-filter" className="text-xs font-medium text-muted-foreground">Compañía</label>
+                <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                  <SelectTrigger id="audit-company-filter" className="border-border bg-input text-foreground">
+                    <SelectValue placeholder="Todas las compañías" />
+                  </SelectTrigger>
+                  <SelectContent className="border-border bg-card text-card-foreground">
+                    <SelectItem value="all">Todas las compañías</SelectItem>
+                    {filterOptions.companies.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="audit-module-filter" className="text-xs font-medium text-muted-foreground">Módulo</label>
+                <Select value={moduleFilter} onValueChange={setModuleFilter}>
+                  <SelectTrigger id="audit-module-filter" className="border-border bg-input text-foreground">
+                    <SelectValue placeholder="Todos los módulos" />
+                  </SelectTrigger>
+                  <SelectContent className="border-border bg-card text-card-foreground">
+                    <SelectItem value="all">Todos los módulos</SelectItem>
+                    {filterOptions.modules.map((module) => <SelectItem key={module} value={module}>{module}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="audit-user-filter" className="text-xs font-medium text-muted-foreground">Usuario ejecutor</label>
+                <Select value={userFilter} onValueChange={setUserFilter}>
+                  <SelectTrigger id="audit-user-filter" className="border-border bg-input text-foreground">
+                    <SelectValue placeholder="Todos los usuarios" />
+                  </SelectTrigger>
+                  <SelectContent className="border-border bg-card text-card-foreground">
+                    <SelectItem value="all">Todos los usuarios</SelectItem>
+                    {filterOptions.users.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="button" variant="ghost" className="text-muted-foreground hover:bg-secondary hover:text-foreground" disabled={!hasActiveFilters} onClick={clearFilters}>
+                <RotateCcw size={15} className="mr-2" /> Limpiar
+              </Button>
+              <p className="sm:col-span-2 lg:col-span-4 text-xs text-muted-foreground" aria-live="polite">
+                <Filter size={13} className="mr-1 inline" aria-hidden="true" /> Mostrando {filteredLogs.length} de {logs.length} movimientos.
+              </p>
+            </div>
+          )}
           <CardContent className="p-0">
             {isLoading ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Cargando eventos de auditoría...</p>
             ) : logs.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">No hay eventos registrados.</p>
+            ) : filteredLogs.length === 0 ? (
+              <div className="py-12 text-center">
+                <Filter className="mx-auto h-8 w-8 text-muted-foreground/60" aria-hidden="true" />
+                <p className="mt-3 text-sm font-medium text-foreground">No hay movimientos con estos filtros</p>
+                <p className="mt-1 text-xs text-muted-foreground">Cambia las opciones seleccionadas o limpia los filtros para volver a ver el historial.</p>
+                <Button type="button" variant="outline" className="mt-4 border-border" onClick={clearFilters}>
+                  <RotateCcw size={15} className="mr-2" /> Limpiar filtros
+                </Button>
+              </div>
             ) : (
               <>
                 <div className="hidden overflow-x-auto lg:block">
@@ -91,7 +182,7 @@ export default function OwnerAudit() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {logs.map((log) => {
+                      {filteredLogs.map((log) => {
                         const timestamp = new Date(log.createdAt);
                         return (
                           <tr key={log.id} className="transition-colors hover:bg-secondary/20">
@@ -113,7 +204,7 @@ export default function OwnerAudit() {
                 </div>
 
                 <div className="divide-y divide-border lg:hidden">
-                  {logs.map((log) => {
+                  {filteredLogs.map((log) => {
                     const timestamp = new Date(log.createdAt);
                     return (
                       <article key={log.id} className="space-y-3 p-4">
