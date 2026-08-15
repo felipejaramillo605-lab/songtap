@@ -48,6 +48,7 @@ describe("OwnerDashboard analytics", () => {
     expect(screen.getByRole("img", { name: "Gráfico de barras de ingresos diarios interlocales" })).toBeTruthy();
     expect(screen.getByText("Resumen diario en tabla")).toBeTruthy();
     expect(screen.getByText("Desempeño PQRS por local")).toBeTruthy();
+    expect(screen.getByText("Comparación SLA frente al periodo anterior")).toBeTruthy();
     expect(screen.getByRole("progressbar", { name: "Tasa de resolución de Bar Central: 50%" })).toBeTruthy();
     expect(screen.getByRole("progressbar", { name: "Cumplimiento SLA de Bar Central: 75%" })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Minutos objetivo SLA"), { target: { value: "180" } });
@@ -61,6 +62,7 @@ describe("OwnerDashboard analytics", () => {
     fireEvent.change(screen.getByLabelText("Periodo de analítica interlocal"), { target: { value: "30" } });
     expect(mocks.analyticsInputs.length).toBeGreaterThanOrEqual(2);
     expect((mocks.analyticsInputs.at(-1) as { dateFrom: Date }).dateFrom).toBeInstanceOf(Date);
+    expect(mocks.pqrsInputs.some((input) => (input as { dateTo: Date }).dateTo < new Date())).toBe(true);
 
     fireEvent.change(screen.getByLabelText("Filtrar PQRS por tipo"), { target: { value: "complaint" } });
     fireEvent.change(screen.getByLabelText("Filtrar PQRS por estado"), { target: { value: "resolved" } });
@@ -69,7 +71,7 @@ describe("OwnerDashboard analytics", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Usar rango de fechas personalizado para PQRS" }));
     fireEvent.change(screen.getByLabelText("Fecha inicial personalizada de PQRS"), { target: { value: "2026-08-01" } });
     fireEvent.change(screen.getByLabelText("Fecha final personalizada de PQRS"), { target: { value: "2026-08-10" } });
-    expect(mocks.pqrsInputs.at(-1)).toMatchObject({ type: "complaint", status: "resolved", dateFrom: new Date("2026-08-01T00:00:00"), dateTo: new Date("2026-08-10T23:59:59.999") });
+    expect(mocks.pqrsInputs.find((input) => (input as { dateFrom: Date; dateTo: Date }).dateFrom.getTime() === new Date("2026-08-01T00:00:00").getTime() && (input as { dateTo: Date }).dateTo.getTime() === new Date("2026-08-10T23:59:59.999").getTime())).toMatchObject({ type: "complaint", status: "resolved", dateFrom: new Date("2026-08-01T00:00:00"), dateTo: new Date("2026-08-10T23:59:59.999") });
 
     const createObjectUrl = vi.fn((_: Blob) => "blob:pqrs");
     const revokeObjectUrl = vi.fn();

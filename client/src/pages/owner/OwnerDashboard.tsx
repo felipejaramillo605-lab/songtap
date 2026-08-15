@@ -4,6 +4,7 @@ import SongTapLayout from "@/components/SongTapLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { buildPqrsFilename, createPqrsCsv, createPqrsWorkbook, toPqrsExportRows } from "@/lib/pqrsExport";
+import { getPreviousPqrsPeriod } from "@/lib/pqrsPeriod";
 import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet, ShieldCheck } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
@@ -53,12 +54,17 @@ export default function OwnerDashboard() {
     const isValid = !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && start <= end;
     return { dateFrom: start, dateTo: end, isValid };
   }, [dateFrom, dateTo, pqrsStartDate, pqrsEndDate, useCustomPqrsRange]);
+  const previousPqrsDateRange = useMemo(() => getPreviousPqrsPeriod(pqrsDateRange.dateFrom, pqrsDateRange.dateTo), [pqrsDateRange.dateFrom, pqrsDateRange.dateTo]);
   const { data: analytics, isLoading: isLoadingAnalytics } = trpc.finance.ownerVenueAnalytics.useQuery(
     { dateFrom, dateTo },
     { enabled: isAuthenticated && user?.role === "owner" }
   );
   const { data: pqrsAnalytics, isLoading: isLoadingPqrsAnalytics } = trpc.pqrs.ownerAnalytics.useQuery(
     { dateFrom: pqrsDateRange.dateFrom, dateTo: pqrsDateRange.dateTo, type: pqrsType, status: pqrsStatus },
+    { enabled: isAuthenticated && user?.role === "owner" && pqrsDateRange.isValid }
+  );
+  const { data: previousPqrsAnalytics, isLoading: isLoadingPreviousPqrsAnalytics } = trpc.pqrs.ownerAnalytics.useQuery(
+    { dateFrom: previousPqrsDateRange.dateFrom, dateTo: previousPqrsDateRange.dateTo, type: pqrsType, status: pqrsStatus },
     { enabled: isAuthenticated && user?.role === "owner" && pqrsDateRange.isValid }
   );
   const utils = trpc.useUtils();
@@ -85,13 +91,18 @@ export default function OwnerDashboard() {
     if (awaitingSlaTarget === persistedTarget) setAwaitingSlaTarget(null);
   }, [awaitingSlaTarget, isSlaTargetDirty, slaTargets, slaType, slaVenueId]);
 
+  const previousPqrsVenueMap = useMemo(() => new Map((previousPqrsAnalytics?.venues ?? []).map((venue) => [venue.venueId, venue])), [previousPqrsAnalytics]);
   if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
 
   const activeVenues = venues?.filter((v) => v.isActive).length ?? 0;
   const totalUsers = users?.length ?? 0;
   const managers = users?.filter((u) => u.role === "manager").length ?? 0;
   const staff = users?.filter((u) => u.role === "staff").length ?? 0;
-  const allPqrsVenues = pqrsAnalytics?.venues ?? [];
+  const allPqrsVenues = (pqrsAnalytics?.venues ?? []).map((venue) => {
+    const previousVenue = previousPqrsVenueMap.get(venue.venueId);
+    const previousSlaComplianceRate = previousVenue?.slaComplianceRate ?? 0;
+    return { ...venue, previousSlaComplianceRate, slaComplianceChange: venue.slaComplianceRate - previousSlaComplianceRate };
+  });
   const selectedPqrsVenues = selectedPqrsVenueIds === null ? allPqrsVenues : allPqrsVenues.filter((venue) => selectedPqrsVenueIds.includes(venue.venueId));
   const selectedPqrsTotals = selectedPqrsVenues.reduce((totals, venue) => ({
     total: totals.total + venue.total,
@@ -103,14 +114,20 @@ export default function OwnerDashboard() {
     slaBreached: totals.slaBreached + venue.slaBreached,
     resolutionRate: 0,
     slaComplianceRate: 0,
-  }), { total: 0, open: 0, inReview: 0, resolved: 0, slaEvaluated: 0, slaMet: 0, slaBreached: 0, resolutionRate: 0, slaComplianceRate: 0 });
+    previousSlaComplianceRate: 0,
+    slaComplianceChange: 0,
+  }), { total: 0, open: 0, inReview: 0, resolved: 0, slaEvaluated: 0, slaMet: 0, slaBreached: 0, resolutionRate: 0, slaComplianceRate: 0, previousSlaComplianceRate: 0, slaComplianceChange: 0 });
   selectedPqrsTotals.resolutionRate = selectedPqrsTotals.total ? Math.round((selectedPqrsTotals.resolved / selectedPqrsTotals.total) * 100) : 0;
   selectedPqrsTotals.slaComplianceRate = selectedPqrsTotals.slaEvaluated ? Math.round((selectedPqrsTotals.slaMet / selectedPqrsTotals.slaEvaluated) * 100) : 0;
+  const selectedPreviousSlaEvaluated = selectedPqrsVenues.reduce((total, venue) => total + (previousPqrsVenueMap.get(venue.venueId)?.slaEvaluated ?? 0), 0);
+  const selectedPreviousSlaMet = selectedPqrsVenues.reduce((total, venue) => total + (previousPqrsVenueMap.get(venue.venueId)?.slaMet ?? 0), 0);
+  selectedPqrsTotals.previousSlaComplianceRate = selectedPreviousSlaEvaluated ? Math.round((selectedPreviousSlaMet / selectedPreviousSlaEvaluated) * 100) : 0;
+  selectedPqrsTotals.slaComplianceChange = selectedPqrsTotals.slaComplianceRate - selectedPqrsTotals.previousSlaComplianceRate;
   const pqrsTypeLabel = { all: "Todos los tipos", petition: "Petición", complaint: "Queja", claim: "Reclamo", suggestion: "Sugerencia", congratulation: "Felicitación" }[pqrsType];
   const pqrsStatusLabel = { all: "Todos los estados", open: "Abierta", in_review: "En revisión", resolved: "Resuelta", closed: "Cerrada" }[pqrsStatus];
   const pqrsExportFilters = { typeLabel: pqrsTypeLabel, statusLabel: pqrsStatusLabel };
   const pqrsExportRows = toPqrsExportRows(selectedPqrsVenues, pqrsExportFilters);
-  const canExportPqrs = pqrsExportRows.length > 0 && pqrsDateRange.isValid && !isLoadingPqrsAnalytics;
+  const canExportPqrs = pqrsExportRows.length > 0 && pqrsDateRange.isValid && !isLoadingPqrsAnalytics && !isLoadingPreviousPqrsAnalytics;
   const togglePqrsVenue = (venueId: number) => {
     const currentIds = selectedPqrsVenueIds ?? allPqrsVenues.map((venue) => venue.venueId);
     setSelectedPqrsVenueIds(currentIds.includes(venueId) ? currentIds.filter((id) => id !== venueId) : [...currentIds, venueId]);
@@ -286,6 +303,12 @@ export default function OwnerDashboard() {
               { label: "Cumplimiento SLA", value: `${selectedPqrsTotals.slaComplianceRate}%`, color: "text-emerald-300" },
             ].map((metric) => <Card key={metric.label} className="border-border bg-card"><CardContent className="p-4"><p className="text-xs uppercase tracking-wide text-muted-foreground">{metric.label}</p><p className={`mt-1 text-2xl font-bold ${metric.color}`}>{metric.value}</p></CardContent></Card>)}
           </div>
+          <Card className="border-border bg-secondary/20" aria-live="polite">
+            <CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div><p className="text-sm font-semibold text-foreground">Comparación SLA frente al periodo anterior</p><p className="text-xs text-muted-foreground">Actual: {pqrsDateRange.dateFrom.toLocaleDateString("es-CO")} – {pqrsDateRange.dateTo.toLocaleDateString("es-CO")} · Anterior equivalente: {previousPqrsDateRange.dateFrom.toLocaleDateString("es-CO")} – {previousPqrsDateRange.dateTo.toLocaleDateString("es-CO")}</p></div>
+              {isLoadingPreviousPqrsAnalytics ? <span className="text-sm text-muted-foreground">Calculando comparación…</span> : <div className="text-left sm:text-right"><p className="text-sm text-muted-foreground">Anterior: <span className="font-semibold text-foreground">{selectedPqrsTotals.previousSlaComplianceRate}%</span></p><p className={`text-lg font-bold ${selectedPqrsTotals.slaComplianceChange > 0 ? "text-primary" : selectedPqrsTotals.slaComplianceChange < 0 ? "text-destructive" : "text-muted-foreground"}`}>{selectedPqrsTotals.slaComplianceChange >= 0 ? "+" : ""}{selectedPqrsTotals.slaComplianceChange} pp</p></div>}
+            </CardContent>
+          </Card>
 
           <Card className="border-border bg-card">
             <CardHeader><CardTitle className="text-base text-foreground flex items-center gap-2"><Timer size={17} className="text-primary" /> Comparativo de atención</CardTitle></CardHeader>
@@ -293,7 +316,7 @@ export default function OwnerDashboard() {
               {isLoadingPqrsAnalytics ? <p className="py-8 text-center text-sm text-muted-foreground">Cargando desempeño PQRS...</p> : !allPqrsVenues.length ? <p className="py-8 text-center text-sm text-muted-foreground">No hay locales disponibles para comparar.</p> : !selectedPqrsVenues.length ? <p className="py-8 text-center text-sm text-muted-foreground">Selecciona al menos una sucursal para visualizar y exportar el desempeño PQRS.</p> : (
                 <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><caption className="sr-only">Indicadores de desempeño de PQRS por sucursal seleccionada para el periodo activo.</caption><thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground"><tr><th scope="col" className="pb-3 pr-4 font-medium">Local</th><th scope="col" className="pb-3 px-3 text-right font-medium">Total</th><th scope="col" className="pb-3 px-3 text-right font-medium">Abiertas</th><th scope="col" className="pb-3 px-3 text-right font-medium">En revisión</th><th scope="col" className="pb-3 px-3 text-right font-medium">Resueltas</th><th scope="col" className="pb-3 px-3 font-medium">Tasa de resolución</th><th scope="col" className="pb-3 pl-3 text-right font-medium">Respuesta media</th></tr></thead><tbody>{selectedPqrsVenues.map((venue) => { const response = venue.averageResponseMinutes >= 60 ? `${Math.floor(venue.averageResponseMinutes / 60)} h ${venue.averageResponseMinutes % 60} min` : `${venue.averageResponseMinutes} min`; return <tr key={venue.venueId} className="border-b border-border/60 last:border-0"><th scope="row" className="py-3 pr-4 font-semibold text-foreground">{venue.venueName}</th><td className="px-3 py-3 text-right text-foreground">{venue.total}</td><td className="px-3 py-3 text-right text-yellow-200">{venue.open}</td><td className="px-3 py-3 text-right text-blue-200">{venue.inReview}</td><td className="px-3 py-3 text-right text-primary">{venue.resolved}</td><td className="px-3 py-3"><div className="flex min-w-28 items-center gap-2"><progress className="h-2 flex-1 accent-primary" value={venue.resolutionRate} max={100} aria-label={`Tasa de resolución de ${venue.venueName}: ${venue.resolutionRate}%`} /><span className="w-9 text-right text-xs text-foreground">{venue.resolutionRate}%</span></div></td><td className="py-3 pl-3 text-right text-muted-foreground">{response}</td></tr>; })}</tbody></table></div>
               )}
-              {!isLoadingPqrsAnalytics && selectedPqrsVenues.length > 0 && <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Cumplimiento SLA por sucursal">{selectedPqrsVenues.map((venue) => <div key={`sla-${venue.venueId}`} className="rounded-lg border border-border bg-secondary/25 p-3"><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-foreground">{venue.venueName}</p><span className="text-xs font-medium text-amber-300">{venue.slaBreached} vencidas</span></div><div className="mt-2 flex items-center gap-2"><progress className="h-2 flex-1 accent-emerald-400" value={venue.slaComplianceRate} max={100} aria-label={`Cumplimiento SLA de ${venue.venueName}: ${venue.slaComplianceRate}%`} /><span className="w-9 text-right text-xs text-foreground">{venue.slaComplianceRate}%</span></div><p className="mt-2 text-xs text-muted-foreground">{venue.slaMet} de {venue.slaEvaluated} PQRS evaluadas cumplen el objetivo.</p></div>)}</div>}
+              {!isLoadingPqrsAnalytics && selectedPqrsVenues.length > 0 && <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Cumplimiento SLA por sucursal">{selectedPqrsVenues.map((venue) => <div key={`sla-${venue.venueId}`} className="rounded-lg border border-border bg-secondary/25 p-3"><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-foreground">{venue.venueName}</p><span className="text-xs font-medium text-amber-300">{venue.slaBreached} vencidas</span></div><div className="mt-2 flex items-center gap-2"><progress className="h-2 flex-1 accent-emerald-400" value={venue.slaComplianceRate} max={100} aria-label={`Cumplimiento SLA de ${venue.venueName}: ${venue.slaComplianceRate}%`} /><span className="w-9 text-right text-xs text-foreground">{venue.slaComplianceRate}%</span></div><p className="mt-2 text-xs text-muted-foreground">Anterior: {venue.previousSlaComplianceRate}% · <span className={venue.slaComplianceChange > 0 ? "text-primary" : venue.slaComplianceChange < 0 ? "text-destructive" : ""}>{venue.slaComplianceChange >= 0 ? "+" : ""}{venue.slaComplianceChange} pp</span></p><p className="mt-1 text-xs text-muted-foreground">{venue.slaMet} de {venue.slaEvaluated} PQRS evaluadas cumplen el objetivo.</p></div>)}</div>}
             </CardContent>
           </Card>
         </section>

@@ -281,6 +281,11 @@
 
 ## Pendientes internos priorizados
 
+- [x] Calcular automáticamente el periodo anterior equivalente para el rango PQRS seleccionado
+- [x] Obtener y comparar cumplimiento SLA actual versus periodo anterior por sucursal
+- [x] Mostrar variación SLA accesible y utilizarla en CSV y Excel de desempeño PQRS
+- [x] Cubrir periodos personalizados, filtros combinados y variación SLA con pruebas
+- [x] Corregir y validar la estabilidad de hooks del dashboard Owner al cargar la comparación SLA
 - [x] Definir y persistir objetivos SLA de respuesta por tipo de PQRS y sucursal
 - [x] Mostrar cumplimiento y vencimiento SLA en el comparativo PQRS del Owner
 - [x] Incorporar los indicadores SLA a CSV y Excel de desempeño PQRS
