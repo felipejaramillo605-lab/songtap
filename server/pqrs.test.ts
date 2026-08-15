@@ -6,6 +6,7 @@ const dbMocks = vi.hoisted(() => ({
   getPqrsTicketForVenue: vi.fn(),
   getPqrsTicketsBySession: vi.fn(),
   getPqrsTicketsByVenue: vi.fn(),
+  getOwnerPqrsAnalytics: vi.fn(),
   getQrSessionByToken: vi.fn(),
   updatePqrsTicketForVenue: vi.fn(),
 }));
@@ -20,6 +21,7 @@ const managerContext = {
   req: {} as any,
   res: {} as any,
 };
+const ownerContext = { user: { id: 1, role: "owner", venueId: null, name: "Owner" }, req: {} as any, res: {} as any };
 
 describe("pqrs router", () => {
   beforeEach(() => {
@@ -30,6 +32,9 @@ describe("pqrs router", () => {
     dbMocks.getPqrsTicketsByVenue.mockResolvedValue([]);
     dbMocks.getPqrsTicketForVenue.mockResolvedValue({ id: 120, venueId: 7, status: "open", response: null, respondedByUserId: null, respondedAt: null });
     dbMocks.updatePqrsTicketForVenue.mockResolvedValue(true);
+    dbMocks.getOwnerPqrsAnalytics.mockResolvedValue([
+      { venueId: 7, venueName: "Bar Central", total: "10", open: "2", inReview: "3", resolved: "5", averageResponseMinutes: "42", isActive: true },
+    ]);
   });
 
   it("crea una PQRS únicamente para la sesión QR y el local que la autorizan", async () => {
@@ -118,5 +123,15 @@ describe("pqrs router", () => {
     await expect(client.getMyTickets({ sessionToken: "valid-pqrs-session-token", sessionId: 70, venueId: 7 })).resolves.toEqual([
       { id: 120, venueId: 7, status: "resolved", response: "Gracias por avisarnos. Ajustamos la temperatura en tu zona." },
     ]);
+  });
+
+  it("expone métricas comparativas por local sólo para Owner", async () => {
+    const owner = pqrsRouter.createCaller(ownerContext as any);
+    const result = await owner.ownerAnalytics({ dateFrom: new Date("2026-08-01"), dateTo: new Date("2026-08-15") });
+    expect(result.totals).toEqual({ total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50 });
+    expect(result.venues[0]).toMatchObject({ venueName: "Bar Central", averageResponseMinutes: 42, resolutionRate: 50 });
+
+    const manager = pqrsRouter.createCaller(managerContext as any);
+    await expect(manager.ownerAnalytics({ dateFrom: new Date("2026-08-01"), dateTo: new Date("2026-08-15") })).rejects.toThrow();
   });
 });

@@ -224,6 +224,14 @@ describe("Aislamiento por IDs adivinables y token QR", () => {
       await expect(client.pqrs.getMyTickets({ sessionToken: token, sessionId, venueId: 30001 })).resolves.toEqual(expect.arrayContaining([
         expect.objectContaining({ id: ticketId, status: "resolved", response: "Respuesta integrada visible para el cliente QR." }),
       ]));
+
+      const owner = appRouter.createCaller(ctx("owner", null, 9028));
+      const analytics = await owner.pqrs.ownerAnalytics({ dateFrom: new Date("2020-01-01"), dateTo: new Date("2030-01-01") });
+      const venueAnalytics = analytics.venues.find((venue) => venue.venueId === 30001);
+      expect(venueAnalytics).toMatchObject({ venueId: 30001 });
+      expect(venueAnalytics?.total).toBeGreaterThanOrEqual(1);
+      expect(venueAnalytics?.resolved).toBeGreaterThanOrEqual(1);
+      expect(venueAnalytics?.resolutionRate).toBeGreaterThan(0);
     } finally {
       if (ticketId) {
         await db.delete(auditLogs).where(eq(auditLogs.entityId, ticketId));

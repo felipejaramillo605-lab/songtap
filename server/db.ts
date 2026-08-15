@@ -193,6 +193,33 @@ export async function updatePqrsTicketForVenue(
   return (result[0] as { affectedRows: number }).affectedRows > 0;
 }
 
+export async function getOwnerPqrsAnalytics(dateFrom: Date, dateTo: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      venueId: venues.id,
+      venueName: venues.name,
+      isActive: venues.isActive,
+      total: sql<number>`COUNT(${pqrsTickets.id})`,
+      open: sql<number>`COALESCE(SUM(CASE WHEN ${pqrsTickets.status} = 'open' THEN 1 ELSE 0 END), 0)`,
+      inReview: sql<number>`COALESCE(SUM(CASE WHEN ${pqrsTickets.status} = 'in_review' THEN 1 ELSE 0 END), 0)`,
+      resolved: sql<number>`COALESCE(SUM(CASE WHEN ${pqrsTickets.status} IN ('resolved', 'closed') THEN 1 ELSE 0 END), 0)`,
+      averageResponseMinutes: sql<number>`COALESCE(AVG(CASE WHEN ${pqrsTickets.respondedAt} IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, ${pqrsTickets.createdAt}, ${pqrsTickets.respondedAt}) END), 0)`,
+    })
+    .from(venues)
+    .leftJoin(
+      pqrsTickets,
+      and(
+        eq(pqrsTickets.venueId, venues.id),
+        gte(pqrsTickets.createdAt, dateFrom),
+        lte(pqrsTickets.createdAt, dateTo)
+      )
+    )
+    .groupBy(venues.id, venues.name, venues.isActive)
+    .orderBy(sql`COUNT(${pqrsTickets.id}) DESC`);
+}
+
 // ─── VENUES ───────────────────────────────────────────────────────────────────
 
 export async function getAllVenues() {

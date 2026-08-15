@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import SongTapLayout from "@/components/SongTapLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy } from "lucide-react";
+import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { getLoginUrl } from "@/const";
@@ -29,6 +29,10 @@ export default function OwnerDashboard() {
     return { dateFrom, dateTo };
   }, [periodDays]);
   const { data: analytics, isLoading: isLoadingAnalytics } = trpc.finance.ownerVenueAnalytics.useQuery(
+    { dateFrom, dateTo },
+    { enabled: isAuthenticated && user?.role === "owner" }
+  );
+  const { data: pqrsAnalytics, isLoading: isLoadingPqrsAnalytics } = trpc.pqrs.ownerAnalytics.useQuery(
     { dateFrom, dateTo },
     { enabled: isAuthenticated && user?.role === "owner" }
   );
@@ -123,6 +127,30 @@ export default function OwnerDashboard() {
               </CardContent>
             </Card>
           </div>
+        </section>
+
+        <section className="space-y-4" aria-labelledby="owner-pqrs-analytics-title">
+          <div>
+            <h3 id="owner-pqrs-analytics-title" className="text-lg font-bold text-foreground flex items-center gap-2"><MessageSquareText className="text-primary" size={20} /> Desempeño PQRS por local</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Seguimiento de solicitudes creadas, atención en curso, resolución y tiempo de respuesta en el mismo periodo seleccionado.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-4">
+            {[
+              { label: "PQRS recibidas", value: pqrsAnalytics?.totals.total ?? 0, color: "text-foreground" },
+              { label: "Abiertas", value: pqrsAnalytics?.totals.open ?? 0, color: "text-yellow-300" },
+              { label: "En revisión", value: pqrsAnalytics?.totals.inReview ?? 0, color: "text-blue-300" },
+              { label: "Resolución", value: `${pqrsAnalytics?.totals.resolutionRate ?? 0}%`, color: "text-primary" },
+            ].map((metric) => <Card key={metric.label} className="border-border bg-card"><CardContent className="p-4"><p className="text-xs uppercase tracking-wide text-muted-foreground">{metric.label}</p><p className={`mt-1 text-2xl font-bold ${metric.color}`}>{metric.value}</p></CardContent></Card>)}
+          </div>
+
+          <Card className="border-border bg-card">
+            <CardHeader><CardTitle className="text-base text-foreground flex items-center gap-2"><Timer size={17} className="text-primary" /> Comparativo de atención</CardTitle></CardHeader>
+            <CardContent>
+              {isLoadingPqrsAnalytics ? <p className="py-8 text-center text-sm text-muted-foreground">Cargando desempeño PQRS...</p> : !pqrsAnalytics?.venues.length ? <p className="py-8 text-center text-sm text-muted-foreground">No hay locales disponibles para comparar.</p> : (
+                <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><caption className="sr-only">Indicadores de desempeño de PQRS por local para el periodo seleccionado.</caption><thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground"><tr><th scope="col" className="pb-3 pr-4 font-medium">Local</th><th scope="col" className="pb-3 px-3 text-right font-medium">Total</th><th scope="col" className="pb-3 px-3 text-right font-medium">Abiertas</th><th scope="col" className="pb-3 px-3 text-right font-medium">En revisión</th><th scope="col" className="pb-3 px-3 text-right font-medium">Resueltas</th><th scope="col" className="pb-3 px-3 font-medium">Tasa de resolución</th><th scope="col" className="pb-3 pl-3 text-right font-medium">Respuesta media</th></tr></thead><tbody>{pqrsAnalytics.venues.map((venue) => { const response = venue.averageResponseMinutes >= 60 ? `${Math.floor(venue.averageResponseMinutes / 60)} h ${venue.averageResponseMinutes % 60} min` : `${venue.averageResponseMinutes} min`; return <tr key={venue.venueId} className="border-b border-border/60 last:border-0"><th scope="row" className="py-3 pr-4 font-semibold text-foreground">{venue.venueName}</th><td className="px-3 py-3 text-right text-foreground">{venue.total}</td><td className="px-3 py-3 text-right text-yellow-200">{venue.open}</td><td className="px-3 py-3 text-right text-blue-200">{venue.inReview}</td><td className="px-3 py-3 text-right text-primary">{venue.resolved}</td><td className="px-3 py-3"><div className="flex min-w-28 items-center gap-2"><progress className="h-2 flex-1 accent-primary" value={venue.resolutionRate} max={100} aria-label={`Tasa de resolución de ${venue.venueName}: ${venue.resolutionRate}%`} /><span className="w-9 text-right text-xs text-foreground">{venue.resolutionRate}%</span></div></td><td className="py-3 pl-3 text-right text-muted-foreground">{response}</td></tr>; })}</tbody></table></div>
+              )}
+            </CardContent>
+          </Card>
         </section>
 
         {/* Venues list */}

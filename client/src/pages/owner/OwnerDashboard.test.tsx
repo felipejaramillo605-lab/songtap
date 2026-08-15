@@ -18,6 +18,9 @@ vi.mock("@/lib/trpc", () => ({
         return { data: { totals: { revenue: 150000, orderCount: 15, averageTicket: 10000 }, dailyRevenue: [{ date: "2026-08-15", revenue: 150000, orderCount: 15 }], venues: [{ venueId: 7, venueName: "Bar Central", isActive: true, revenue: 150000, orderCount: 15, averageTicket: 10000 }] }, isLoading: false };
       } },
     },
+    pqrs: {
+      ownerAnalytics: { useQuery: () => ({ data: { totals: { total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50 }, venues: [{ venueId: 7, venueName: "Bar Central", total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50, averageResponseMinutes: 42 }] }, isLoading: false }) },
+    },
   },
 }));
 vi.mock("@/components/SongTapLayout", () => ({ default: ({ children }: { children: React.ReactNode }) => <main>{children}</main> }));
@@ -40,6 +43,8 @@ describe("OwnerDashboard analytics", () => {
     expect(screen.getByText("Ingresos del periodo")).toBeTruthy();
     expect(screen.getByRole("img", { name: "Gráfico de barras de ingresos diarios interlocales" })).toBeTruthy();
     expect(screen.getByText("Resumen diario en tabla")).toBeTruthy();
+    expect(screen.getByText("Desempeño PQRS por local")).toBeTruthy();
+    expect(screen.getByRole("progressbar", { name: "Tasa de resolución de Bar Central: 50%" })).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Periodo de analítica interlocal"), { target: { value: "30" } });
     expect(mocks.analyticsInputs).toHaveLength(2);

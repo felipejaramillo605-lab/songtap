@@ -1,12 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { adminProcedure, protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import {
   createAuditLog,
   createPqrsTicket,
   getPqrsTicketForVenue,
   getPqrsTicketsBySession,
   getPqrsTicketsByVenue,
+  getOwnerPqrsAnalytics,
   getQrSessionByToken,
   updatePqrsTicketForVenue,
 } from "../db";
@@ -111,5 +112,39 @@ export const pqrsRouter = router({
         details: JSON.stringify({ status: input.status, responseAdded: Boolean(normalizedResponse) }),
       });
       return { success: true };
+    }),
+
+  ownerAnalytics: adminProcedure
+    .input(z.object({ dateFrom: z.date(), dateTo: z.date() }))
+    .query(async ({ input }) => {
+      const venues = await getOwnerPqrsAnalytics(input.dateFrom, input.dateTo);
+      const totals = venues.reduce(
+        (acc, venue) => ({
+          total: acc.total + Number(venue.total),
+          open: acc.open + Number(venue.open),
+          inReview: acc.inReview + Number(venue.inReview),
+          resolved: acc.resolved + Number(venue.resolved),
+        }),
+        { total: 0, open: 0, inReview: 0, resolved: 0 }
+      );
+      return {
+        venues: venues.map((venue) => {
+          const total = Number(venue.total);
+          const resolved = Number(venue.resolved);
+          return {
+            ...venue,
+            total,
+            open: Number(venue.open),
+            inReview: Number(venue.inReview),
+            resolved,
+            averageResponseMinutes: Number(venue.averageResponseMinutes),
+            resolutionRate: total ? Math.round((resolved / total) * 100) : 0,
+          };
+        }),
+        totals: {
+          ...totals,
+          resolutionRate: totals.total ? Math.round((totals.resolved / totals.total) * 100) : 0,
+        },
+      };
     }),
 });

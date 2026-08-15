@@ -281,6 +281,11 @@
 
 ## Pendientes internos priorizados
 
+- [x] Definir métricas PQRS por local: volumen, abiertas, resueltas, tasa de resolución y tiempo medio de respuesta
+- [x] Añadir agregados PQRS seguros y exclusivos para Owner con filtro de periodo
+- [x] Integrar panel comparativo PQRS por local con tabla y visualización accesible
+- [x] Cubrir contratos, permisos y flujo visual de métricas PQRS por local
+- [x] Validar los agregados PQRS con persistencia real y limpieza de datos temporales
 - [x] Mejorar la cola de pedidos Staff con actualización periódica visible y estado de última sincronización
 - [x] Añadir retroalimentación accesible de cambios de pedido nuevos o de estado en Staff
 - [x] Cubrir la actualización de la cola Staff con pruebas de interfaz
