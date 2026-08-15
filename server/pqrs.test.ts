@@ -127,11 +127,12 @@ describe("pqrs router", () => {
 
   it("expone métricas comparativas por local sólo para Owner", async () => {
     const owner = pqrsRouter.createCaller(ownerContext as any);
-    const result = await owner.ownerAnalytics({ dateFrom: new Date("2026-08-01"), dateTo: new Date("2026-08-15") });
+    const result = await owner.ownerAnalytics({ dateFrom: new Date("2026-08-01"), dateTo: new Date("2026-08-15"), type: "complaint", status: "resolved" });
     expect(result.totals).toEqual({ total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50 });
     expect(result.venues[0]).toMatchObject({ venueName: "Bar Central", averageResponseMinutes: 42, resolutionRate: 50 });
+    expect(dbMocks.getOwnerPqrsAnalytics).toHaveBeenCalledWith(expect.any(Date), expect.any(Date), { type: "complaint", status: "resolved" });
 
     const manager = pqrsRouter.createCaller(managerContext as any);
-    await expect(manager.ownerAnalytics({ dateFrom: new Date("2026-08-01"), dateTo: new Date("2026-08-15") })).rejects.toThrow();
+    await expect(manager.ownerAnalytics({ dateFrom: new Date("2026-08-01"), dateTo: new Date("2026-08-15"), type: "all", status: "all" })).rejects.toThrow();
   });
 });

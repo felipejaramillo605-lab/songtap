@@ -24,6 +24,8 @@ export default function OwnerDashboard() {
   const { data: users } = trpc.users.list.useQuery(undefined, { enabled: !!user });
   const [periodDays, setPeriodDays] = useState<7 | 30>(7);
   const [selectedPqrsVenueIds, setSelectedPqrsVenueIds] = useState<number[] | null>(null);
+  const [pqrsType, setPqrsType] = useState<"all" | "petition" | "complaint" | "claim" | "suggestion" | "congratulation">("all");
+  const [pqrsStatus, setPqrsStatus] = useState<"all" | "open" | "in_review" | "resolved" | "closed">("all");
   const { dateFrom, dateTo } = useMemo(() => {
     const dateTo = new Date();
     dateTo.setHours(23, 59, 59, 999);
@@ -37,7 +39,7 @@ export default function OwnerDashboard() {
     { enabled: isAuthenticated && user?.role === "owner" }
   );
   const { data: pqrsAnalytics, isLoading: isLoadingPqrsAnalytics } = trpc.pqrs.ownerAnalytics.useQuery(
-    { dateFrom, dateTo },
+    { dateFrom, dateTo, type: pqrsType, status: pqrsStatus },
     { enabled: isAuthenticated && user?.role === "owner" }
   );
 
@@ -57,7 +59,10 @@ export default function OwnerDashboard() {
     resolutionRate: 0,
   }), { total: 0, open: 0, inReview: 0, resolved: 0, resolutionRate: 0 });
   selectedPqrsTotals.resolutionRate = selectedPqrsTotals.total ? Math.round((selectedPqrsTotals.resolved / selectedPqrsTotals.total) * 100) : 0;
-  const pqrsExportRows = toPqrsExportRows(selectedPqrsVenues);
+  const pqrsTypeLabel = { all: "Todos los tipos", petition: "Petición", complaint: "Queja", claim: "Reclamo", suggestion: "Sugerencia", congratulation: "Felicitación" }[pqrsType];
+  const pqrsStatusLabel = { all: "Todos los estados", open: "Abierta", in_review: "En revisión", resolved: "Resuelta", closed: "Cerrada" }[pqrsStatus];
+  const pqrsExportFilters = { typeLabel: pqrsTypeLabel, statusLabel: pqrsStatusLabel };
+  const pqrsExportRows = toPqrsExportRows(selectedPqrsVenues, pqrsExportFilters);
   const canExportPqrs = pqrsExportRows.length > 0 && !isLoadingPqrsAnalytics;
   const togglePqrsVenue = (venueId: number) => {
     const currentIds = selectedPqrsVenueIds ?? allPqrsVenues.map((venue) => venue.venueId);
@@ -74,7 +79,7 @@ export default function OwnerDashboard() {
   };
   const downloadPqrsExcel = () => {
     if (!pqrsAnalytics) return;
-    writeFileXLSX(createPqrsWorkbook(pqrsExportRows, selectedPqrsTotals, dateFrom, dateTo), buildPqrsFilename("xlsx"));
+    writeFileXLSX(createPqrsWorkbook(pqrsExportRows, selectedPqrsTotals, dateFrom, dateTo, pqrsExportFilters), buildPqrsFilename("xlsx"));
   };
 
   return (
@@ -181,6 +186,18 @@ export default function OwnerDashboard() {
               {allPqrsVenues.map((venue) => <label key={venue.venueId} className="flex cursor-pointer items-center gap-2 text-sm text-foreground"><input type="checkbox" checked={selectedPqrsVenueIds === null || selectedPqrsVenueIds.includes(venue.venueId)} onChange={() => togglePqrsVenue(venue.venueId)} aria-label={`Incluir sucursal ${venue.venueName}`} className="size-4 accent-primary" /> {venue.venueName}</label>)}
             </div>
           </fieldset>
+          <div className="grid gap-3 sm:grid-cols-2" aria-label="Filtros de tipo y estado PQRS">
+            <label className="grid gap-1 text-sm font-medium text-foreground">Tipo de PQRS
+              <select aria-label="Filtrar PQRS por tipo" className="h-9 rounded-md border border-border bg-input px-3 text-sm text-foreground" value={pqrsType} onChange={(event) => setPqrsType(event.target.value as typeof pqrsType)}>
+                <option value="all">Todos los tipos</option><option value="petition">Peticiones</option><option value="complaint">Quejas</option><option value="claim">Reclamos</option><option value="suggestion">Sugerencias</option><option value="congratulation">Felicitaciones</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-foreground">Estado de PQRS
+              <select aria-label="Filtrar PQRS por estado" className="h-9 rounded-md border border-border bg-input px-3 text-sm text-foreground" value={pqrsStatus} onChange={(event) => setPqrsStatus(event.target.value as typeof pqrsStatus)}>
+                <option value="all">Todos los estados</option><option value="open">Abiertas</option><option value="in_review">En revisión</option><option value="resolved">Resueltas</option><option value="closed">Cerradas</option>
+              </select>
+            </label>
+          </div>
           <div className="grid gap-4 sm:grid-cols-4">
             {[
               { label: "PQRS recibidas", value: selectedPqrsTotals.total, color: "text-foreground" },

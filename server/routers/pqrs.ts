@@ -115,9 +115,14 @@ export const pqrsRouter = router({
     }),
 
   ownerAnalytics: adminProcedure
-    .input(z.object({ dateFrom: z.date(), dateTo: z.date() }))
+    .input(z.object({
+      dateFrom: z.date(),
+      dateTo: z.date(),
+      type: z.enum(["all", "petition", "complaint", "claim", "suggestion", "congratulation"]).default("all"),
+      status: z.enum(["all", "open", "in_review", "resolved", "closed"]).default("all"),
+    }))
     .query(async ({ input }) => {
-      const venues = await getOwnerPqrsAnalytics(input.dateFrom, input.dateTo);
+      const venues = await getOwnerPqrsAnalytics(input.dateFrom, input.dateTo, { type: input.type, status: input.status });
       const totals = venues.reduce(
         (acc, venue) => ({
           total: acc.total + Number(venue.total),

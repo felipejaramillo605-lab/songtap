@@ -193,9 +193,20 @@ export async function updatePqrsTicketForVenue(
   return (result[0] as { affectedRows: number }).affectedRows > 0;
 }
 
-export async function getOwnerPqrsAnalytics(dateFrom: Date, dateTo: Date) {
+export async function getOwnerPqrsAnalytics(
+  dateFrom: Date,
+  dateTo: Date,
+  filters: { type?: "all" | "petition" | "complaint" | "claim" | "suggestion" | "congratulation"; status?: "all" | "open" | "in_review" | "resolved" | "closed" } = {}
+) {
   const db = await getDb();
   if (!db) return [];
+  const ticketConditions = [
+    eq(pqrsTickets.venueId, venues.id),
+    gte(pqrsTickets.createdAt, dateFrom),
+    lte(pqrsTickets.createdAt, dateTo),
+  ];
+  if (filters.type && filters.type !== "all") ticketConditions.push(eq(pqrsTickets.type, filters.type));
+  if (filters.status && filters.status !== "all") ticketConditions.push(eq(pqrsTickets.status, filters.status));
   return db
     .select({
       venueId: venues.id,
@@ -210,11 +221,7 @@ export async function getOwnerPqrsAnalytics(dateFrom: Date, dateTo: Date) {
     .from(venues)
     .leftJoin(
       pqrsTickets,
-      and(
-        eq(pqrsTickets.venueId, venues.id),
-        gte(pqrsTickets.createdAt, dateFrom),
-        lte(pqrsTickets.createdAt, dateTo)
-      )
+      and(...ticketConditions)
     )
     .groupBy(venues.id, venues.name, venues.isActive)
     .orderBy(sql`COUNT(${pqrsTickets.id}) DESC`);

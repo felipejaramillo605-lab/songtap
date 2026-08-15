@@ -281,6 +281,10 @@
 
 ## Pendientes internos priorizados
 
+- [x] Añadir filtros accesibles de tipo y estado de PQRS al comparativo Owner
+- [x] Aplicar tipo y estado como condiciones seguras en agregados, métricas y tabla PQRS
+- [x] Incluir los filtros activos de tipo y estado en CSV y Excel de desempeño PQRS
+- [x] Cubrir combinaciones de filtros, exportación y permisos con pruebas
 - [x] Añadir selector múltiple accesible de sucursales al comparativo PQRS Owner
 - [x] Recalcular métricas y limitar tabla y exportaciones PQRS a las sucursales elegidas
 - [x] Cubrir la selección de sucursales y el contenido exportado con pruebas de interfaz y archivos

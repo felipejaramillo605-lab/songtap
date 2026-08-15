@@ -3,7 +3,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], writeFileXLSX: vi.fn() }));
+const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], pqrsInputs: [] as any[], writeFileXLSX: vi.fn() }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: 1, name: "Felipe", role: "owner" }, isAuthenticated: true, loading: false }),
@@ -19,7 +19,7 @@ vi.mock("@/lib/trpc", () => ({
       } },
     },
     pqrs: {
-      ownerAnalytics: { useQuery: () => ({ data: { totals: { total: 14, open: 3, inReview: 3, resolved: 8, resolutionRate: 57 }, venues: [{ venueId: 7, venueName: "Bar Central", total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50, averageResponseMinutes: 42 }, { venueId: 8, venueName: "Bar Norte", total: 4, open: 1, inReview: 0, resolved: 3, resolutionRate: 75, averageResponseMinutes: 15 }] }, isLoading: false }) },
+      ownerAnalytics: { useQuery: (input: unknown) => { mocks.pqrsInputs.push(input); return { data: { totals: { total: 14, open: 3, inReview: 3, resolved: 8, resolutionRate: 57 }, venues: [{ venueId: 7, venueName: "Bar Central", total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50, averageResponseMinutes: 42 }, { venueId: 8, venueName: "Bar Norte", total: 4, open: 1, inReview: 0, resolved: 3, resolutionRate: 75, averageResponseMinutes: 15 }] }, isLoading: false }; } },
     },
   },
 }));
@@ -33,7 +33,7 @@ vi.mock("xlsx", async () => ({ ...(await vi.importActual<typeof import("xlsx")>(
 import OwnerDashboard from "./OwnerDashboard";
 
 describe("OwnerDashboard analytics", () => {
-  beforeEach(() => { mocks.analyticsInputs = []; mocks.writeFileXLSX.mockReset(); });
+  beforeEach(() => { mocks.analyticsInputs = []; mocks.pqrsInputs = []; mocks.writeFileXLSX.mockReset(); });
   afterEach(() => cleanup());
 
   it("muestra métricas y ranking interlocal, filtra sucursales y exporta PQRS", async () => {
@@ -51,6 +51,10 @@ describe("OwnerDashboard analytics", () => {
     expect(mocks.analyticsInputs).toHaveLength(2);
     expect((mocks.analyticsInputs[1] as { dateFrom: Date }).dateFrom).toBeInstanceOf(Date);
 
+    fireEvent.change(screen.getByLabelText("Filtrar PQRS por tipo"), { target: { value: "complaint" } });
+    fireEvent.change(screen.getByLabelText("Filtrar PQRS por estado"), { target: { value: "resolved" } });
+    expect(mocks.pqrsInputs.at(-1)).toMatchObject({ type: "complaint", status: "resolved" });
+
     const createObjectUrl = vi.fn((_: Blob) => "blob:pqrs");
     const revokeObjectUrl = vi.fn();
     vi.stubGlobal("URL", { createObjectURL: createObjectUrl, revokeObjectURL: revokeObjectUrl });
@@ -66,6 +70,8 @@ describe("OwnerDashboard analytics", () => {
     const [csvBlob] = createObjectUrl.mock.calls[0]!;
     expect(await csvBlob.text()).toContain("Bar Norte");
     expect(await csvBlob.text()).not.toContain("Bar Central");
+    expect(await csvBlob.text()).toContain("Queja");
+    expect(await csvBlob.text()).toContain("Resuelta");
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:pqrs");
     fireEvent.click(screen.getByRole("button", { name: "Descargar comparativo PQRS en Excel" }));
     expect(mocks.writeFileXLSX).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^songtap-desempeno-pqrs-.*\.xlsx$/));
