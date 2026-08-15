@@ -3,13 +3,14 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], pqrsInputs: [] as any[], writeFileXLSX: vi.fn() }));
+const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], pqrsInputs: [] as any[], writeFileXLSX: vi.fn(), upsertSlaTarget: vi.fn(), invalidateSlaTargets: vi.fn(), invalidateOwnerAnalytics: vi.fn() }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: 1, name: "Felipe", role: "owner" }, isAuthenticated: true, loading: false }),
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
+    useUtils: () => ({ pqrs: { slaTargets: { invalidate: mocks.invalidateSlaTargets }, ownerAnalytics: { invalidate: mocks.invalidateOwnerAnalytics } } }),
     venues: { list: { useQuery: () => ({ data: [{ id: 7, name: "Bar Central", address: "Calle 1", isActive: true, musicMode: "manual" }] }) } },
     users: { list: { useQuery: () => ({ data: [{ id: 1, role: "owner" }, { id: 2, role: "manager" }, { id: 3, role: "staff" }] }) } },
     finance: {
@@ -19,7 +20,9 @@ vi.mock("@/lib/trpc", () => ({
       } },
     },
     pqrs: {
-      ownerAnalytics: { useQuery: (input: unknown) => { mocks.pqrsInputs.push(input); return { data: { totals: { total: 14, open: 3, inReview: 3, resolved: 8, resolutionRate: 57 }, venues: [{ venueId: 7, venueName: "Bar Central", total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50, averageResponseMinutes: 42 }, { venueId: 8, venueName: "Bar Norte", total: 4, open: 1, inReview: 0, resolved: 3, resolutionRate: 75, averageResponseMinutes: 15 }] }, isLoading: false }; } },
+      ownerAnalytics: { useQuery: (input: unknown) => { mocks.pqrsInputs.push(input); return { data: { totals: { total: 14, open: 3, inReview: 3, resolved: 8, resolutionRate: 57, slaEvaluated: 10, slaMet: 7, slaBreached: 3, slaComplianceRate: 70 }, venues: [{ venueId: 7, venueName: "Bar Central", total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50, averageResponseMinutes: 42, slaEvaluated: 8, slaMet: 6, slaBreached: 2, slaComplianceRate: 75 }, { venueId: 8, venueName: "Bar Norte", total: 4, open: 1, inReview: 0, resolved: 3, resolutionRate: 75, averageResponseMinutes: 15, slaEvaluated: 2, slaMet: 1, slaBreached: 1, slaComplianceRate: 50 }] }, isLoading: false }; } },
+      slaTargets: { useQuery: () => ({ data: [{ venueId: 7, type: "complaint", targetMinutes: 240 }] }) },
+      upsertSlaTarget: { useMutation: (options?: { onSuccess?: (result: { success: boolean }, variables: { venueId: number; type: string; targetMinutes: number }) => void }) => ({ mutate: (input: { venueId: number; type: string; targetMinutes: number }) => { mocks.upsertSlaTarget(input); options?.onSuccess?.({ success: true }, input); }, isPending: false, isSuccess: true, error: null }) },
     },
   },
 }));
@@ -33,7 +36,7 @@ vi.mock("xlsx", async () => ({ ...(await vi.importActual<typeof import("xlsx")>(
 import OwnerDashboard from "./OwnerDashboard";
 
 describe("OwnerDashboard analytics", () => {
-  beforeEach(() => { mocks.analyticsInputs = []; mocks.pqrsInputs = []; mocks.writeFileXLSX.mockReset(); });
+  beforeEach(() => { mocks.analyticsInputs = []; mocks.pqrsInputs = []; mocks.writeFileXLSX.mockReset(); mocks.upsertSlaTarget.mockReset(); mocks.invalidateSlaTargets.mockReset(); mocks.invalidateOwnerAnalytics.mockReset(); });
   afterEach(() => cleanup());
 
   it("muestra métricas y ranking interlocal, filtra sucursales y exporta PQRS", async () => {
@@ -46,10 +49,18 @@ describe("OwnerDashboard analytics", () => {
     expect(screen.getByText("Resumen diario en tabla")).toBeTruthy();
     expect(screen.getByText("Desempeño PQRS por local")).toBeTruthy();
     expect(screen.getByRole("progressbar", { name: "Tasa de resolución de Bar Central: 50%" })).toBeTruthy();
+    expect(screen.getByRole("progressbar", { name: "Cumplimiento SLA de Bar Central: 75%" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Minutos objetivo SLA"), { target: { value: "180" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar SLA" }));
+    expect(mocks.upsertSlaTarget).toHaveBeenCalledWith({ venueId: 7, type: "complaint", targetMinutes: 180 });
+    expect(mocks.invalidateSlaTargets).toHaveBeenCalledOnce();
+    expect(mocks.invalidateOwnerAnalytics).toHaveBeenCalledOnce();
+    expect((screen.getByLabelText("Minutos objetivo SLA") as HTMLInputElement).value).toBe("180");
+    expect(screen.getByRole("status").textContent).toContain("Objetivo SLA guardado");
 
     fireEvent.change(screen.getByLabelText("Periodo de analítica interlocal"), { target: { value: "30" } });
-    expect(mocks.analyticsInputs).toHaveLength(2);
-    expect((mocks.analyticsInputs[1] as { dateFrom: Date }).dateFrom).toBeInstanceOf(Date);
+    expect(mocks.analyticsInputs.length).toBeGreaterThanOrEqual(2);
+    expect((mocks.analyticsInputs.at(-1) as { dateFrom: Date }).dateFrom).toBeInstanceOf(Date);
 
     fireEvent.change(screen.getByLabelText("Filtrar PQRS por tipo"), { target: { value: "complaint" } });
     fireEvent.change(screen.getByLabelText("Filtrar PQRS por estado"), { target: { value: "resolved" } });

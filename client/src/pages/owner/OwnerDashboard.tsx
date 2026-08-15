@@ -4,7 +4,7 @@ import SongTapLayout from "@/components/SongTapLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { buildPqrsFilename, createPqrsCsv, createPqrsWorkbook, toPqrsExportRows } from "@/lib/pqrsExport";
-import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet } from "lucide-react";
+import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet, ShieldCheck } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { getLoginUrl } from "@/const";
@@ -31,6 +31,11 @@ export default function OwnerDashboard() {
   const [pqrsType, setPqrsType] = useState<"all" | "petition" | "complaint" | "claim" | "suggestion" | "congratulation">("all");
   const [pqrsStatus, setPqrsStatus] = useState<"all" | "open" | "in_review" | "resolved" | "closed">("all");
   const [useCustomPqrsRange, setUseCustomPqrsRange] = useState(false);
+  const [slaVenueId, setSlaVenueId] = useState<number | null>(null);
+  const [slaType, setSlaType] = useState<"petition" | "complaint" | "claim" | "suggestion" | "congratulation">("complaint");
+  const [slaTargetMinutes, setSlaTargetMinutes] = useState(1440);
+  const [isSlaTargetDirty, setIsSlaTargetDirty] = useState(false);
+  const [awaitingSlaTarget, setAwaitingSlaTarget] = useState<number | null>(null);
   const { dateFrom, dateTo } = useMemo(() => {
     const dateTo = new Date();
     dateTo.setHours(23, 59, 59, 999);
@@ -56,6 +61,29 @@ export default function OwnerDashboard() {
     { dateFrom: pqrsDateRange.dateFrom, dateTo: pqrsDateRange.dateTo, type: pqrsType, status: pqrsStatus },
     { enabled: isAuthenticated && user?.role === "owner" && pqrsDateRange.isValid }
   );
+  const utils = trpc.useUtils();
+  const { data: slaTargets } = trpc.pqrs.slaTargets.useQuery(undefined, { enabled: isAuthenticated && user?.role === "owner" });
+  const upsertSlaTarget = trpc.pqrs.upsertSlaTarget.useMutation({
+    onSuccess: async (_result, variables) => {
+      setSlaTargetMinutes(variables.targetMinutes);
+      setIsSlaTargetDirty(false);
+      setAwaitingSlaTarget(variables.targetMinutes);
+      await Promise.all([utils.pqrs.slaTargets.invalidate(), utils.pqrs.ownerAnalytics.invalidate()]);
+    },
+  });
+
+  useEffect(() => {
+    if (slaVenueId === null && venues?.[0]?.id) setSlaVenueId(venues[0].id);
+  }, [slaVenueId, venues]);
+
+  useEffect(() => {
+    if (slaVenueId === null) return;
+    const existing = slaTargets?.find((target) => target.venueId === slaVenueId && target.type === slaType);
+    const persistedTarget = existing?.targetMinutes ?? 1440;
+    if (isSlaTargetDirty || (awaitingSlaTarget !== null && persistedTarget !== awaitingSlaTarget)) return;
+    setSlaTargetMinutes(persistedTarget);
+    if (awaitingSlaTarget === persistedTarget) setAwaitingSlaTarget(null);
+  }, [awaitingSlaTarget, isSlaTargetDirty, slaTargets, slaType, slaVenueId]);
 
   if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -70,9 +98,14 @@ export default function OwnerDashboard() {
     open: totals.open + venue.open,
     inReview: totals.inReview + venue.inReview,
     resolved: totals.resolved + venue.resolved,
+    slaEvaluated: totals.slaEvaluated + venue.slaEvaluated,
+    slaMet: totals.slaMet + venue.slaMet,
+    slaBreached: totals.slaBreached + venue.slaBreached,
     resolutionRate: 0,
-  }), { total: 0, open: 0, inReview: 0, resolved: 0, resolutionRate: 0 });
+    slaComplianceRate: 0,
+  }), { total: 0, open: 0, inReview: 0, resolved: 0, slaEvaluated: 0, slaMet: 0, slaBreached: 0, resolutionRate: 0, slaComplianceRate: 0 });
   selectedPqrsTotals.resolutionRate = selectedPqrsTotals.total ? Math.round((selectedPqrsTotals.resolved / selectedPqrsTotals.total) * 100) : 0;
+  selectedPqrsTotals.slaComplianceRate = selectedPqrsTotals.slaEvaluated ? Math.round((selectedPqrsTotals.slaMet / selectedPqrsTotals.slaEvaluated) * 100) : 0;
   const pqrsTypeLabel = { all: "Todos los tipos", petition: "Petición", complaint: "Queja", claim: "Reclamo", suggestion: "Sugerencia", congratulation: "Felicitación" }[pqrsType];
   const pqrsStatusLabel = { all: "Todos los estados", open: "Abierta", in_review: "En revisión", resolved: "Resuelta", closed: "Cerrada" }[pqrsStatus];
   const pqrsExportFilters = { typeLabel: pqrsTypeLabel, statusLabel: pqrsStatusLabel };
@@ -94,6 +127,10 @@ export default function OwnerDashboard() {
   const downloadPqrsExcel = () => {
     if (!pqrsAnalytics) return;
     writeFileXLSX(createPqrsWorkbook(pqrsExportRows, selectedPqrsTotals, pqrsDateRange.dateFrom, pqrsDateRange.dateTo, pqrsExportFilters), buildPqrsFilename("xlsx"));
+  };
+  const saveSlaTarget = () => {
+    if (slaVenueId === null) return;
+    upsertSlaTarget.mutate({ venueId: slaVenueId, type: slaType, targetMinutes: slaTargetMinutes });
   };
 
   return (
@@ -226,12 +263,27 @@ export default function OwnerDashboard() {
             </div>
             {useCustomPqrsRange && !pqrsDateRange.isValid && <p role="alert" className="mt-3 text-sm text-destructive">La fecha inicial debe ser anterior o igual a la fecha final.</p>}
           </fieldset>
-          <div className="grid gap-4 sm:grid-cols-4">
+          <Card className="border-border bg-secondary/20">
+            <CardContent className="p-4">
+              <div className="mb-3 flex items-center gap-2"><ShieldCheck size={17} className="text-primary" /><h4 className="font-semibold text-foreground">Objetivo SLA de respuesta</h4></div>
+              <p className="mb-3 text-xs text-muted-foreground">Configura el máximo de minutos para responder una PQRS por sucursal y tipo. Si no existe un objetivo guardado, se aplican 24 horas.</p>
+              <div className="grid gap-3 sm:grid-cols-4">
+                <label className="grid gap-1 text-xs font-medium text-foreground">Sucursal<select aria-label="Sucursal para objetivo SLA" value={slaVenueId ?? ""} onChange={(event) => { setSlaVenueId(Number(event.target.value)); setIsSlaTargetDirty(false); setAwaitingSlaTarget(null); }} className="h-9 rounded-md border border-border bg-input px-2 text-sm text-foreground">{venues?.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select></label>
+                <label className="grid gap-1 text-xs font-medium text-foreground">Tipo<select aria-label="Tipo para objetivo SLA" value={slaType} onChange={(event) => { setSlaType(event.target.value as typeof slaType); setIsSlaTargetDirty(false); setAwaitingSlaTarget(null); }} className="h-9 rounded-md border border-border bg-input px-2 text-sm text-foreground"><option value="petition">Petición</option><option value="complaint">Queja</option><option value="claim">Reclamo</option><option value="suggestion">Sugerencia</option><option value="congratulation">Felicitación</option></select></label>
+                <label className="grid gap-1 text-xs font-medium text-foreground">Minutos objetivo<input aria-label="Minutos objetivo SLA" type="number" min={15} max={10080} value={slaTargetMinutes} onChange={(event) => { setSlaTargetMinutes(Math.max(15, Math.min(10080, Number(event.target.value) || 15))); setIsSlaTargetDirty(true); }} className="h-9 rounded-md border border-border bg-input px-2 text-sm text-foreground" /></label>
+                <Button type="button" className="self-end" onClick={saveSlaTarget} disabled={slaVenueId === null || upsertSlaTarget.isPending}>{upsertSlaTarget.isPending ? "Guardando..." : "Guardar SLA"}</Button>
+              </div>
+              {upsertSlaTarget.isSuccess && <p role="status" className="mt-3 text-sm text-primary">Objetivo SLA guardado para la sucursal seleccionada.</p>}
+              {upsertSlaTarget.error && <p role="alert" className="mt-3 text-sm text-destructive">No fue posible guardar el objetivo SLA. Intenta nuevamente.</p>}
+            </CardContent>
+          </Card>
+          <div className="grid gap-4 sm:grid-cols-5">
             {[
               { label: "PQRS recibidas", value: selectedPqrsTotals.total, color: "text-foreground" },
               { label: "Abiertas", value: selectedPqrsTotals.open, color: "text-yellow-300" },
               { label: "En revisión", value: selectedPqrsTotals.inReview, color: "text-blue-300" },
               { label: "Resolución", value: `${selectedPqrsTotals.resolutionRate}%`, color: "text-primary" },
+              { label: "Cumplimiento SLA", value: `${selectedPqrsTotals.slaComplianceRate}%`, color: "text-emerald-300" },
             ].map((metric) => <Card key={metric.label} className="border-border bg-card"><CardContent className="p-4"><p className="text-xs uppercase tracking-wide text-muted-foreground">{metric.label}</p><p className={`mt-1 text-2xl font-bold ${metric.color}`}>{metric.value}</p></CardContent></Card>)}
           </div>
 
@@ -241,6 +293,7 @@ export default function OwnerDashboard() {
               {isLoadingPqrsAnalytics ? <p className="py-8 text-center text-sm text-muted-foreground">Cargando desempeño PQRS...</p> : !allPqrsVenues.length ? <p className="py-8 text-center text-sm text-muted-foreground">No hay locales disponibles para comparar.</p> : !selectedPqrsVenues.length ? <p className="py-8 text-center text-sm text-muted-foreground">Selecciona al menos una sucursal para visualizar y exportar el desempeño PQRS.</p> : (
                 <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><caption className="sr-only">Indicadores de desempeño de PQRS por sucursal seleccionada para el periodo activo.</caption><thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground"><tr><th scope="col" className="pb-3 pr-4 font-medium">Local</th><th scope="col" className="pb-3 px-3 text-right font-medium">Total</th><th scope="col" className="pb-3 px-3 text-right font-medium">Abiertas</th><th scope="col" className="pb-3 px-3 text-right font-medium">En revisión</th><th scope="col" className="pb-3 px-3 text-right font-medium">Resueltas</th><th scope="col" className="pb-3 px-3 font-medium">Tasa de resolución</th><th scope="col" className="pb-3 pl-3 text-right font-medium">Respuesta media</th></tr></thead><tbody>{selectedPqrsVenues.map((venue) => { const response = venue.averageResponseMinutes >= 60 ? `${Math.floor(venue.averageResponseMinutes / 60)} h ${venue.averageResponseMinutes % 60} min` : `${venue.averageResponseMinutes} min`; return <tr key={venue.venueId} className="border-b border-border/60 last:border-0"><th scope="row" className="py-3 pr-4 font-semibold text-foreground">{venue.venueName}</th><td className="px-3 py-3 text-right text-foreground">{venue.total}</td><td className="px-3 py-3 text-right text-yellow-200">{venue.open}</td><td className="px-3 py-3 text-right text-blue-200">{venue.inReview}</td><td className="px-3 py-3 text-right text-primary">{venue.resolved}</td><td className="px-3 py-3"><div className="flex min-w-28 items-center gap-2"><progress className="h-2 flex-1 accent-primary" value={venue.resolutionRate} max={100} aria-label={`Tasa de resolución de ${venue.venueName}: ${venue.resolutionRate}%`} /><span className="w-9 text-right text-xs text-foreground">{venue.resolutionRate}%</span></div></td><td className="py-3 pl-3 text-right text-muted-foreground">{response}</td></tr>; })}</tbody></table></div>
               )}
+              {!isLoadingPqrsAnalytics && selectedPqrsVenues.length > 0 && <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Cumplimiento SLA por sucursal">{selectedPqrsVenues.map((venue) => <div key={`sla-${venue.venueId}`} className="rounded-lg border border-border bg-secondary/25 p-3"><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-foreground">{venue.venueName}</p><span className="text-xs font-medium text-amber-300">{venue.slaBreached} vencidas</span></div><div className="mt-2 flex items-center gap-2"><progress className="h-2 flex-1 accent-emerald-400" value={venue.slaComplianceRate} max={100} aria-label={`Cumplimiento SLA de ${venue.venueName}: ${venue.slaComplianceRate}%`} /><span className="w-9 text-right text-xs text-foreground">{venue.slaComplianceRate}%</span></div><p className="mt-2 text-xs text-muted-foreground">{venue.slaMet} de {venue.slaEvaluated} PQRS evaluadas cumplen el objetivo.</p></div>)}</div>}
             </CardContent>
           </Card>
         </section>

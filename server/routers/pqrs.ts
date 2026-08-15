@@ -8,8 +8,10 @@ import {
   getPqrsTicketsBySession,
   getPqrsTicketsByVenue,
   getOwnerPqrsAnalytics,
+  getPqrsSlaTargets,
   getQrSessionByToken,
   updatePqrsTicketForVenue,
+  upsertPqrsSlaTarget,
 } from "../db";
 
 const pqrsTypeSchema = z.enum(["petition", "complaint", "claim", "suggestion", "congratulation"]);
@@ -129,8 +131,11 @@ export const pqrsRouter = router({
           open: acc.open + Number(venue.open),
           inReview: acc.inReview + Number(venue.inReview),
           resolved: acc.resolved + Number(venue.resolved),
+          slaEvaluated: acc.slaEvaluated + Number(venue.slaEvaluated),
+          slaMet: acc.slaMet + Number(venue.slaMet),
+          slaBreached: acc.slaBreached + Number(venue.slaBreached),
         }),
-        { total: 0, open: 0, inReview: 0, resolved: 0 }
+        { total: 0, open: 0, inReview: 0, resolved: 0, slaEvaluated: 0, slaMet: 0, slaBreached: 0 }
       );
       return {
         venues: venues.map((venue) => {
@@ -144,12 +149,35 @@ export const pqrsRouter = router({
             resolved,
             averageResponseMinutes: Number(venue.averageResponseMinutes),
             resolutionRate: total ? Math.round((resolved / total) * 100) : 0,
+            slaEvaluated: Number(venue.slaEvaluated),
+            slaMet: Number(venue.slaMet),
+            slaBreached: Number(venue.slaBreached),
+            slaComplianceRate: Number(venue.slaEvaluated) ? Math.round((Number(venue.slaMet) / Number(venue.slaEvaluated)) * 100) : 0,
           };
         }),
         totals: {
           ...totals,
           resolutionRate: totals.total ? Math.round((totals.resolved / totals.total) * 100) : 0,
+          slaComplianceRate: totals.slaEvaluated ? Math.round((totals.slaMet / totals.slaEvaluated) * 100) : 0,
         },
       };
+    }),
+
+  slaTargets: adminProcedure.query(async () => getPqrsSlaTargets()),
+
+  upsertSlaTarget: adminProcedure
+    .input(z.object({ venueId: z.number().int().positive(), type: pqrsTypeSchema, targetMinutes: z.number().int().min(15).max(10080) }))
+    .mutation(async ({ ctx, input }) => {
+      await upsertPqrsSlaTarget(input.venueId, input.type, input.targetMinutes);
+      await createAuditLog({
+        venueId: input.venueId,
+        userId: ctx.user.id,
+        userRole: ctx.user.role,
+        module: "PQRS",
+        action: "PQRS_SLA_UPDATED",
+        entity: "pqrs_sla_target",
+        details: JSON.stringify({ type: input.type, targetMinutes: input.targetMinutes }),
+      });
+      return { success: true };
     }),
 });

@@ -9,9 +9,13 @@ export type PqrsAnalyticsVenue = {
   resolved: number;
   resolutionRate: number;
   averageResponseMinutes: number;
+  slaEvaluated: number;
+  slaMet: number;
+  slaBreached: number;
+  slaComplianceRate: number;
 };
 
-export type PqrsAnalyticsTotals = Pick<PqrsAnalyticsVenue, "total" | "open" | "inReview" | "resolved" | "resolutionRate">;
+export type PqrsAnalyticsTotals = Pick<PqrsAnalyticsVenue, "total" | "open" | "inReview" | "resolved" | "resolutionRate" | "slaEvaluated" | "slaMet" | "slaBreached" | "slaComplianceRate">;
 
 export type PqrsExportRow = {
   Local: string;
@@ -22,6 +26,10 @@ export type PqrsExportRow = {
   Resueltas: number;
   "Tasa de resolución": string;
   "Respuesta media (minutos)": number;
+  "SLA evaluadas": number;
+  "Cumplen SLA": number;
+  "SLA vencidas": number;
+  "Cumplimiento SLA": string;
   "Tipo PQRS": string;
   "Estado PQRS": string;
 };
@@ -38,6 +46,10 @@ export function toPqrsExportRows(venues: PqrsAnalyticsVenue[], filters: PqrsExpo
     Resueltas: venue.resolved,
     "Tasa de resolución": `${venue.resolutionRate}%`,
     "Respuesta media (minutos)": venue.averageResponseMinutes,
+    "SLA evaluadas": venue.slaEvaluated,
+    "Cumplen SLA": venue.slaMet,
+    "SLA vencidas": venue.slaBreached,
+    "Cumplimiento SLA": `${venue.slaComplianceRate}%`,
     "Tipo PQRS": filters.typeLabel,
     "Estado PQRS": filters.statusLabel,
   }));
@@ -71,11 +83,15 @@ export function createPqrsWorkbook(rows: PqrsExportRow[], totals: PqrsAnalyticsT
     ["En revisión", totals.inReview],
     ["Resueltas", totals.resolved],
     ["Tasa de resolución", `${totals.resolutionRate}%`],
+    ["SLA evaluadas", totals.slaEvaluated],
+    ["Cumplen SLA", totals.slaMet],
+    ["SLA vencidas", totals.slaBreached],
+    ["Cumplimiento SLA", `${totals.slaComplianceRate}%`],
   ]);
   summary["!cols"] = [{ wch: 28 }, { wch: 34 }];
   const venues = XLSX.utils.json_to_sheet(rows);
-  venues["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 27 }, { wch: 20 }, { wch: 20 }];
-  venues["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 9, r: Math.max(rows.length, 1) } }) };
+  venues["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 27 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 20 }, { wch: 20 }];
+  venues["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 13, r: Math.max(rows.length, 1) } }) };
   XLSX.utils.book_append_sheet(workbook, summary, "Resumen");
   XLSX.utils.book_append_sheet(workbook, venues, "Locales");
   return workbook;

@@ -6,6 +6,7 @@ import {
   mysqlTable,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/mysql-core";
 
@@ -254,6 +255,25 @@ export const pqrsTickets = mysqlTable("pqrs_tickets", {
 
 export type PqrsTicket = typeof pqrsTickets.$inferSelect;
 export type InsertPqrsTicket = typeof pqrsTickets.$inferInsert;
+
+// ─── PQRS SLA TARGETS (objetivos de respuesta por local y tipo) ───────────────
+export const pqrsSlaTargets = mysqlTable(
+  "pqrs_sla_targets",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    type: mysqlEnum("type", ["petition", "complaint", "claim", "suggestion", "congratulation"]).notNull(),
+    targetMinutes: int("targetMinutes").notNull().default(1440),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    venueTypeUnique: uniqueIndex("pqrs_sla_targets_venue_type_uq").on(table.venueId, table.type),
+  })
+);
+
+export type PqrsSlaTarget = typeof pqrsSlaTargets.$inferSelect;
+export type InsertPqrsSlaTarget = typeof pqrsSlaTargets.$inferInsert;
 
 // ─── VENUE REQUESTS (solicitudes de empresas por managers) ────────────────────
 export const venueRequests = mysqlTable("venue_requests", {

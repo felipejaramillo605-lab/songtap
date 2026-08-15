@@ -11,6 +11,7 @@ import {
   orderStatusHistory,
   orders,
   pqrsTickets,
+  pqrsSlaTargets,
   qrSessions,
   songQueue,
   staffActivities,
@@ -217,14 +218,34 @@ export async function getOwnerPqrsAnalytics(
       inReview: sql<number>`COALESCE(SUM(CASE WHEN ${pqrsTickets.status} = 'in_review' THEN 1 ELSE 0 END), 0)`,
       resolved: sql<number>`COALESCE(SUM(CASE WHEN ${pqrsTickets.status} IN ('resolved', 'closed') THEN 1 ELSE 0 END), 0)`,
       averageResponseMinutes: sql<number>`COALESCE(AVG(CASE WHEN ${pqrsTickets.respondedAt} IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, ${pqrsTickets.createdAt}, ${pqrsTickets.respondedAt}) END), 0)`,
+      slaEvaluated: sql<number>`COALESCE(SUM(CASE WHEN ${pqrsTickets.respondedAt} IS NOT NULL OR (${pqrsTickets.status} IN ('open', 'in_review') AND TIMESTAMPDIFF(MINUTE, ${pqrsTickets.createdAt}, NOW()) > COALESCE(${pqrsSlaTargets.targetMinutes}, 1440)) THEN 1 ELSE 0 END), 0)`,
+      slaMet: sql<number>`COALESCE(SUM(CASE WHEN ${pqrsTickets.respondedAt} IS NOT NULL AND TIMESTAMPDIFF(MINUTE, ${pqrsTickets.createdAt}, ${pqrsTickets.respondedAt}) <= COALESCE(${pqrsSlaTargets.targetMinutes}, 1440) THEN 1 ELSE 0 END), 0)`,
+      slaBreached: sql<number>`COALESCE(SUM(CASE WHEN (${pqrsTickets.respondedAt} IS NOT NULL AND TIMESTAMPDIFF(MINUTE, ${pqrsTickets.createdAt}, ${pqrsTickets.respondedAt}) > COALESCE(${pqrsSlaTargets.targetMinutes}, 1440)) OR (${pqrsTickets.status} IN ('open', 'in_review') AND TIMESTAMPDIFF(MINUTE, ${pqrsTickets.createdAt}, NOW()) > COALESCE(${pqrsSlaTargets.targetMinutes}, 1440)) THEN 1 ELSE 0 END), 0)`,
     })
     .from(venues)
     .leftJoin(
       pqrsTickets,
       and(...ticketConditions)
     )
+    .leftJoin(pqrsSlaTargets, and(eq(pqrsSlaTargets.venueId, venues.id), eq(pqrsSlaTargets.type, pqrsTickets.type)))
     .groupBy(venues.id, venues.name, venues.isActive)
     .orderBy(sql`COUNT(${pqrsTickets.id}) DESC`);
+}
+
+export async function getPqrsSlaTargets() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(pqrsSlaTargets).orderBy(pqrsSlaTargets.venueId, pqrsSlaTargets.type);
+}
+
+export async function upsertPqrsSlaTarget(
+  venueId: number,
+  type: "petition" | "complaint" | "claim" | "suggestion" | "congratulation",
+  targetMinutes: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(pqrsSlaTargets).values({ venueId, type, targetMinutes }).onDuplicateKeyUpdate({ set: { targetMinutes } });
 }
 
 // ─── VENUES ───────────────────────────────────────────────────────────────────

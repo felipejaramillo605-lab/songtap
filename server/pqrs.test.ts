@@ -7,8 +7,10 @@ const dbMocks = vi.hoisted(() => ({
   getPqrsTicketsBySession: vi.fn(),
   getPqrsTicketsByVenue: vi.fn(),
   getOwnerPqrsAnalytics: vi.fn(),
+  getPqrsSlaTargets: vi.fn(),
   getQrSessionByToken: vi.fn(),
   updatePqrsTicketForVenue: vi.fn(),
+  upsertPqrsSlaTarget: vi.fn(),
 }));
 
 vi.mock("./db", () => dbMocks);
@@ -33,8 +35,9 @@ describe("pqrs router", () => {
     dbMocks.getPqrsTicketForVenue.mockResolvedValue({ id: 120, venueId: 7, status: "open", response: null, respondedByUserId: null, respondedAt: null });
     dbMocks.updatePqrsTicketForVenue.mockResolvedValue(true);
     dbMocks.getOwnerPqrsAnalytics.mockResolvedValue([
-      { venueId: 7, venueName: "Bar Central", total: "10", open: "2", inReview: "3", resolved: "5", averageResponseMinutes: "42", isActive: true },
+      { venueId: 7, venueName: "Bar Central", total: "10", open: "2", inReview: "3", resolved: "5", averageResponseMinutes: "42", slaEvaluated: "8", slaMet: "6", slaBreached: "2", isActive: true },
     ]);
+    dbMocks.getPqrsSlaTargets.mockResolvedValue([]);
   });
 
   it("crea una PQRS únicamente para la sesión QR y el local que la autorizan", async () => {
@@ -128,11 +131,23 @@ describe("pqrs router", () => {
   it("expone métricas comparativas por local sólo para Owner", async () => {
     const owner = pqrsRouter.createCaller(ownerContext as any);
     const result = await owner.ownerAnalytics({ dateFrom: new Date("2026-08-01"), dateTo: new Date("2026-08-15"), type: "complaint", status: "resolved" });
-    expect(result.totals).toEqual({ total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50 });
-    expect(result.venues[0]).toMatchObject({ venueName: "Bar Central", averageResponseMinutes: 42, resolutionRate: 50 });
+    expect(result.totals).toEqual({ total: 10, open: 2, inReview: 3, resolved: 5, slaEvaluated: 8, slaMet: 6, slaBreached: 2, resolutionRate: 50, slaComplianceRate: 75 });
+    expect(result.venues[0]).toMatchObject({ venueName: "Bar Central", averageResponseMinutes: 42, resolutionRate: 50, slaComplianceRate: 75 });
     expect(dbMocks.getOwnerPqrsAnalytics).toHaveBeenCalledWith(expect.any(Date), expect.any(Date), { type: "complaint", status: "resolved" });
 
     const manager = pqrsRouter.createCaller(managerContext as any);
     await expect(manager.ownerAnalytics({ dateFrom: new Date("2026-08-01"), dateTo: new Date("2026-08-15"), type: "all", status: "all" })).rejects.toThrow();
+  });
+
+  it("permite sólo al Owner configurar objetivos SLA por sucursal y tipo", async () => {
+    dbMocks.getPqrsSlaTargets.mockResolvedValue([{ venueId: 7, type: "complaint", targetMinutes: 240 }]);
+    const owner = pqrsRouter.createCaller(ownerContext as any);
+    await expect(owner.slaTargets()).resolves.toEqual([{ venueId: 7, type: "complaint", targetMinutes: 240 }]);
+    await expect(owner.upsertSlaTarget({ venueId: 7, type: "complaint", targetMinutes: 180 })).resolves.toEqual({ success: true });
+    expect(dbMocks.upsertPqrsSlaTarget).toHaveBeenCalledWith(7, "complaint", 180);
+    expect(dbMocks.createAuditLog).toHaveBeenCalledWith(expect.objectContaining({ venueId: 7, action: "PQRS_SLA_UPDATED" }));
+
+    const manager = pqrsRouter.createCaller(managerContext as any);
+    await expect(manager.upsertSlaTarget({ venueId: 7, type: "complaint", targetMinutes: 180 })).rejects.toThrow();
   });
 });

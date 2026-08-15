@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import { getDb } from "./db";
-import { auditLogs, menuCategories, pqrsTickets, qrSessions, songQueue, staffActivities, tables, users, venues } from "../drizzle/schema";
+import { auditLogs, menuCategories, pqrsSlaTargets, pqrsTickets, qrSessions, songQueue, staffActivities, tables, users, venues } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
 const req = { cookies: {}, headers: { "x-forwarded-proto": "https" } } as any;
@@ -191,6 +191,7 @@ describe("Aislamiento por IDs adivinables y token QR", () => {
     const sessionId = Number((sessionResult[0] as { insertId?: number }).insertId);
     const client = appRouter.createCaller(ctx("user", null, 9025));
     let ticketId = 0;
+    let targetId = 0;
 
     try {
       const created = await client.pqrs.create({
@@ -226,17 +227,24 @@ describe("Aislamiento por IDs adivinables y token QR", () => {
       ]));
 
       const owner = appRouter.createCaller(ctx("owner", null, 9028));
+      await owner.pqrs.upsertSlaTarget({ venueId: 30001, type: "complaint", targetMinutes: 10080 });
+      const [target] = await db.select().from(pqrsSlaTargets).where(eq(pqrsSlaTargets.venueId, 30001)).limit(1);
+      targetId = target?.id ?? 0;
+      expect(target).toMatchObject({ venueId: 30001, type: "complaint", targetMinutes: 10080 });
       const analytics = await owner.pqrs.ownerAnalytics({ dateFrom: new Date("2020-01-01"), dateTo: new Date("2030-01-01") });
       const venueAnalytics = analytics.venues.find((venue) => venue.venueId === 30001);
       expect(venueAnalytics).toMatchObject({ venueId: 30001 });
       expect(venueAnalytics?.total).toBeGreaterThanOrEqual(1);
       expect(venueAnalytics?.resolved).toBeGreaterThanOrEqual(1);
       expect(venueAnalytics?.resolutionRate).toBeGreaterThan(0);
+      expect(venueAnalytics?.slaEvaluated).toBeGreaterThanOrEqual(1);
+      expect(venueAnalytics?.slaMet).toBeGreaterThanOrEqual(1);
     } finally {
       if (ticketId) {
         await db.delete(auditLogs).where(eq(auditLogs.entityId, ticketId));
         await db.delete(pqrsTickets).where(eq(pqrsTickets.id, ticketId));
       }
+      if (targetId) await db.delete(pqrsSlaTargets).where(eq(pqrsSlaTargets.id, targetId));
       await db.delete(qrSessions).where(eq(qrSessions.id, sessionId));
     }
   });
