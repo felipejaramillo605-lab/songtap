@@ -1,6 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { getLoginUrl } from "@/const";
 import { BarChart3, Music2, QrCode, ShoppingBag, Users, Zap } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
@@ -64,7 +63,7 @@ export default function Home() {
           </div>
         </div>
         <Button
-          onClick={() => (window.location.href = getLoginUrl())}
+          onClick={() => navigate("/login")}
           className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-6"
         >
           Iniciar sesión
@@ -96,7 +95,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
-              onClick={() => (window.location.href = getLoginUrl())}
+              onClick={() => navigate("/login")}
               className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold px-8 py-3 text-base neon-glow"
             >
               Acceder al panel

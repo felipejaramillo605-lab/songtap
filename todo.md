@@ -373,3 +373,6 @@
 - [x] Impedir que un Owner revoque sesiones de cuentas no beta o de su propia cuenta desde este flujo
 - [x] Añadir confirmación y estado visible de la revocación de sesión en el panel Owner
 - [x] Cubrir permisos, alcance beta e invalidación efectiva de acceso con pruebas
+- [x] Auditar y corregir el inicio de sesión local de las cuentas beta para evitar verificación por correo inexistente
+- [x] Garantizar que las credenciales beta válidas creen una sesión local sin redirección a autenticación externa
+- [x] Validar acceso de Manager y Staff beta con sus credenciales y redirección por rol
