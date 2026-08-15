@@ -8,7 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
-import { Music2, Mail, Building2, User } from "lucide-react";
+import { Music2, Mail, Building2, User, ShieldCheck } from "lucide-react";
 
 export default function Login() {
   const { user, isAuthenticated } = useAuth();
@@ -93,6 +93,10 @@ export default function Login() {
 
           {mode === "choose" && (
             <div className="space-y-3">
+              <div role="note" aria-label="Acceso para cuentas beta" className="flex gap-2 rounded-lg border border-primary/30 bg-primary/10 p-3 text-left text-xs text-muted-foreground">
+                <ShieldCheck size={17} className="mt-0.5 shrink-0 text-primary" />
+                <p><span className="font-semibold text-foreground">¿Tienes una cuenta beta?</span> Selecciona <span className="font-semibold text-primary">Correo y Contraseña</span>. No uses Manus OAuth ni necesitas un código enviado al correo.</p>
+              </div>
               <Button
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3 neon-glow"
                 onClick={() => (window.location.href = getLoginUrl())}

@@ -376,3 +376,5 @@
 - [x] Auditar y corregir el inicio de sesión local de las cuentas beta para evitar verificación por correo inexistente
 - [x] Garantizar que las credenciales beta válidas creen una sesión local sin redirección a autenticación externa
 - [x] Validar acceso de Manager y Staff beta con sus credenciales y redirección por rol
+- [x] Mostrar un aviso accesible en Login que indique a cuentas beta usar Correo y Contraseña
+- [x] Cubrir el contenido del aviso beta y su visualización en la pantalla de acceso
