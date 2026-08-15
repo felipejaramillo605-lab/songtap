@@ -2,9 +2,10 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
-import { createAuditLog, getAllUsers, getUsersByVenue, updateUserRole, getDb } from "../db";
+import { createAuditLog, getAllUsers, getUsersByVenue, updateUserPassword, updateUserRole, getDb } from "../db";
 import { users } from "../../drizzle/schema";
 import bcrypt from "bcrypt";
+import { randomBytes } from "crypto";
 
 export const usersRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -37,6 +38,32 @@ export const usersRouter = router({
         details: JSON.stringify({ role: input.role, venueId: input.venueId }),
       });
       return { success: true };
+    }),
+
+  resetBetaPassword: adminProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "owner") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [targetUser] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "Usuario no encontrado" });
+      const isBetaAccount = Boolean(targetUser.email?.endsWith("@songtap.test")) && (targetUser.role === "manager" || targetUser.role === "staff");
+      if (!isBetaAccount) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Solo se pueden restablecer cuentas beta operativas" });
+      }
+
+      const temporaryPassword = `Beta!${randomBytes(12).toString("base64url")}`;
+      await updateUserPassword(targetUser.id, await bcrypt.hash(temporaryPassword, 10));
+      await createAuditLog({
+        userId: ctx.user.id,
+        userRole: ctx.user.role,
+        action: "RESET_BETA_PASSWORD",
+        entity: "user",
+        entityId: targetUser.id,
+        details: JSON.stringify({ email: targetUser.email }),
+      });
+      return { success: true, userId: targetUser.id, email: targetUser.email, temporaryPassword };
     }),
 
   assignToVenue: protectedProcedure

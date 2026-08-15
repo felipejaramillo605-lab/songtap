@@ -351,3 +351,7 @@
 - [x] Validar contraseñas, roles, aislamiento por organización y accesos de las cuentas finales
 - [x] Documentar credenciales de prueba compartibles para los beta testers
 - [x] Evitar que las pruebas de registro dejen cuentas y solicitudes temporales persistentes en la base de datos
+- [x] Crear un procedimiento exclusivo de Owner para restablecer contraseñas de cuentas beta
+- [x] Impedir el restablecimiento desde este flujo de la cuenta Owner o de cuentas no beta
+- [x] Añadir confirmación, estado de éxito y visualización temporal de la nueva clave en el panel Owner
+- [x] Cubrir permisos, restricciones y actualización efectiva de contraseña con pruebas
