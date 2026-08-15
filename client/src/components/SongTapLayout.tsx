@@ -29,6 +29,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 interface NavItem {
   label: string;
@@ -134,6 +135,9 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
   const navItems = roleNavMap[role];
   const dashboardHref = { owner: "/owner", manager: "/manager", staff: "/staff" }[role];
   const showBackButton = location !== dashboardHref;
+  const panelLabel = { owner: "Panel Owner", manager: "Panel Manager", staff: "Panel Staff" }[role];
+  const activeNavItem = navItems.find((item) => location === item.href) ?? navItems.find((item) => location.startsWith(item.href));
+  const currentSectionLabel = activeNavItem?.label ?? title ?? "Sección";
   const goBack = () => {
     if (window.history.length > 1) {
       window.history.back();
@@ -328,7 +332,10 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
               <Menu size={20} />
             </Button>
             {showBackButton && <Button variant="ghost" size="sm" className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground" onClick={goBack} aria-label="Regresar a la pantalla anterior" title="Regresar a la pantalla anterior"><ArrowLeft size={17} /><span className="hidden sm:inline">Regresar</span></Button>}
-            <h1 className="truncate text-base font-bold text-foreground sm:text-lg">{title || "SongTap"}</h1>
+            <div className="min-w-0">
+              {showBackButton && <Breadcrumb aria-label="Migas de pan" className="min-w-0"><BreadcrumbList className="flex-nowrap overflow-hidden whitespace-nowrap text-[11px] sm:text-xs"><BreadcrumbItem className="shrink-0"><BreadcrumbLink asChild><Link href={dashboardHref}>{panelLabel}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator className="shrink-0" /><BreadcrumbItem className="min-w-0 truncate"><BreadcrumbPage className="block truncate">{currentSectionLabel}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>}
+              <h1 className="truncate text-base font-bold text-foreground sm:text-lg">{title || "SongTap"}</h1>
+            </div>
           </div>
           <div className="flex min-w-0 items-center justify-end gap-2">
             {role === "owner" && pendingCount > 0 && (

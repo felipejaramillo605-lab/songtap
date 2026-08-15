@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mocks = vi.hoisted(() => ({ logout: vi.fn(), navigate: vi.fn(), location: "/manager" }));
@@ -38,6 +38,7 @@ import SongTapLayout from "./SongTapLayout";
 
 describe("SongTapLayout", () => {
   beforeEach(() => { mocks.logout.mockReset(); mocks.navigate.mockReset(); mocks.location = "/manager"; });
+  afterEach(() => cleanup());
 
   it("ejecuta logout al pulsar el botón visible Salir", async () => {
     const user = userEvent.setup();
@@ -57,5 +58,15 @@ describe("SongTapLayout", () => {
     await user.click(screen.getByRole("button", { name: "Regresar a la pantalla anterior" }));
 
     expect(mocks.navigate).toHaveBeenCalledWith("/manager");
+  });
+
+  it("muestra migas de pan accesibles en las pantallas internas", () => {
+    mocks.location = "/manager/menu";
+    render(<SongTapLayout role="manager" title="Gestión de menú"><div>Menú</div></SongTapLayout>);
+
+    const breadcrumbs = screen.getByRole("navigation", { name: "Migas de pan" });
+    expect(breadcrumbs).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Panel Manager" }).getAttribute("href")).toBe("/manager");
+    expect(within(breadcrumbs).getByText("Menú")).toBeTruthy();
   });
 });

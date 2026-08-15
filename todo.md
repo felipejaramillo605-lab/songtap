@@ -358,3 +358,6 @@
 - [x] Añadir un control de regreso contextual y accesible en las pantallas internas de SongTap
 - [x] Mantener el menú lateral o drawer móvil como vía de navegación visible y fácilmente recuperable
 - [x] Cubrir navegación de regreso, ruta de respaldo y comportamiento responsivo con pruebas
+- [x] Añadir migas de pan accesibles y contextuales a las pantallas internas por rol
+- [x] Mantener las migas de pan compactas y legibles junto al control Regresar en móvil y escritorio
+- [x] Cubrir etiquetas, rutas principales y adaptación visual de las migas de pan con pruebas
