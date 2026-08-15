@@ -1,17 +1,33 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
+import { inArray } from "drizzle-orm";
 import { appRouter } from "./routers";
+import { getDb } from "./db";
+import { users, venueRequests } from "../drizzle/schema";
 
 describe("Auth Register & Manager Venue Request Tests", () => {
+  const createdEmails: string[] = [];
   const mockContext = {
     user: null,
     req: { cookies: {}, headers: { "x-forwarded-proto": "https" } } as any,
     res: { cookie: () => {}, clearCookie: () => {} } as any,
   };
 
+  afterEach(async () => {
+    if (!createdEmails.length) return;
+    const db = await getDb();
+    if (!db) return;
+    const createdUsers = await db.select({ id: users.id }).from(users).where(inArray(users.email, createdEmails));
+    const createdUserIds = createdUsers.map((user) => user.id);
+    if (createdUserIds.length) await db.delete(venueRequests).where(inArray(venueRequests.managerId, createdUserIds));
+    await db.delete(users).where(inArray(users.email, createdEmails));
+    createdEmails.length = 0;
+  });
+
   it("should register a standard user successfully", async () => {
     const caller = appRouter.createCaller(mockContext);
 
     const uniqueEmail = `testuser_${Date.now()}@example.com`;
+    createdEmails.push(uniqueEmail);
     const res = await caller.auth.registerPassword({
       email: uniqueEmail,
       password: "password123",
@@ -28,6 +44,7 @@ describe("Auth Register & Manager Venue Request Tests", () => {
     const caller = appRouter.createCaller(mockContext);
 
     const uniqueEmail = `testmanager_${Date.now()}@example.com`;
+    createdEmails.push(uniqueEmail);
     const res = await caller.auth.registerPassword({
       email: uniqueEmail,
       password: "password123",

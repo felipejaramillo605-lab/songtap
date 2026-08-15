@@ -344,3 +344,10 @@
 - [x] Validar el rango de referencia y conservar los filtros de sucursal, tipo y estado al comparar SLA
 - [x] Mostrar de forma accesible el período SLA de referencia manual y restaurar el período automático bajo demanda
 - [x] Cubrir selección manual, validaciones y cálculo de comparación SLA con pruebas
+- [x] Auditar usuarios, organizaciones y referencias para limpiar cuentas temporales sin romper datos relacionados
+- [x] Conservar la cuenta Owner existente fuera de las cinco cuentas operativas de prueba
+- [x] Conservar únicamente dos organizaciones de prueba y cinco cuentas operativas de Manager y Staff
+- [x] Configurar una organización con un Manager y dos Staff, y otra con un Manager y un Staff
+- [x] Validar contraseñas, roles, aislamiento por organización y accesos de las cuentas finales
+- [x] Documentar credenciales de prueba compartibles para los beta testers
+- [x] Evitar que las pruebas de registro dejen cuentas y solicitudes temporales persistentes en la base de datos
