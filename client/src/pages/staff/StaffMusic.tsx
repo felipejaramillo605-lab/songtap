@@ -3,7 +3,7 @@ import SongTapLayout from "@/components/SongTapLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Music2, Play, CheckCircle2, Trash2, Clock, Star } from "lucide-react";
+import { Music2, Play, CheckCircle2, Trash2, Clock, Star, WandSparkles } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
@@ -33,6 +33,14 @@ export default function StaffMusic() {
 
   const removeSong = trpc.music.removeSong.useMutation({
     onSuccess: () => { toast.success("Canción removida de la cola"); refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const normalizeSong = trpc.music.normalizeSongMetadata.useMutation({
+    onSuccess: ({ normalized }) => {
+      toast.success(normalized.changed ? "Datos de canción normalizados" : "Los datos ya tienen un formato consistente");
+      refetch();
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -138,6 +146,16 @@ export default function StaffMusic() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-8"
+                        onClick={() => normalizeSong.mutate({ venueId: venueId!, songId: song.id })}
+                        disabled={normalizeSong.isPending}
+                        aria-label={`Normalizar datos de ${song.songName}`}
+                      >
+                        <WandSparkles size={12} className="mr-1" /> Normalizar
+                      </Button>
                       {!song.isCurrentlyPlaying && (
                         <Button
                           size="sm"

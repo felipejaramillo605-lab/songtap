@@ -254,9 +254,11 @@
 - [x] Corregir y validar la persistencia de la preferencia de proveedor desde Configuración Manager
 - [x] Restaurar la preferencia temporal de proveedor del local de prueba al modo manual
 - [ ] Implementar búsqueda y normalización automática de metadatos con respaldo manual
+- [x] Implementar normalización local de título y artista sin dependencia externa ni transmisión de datos
 - [ ] Implementar búsqueda gratuita de metadatos MusicBrainz con límite de uso seguro y respaldo manual
-- [ ] Añadir la acción de sugerir metadatos a la cola musical del Staff
-- [ ] Cubrir con pruebas la normalización y el aislamiento del enriquecimiento musical por local
+- [x] Añadir la acción de sugerir metadatos a la cola musical del Staff
+- [x] Cubrir con pruebas la normalización y el aislamiento del enriquecimiento musical por local
+- [x] Cubrir en interfaz el botón Staff de normalización local de metadatos
 - [x] Actualizar las interfaces de Manager y Staff con el estado del proveedor y el respaldo manual por local
 - [x] Añadir pruebas de aislamiento multiempresa y documentar la configuración de los proveedores musicales
 - [x] Guardar checkpoint de la preparación de proveedores musicales por local

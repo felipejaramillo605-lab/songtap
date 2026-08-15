@@ -10,7 +10,10 @@ import {
   submitAppauseVote,
   getAppauseScore,
   getQrSessionByToken,
+  getSongByIdForVenue,
+  updateSongMetadataForVenue,
 } from "../db";
+import { normalizeMusicMetadata } from "../musicMetadata";
 
 function assertVenueAccess(user: { role: string; venueId: number | null }, venueId: number) {
   if (user.role !== "owner" && user.venueId !== venueId) {
@@ -130,6 +133,21 @@ export const musicRouter = router({
       assertVenueAccess(ctx.user, input.venueId);
       await removeSongFromQueue(input.songId, input.venueId);
       return { success: true };
+    }),
+
+  // Staff/Manager: sugerir formato consistente de título y artista sin usar proveedores externos.
+  normalizeSongMetadata: protectedProcedure
+    .input(z.object({ venueId: z.number(), songId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      const song = await getSongByIdForVenue(input.songId, input.venueId);
+      if (!song) throw new TRPCError({ code: "NOT_FOUND", message: "Canción no encontrada en este local" });
+      const normalized = normalizeMusicMetadata(song.songName, song.artist);
+      if (normalized.changed) {
+        const updated = await updateSongMetadataForVenue(input.songId, input.venueId, normalized.songName, normalized.artist);
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Canción no encontrada en este local" });
+      }
+      return { success: true, normalized };
     }),
 
   // Cliente: enviar aplausos de 1 a 5 estrellas.

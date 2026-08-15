@@ -1,0 +1,36 @@
+// @vitest-environment jsdom
+import React from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+
+const mocks = vi.hoisted(() => ({ normalize: vi.fn(), refetch: vi.fn(), toastSuccess: vi.fn(), toastError: vi.fn() }));
+
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 4, role: "staff", venueId: 7 }, isAuthenticated: true, loading: false }) }));
+vi.mock("@/lib/trpc", () => ({ trpc: {
+  music: {
+    getStaffQueue: { useQuery: () => ({ data: { current: null, queue: [{ id: 14, songName: "Vivir Mi Vida - Marc Anthony", artist: "Artista desconocido", isCurrentlyPlaying: false, addedByTableName: "Mesa 3", createdAt: new Date("2026-08-15T18:00:00Z") }] }, refetch: mocks.refetch }) },
+    playSong: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+    removeSong: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+    normalizeSongMetadata: { useMutation: () => ({ mutate: mocks.normalize, isPending: false }) },
+  },
+  venues: { getById: { useQuery: () => ({ data: { musicProvider: "manual", musicConnectionStatus: "not_configured" } }) } },
+} }));
+vi.mock("@/components/SongTapLayout", () => ({ default: ({ children }: { children: React.ReactNode }) => <main>{children}</main> }));
+vi.mock("@/components/ui/button", () => ({ Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button> }));
+vi.mock("@/components/ui/card", () => ({ Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>, CardContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, CardHeader: ({ children }: { children: React.ReactNode }) => <header>{children}</header>, CardTitle: ({ children }: { children: React.ReactNode }) => <h3>{children}</h3> }));
+vi.mock("@/const", () => ({ getLoginUrl: () => "/login" }));
+vi.mock("wouter", () => ({ useLocation: () => ["/staff/music", vi.fn()] }));
+vi.mock("sonner", () => ({ toast: { success: mocks.toastSuccess, error: mocks.toastError } }));
+
+import StaffMusic from "./StaffMusic";
+
+describe("StaffMusic normalización local", () => {
+  beforeEach(() => { mocks.normalize.mockReset(); mocks.refetch.mockReset(); });
+  afterEach(() => cleanup());
+
+  it("permite normalizar una solicitud sin enviar metadatos a proveedores externos", () => {
+    render(<StaffMusic />);
+    fireEvent.click(screen.getByRole("button", { name: "Normalizar datos de Vivir Mi Vida - Marc Anthony" }));
+    expect(mocks.normalize).toHaveBeenCalledWith({ venueId: 7, songId: 14 });
+  });
+});

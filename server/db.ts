@@ -763,6 +763,20 @@ export async function getSongQueue(venueId: number) {
   return db.select().from(songQueue).where(eq(songQueue.venueId, venueId)).orderBy(songQueue.position);
 }
 
+export async function getSongByIdForVenue(songId: number, venueId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [song] = await db.select().from(songQueue).where(and(eq(songQueue.id, songId), eq(songQueue.venueId, venueId))).limit(1);
+  return song;
+}
+
+export async function updateSongMetadataForVenue(songId: number, venueId: number, songName: string, artist: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.update(songQueue).set({ songName, artist }).where(and(eq(songQueue.id, songId), eq(songQueue.venueId, venueId)));
+  return (result[0] as { affectedRows: number }).affectedRows > 0;
+}
+
 export async function updateCurrentSong(venueId: number, songId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");

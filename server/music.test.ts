@@ -9,6 +9,8 @@ const dbMocks = vi.hoisted(() => ({
   submitAppauseVote: vi.fn(),
   getAppauseScore: vi.fn(),
   getQrSessionByToken: vi.fn(),
+  getSongByIdForVenue: vi.fn(),
+  updateSongMetadataForVenue: vi.fn(),
 }));
 
 vi.mock("./db", () => dbMocks);
@@ -30,6 +32,8 @@ describe("music router", () => {
     dbMocks.submitAppauseVote.mockResolvedValue(undefined);
     dbMocks.getAppauseScore.mockResolvedValue({ averageRating: 0, totalVotes: 0, ratingsByPerformingTable: [] });
     dbMocks.getQrSessionByToken.mockResolvedValue({ id: 70, venueId: 7, tableId: 3, isActive: true });
+    dbMocks.getSongByIdForVenue.mockResolvedValue({ id: 14, venueId: 7, songName: "  Vivir Mi Vida - Marc Anthony ", artist: "Artista desconocido" });
+    dbMocks.updateSongMetadataForVenue.mockResolvedValue(true);
   });
 
   it("adds a requested song at the end of the FIFO queue", async () => {
@@ -114,5 +118,12 @@ describe("music router", () => {
     const caller = musicRouter.createCaller(publicContext as any);
     await expect(caller.getApplauseScore({ venueId: 7, sessionId: 70, sessionToken: "valid-music-session-token", songId: 12 })).resolves.toEqual(score);
     expect(dbMocks.getAppauseScore).toHaveBeenCalledWith(7, 12);
+  });
+
+  it("normaliza una canción sólo dentro del local que la contiene", async () => {
+    const caller = musicRouter.createCaller({ user: { id: 5, role: "staff", venueId: 7 }, req: {}, res: {} } as any);
+    await expect(caller.normalizeSongMetadata({ venueId: 7, songId: 14 })).resolves.toMatchObject({ success: true, normalized: { songName: "Vivir Mi Vida", artist: "Marc Anthony" } });
+    expect(dbMocks.updateSongMetadataForVenue).toHaveBeenCalledWith(14, 7, "Vivir Mi Vida", "Marc Anthony");
+    await expect(caller.normalizeSongMetadata({ venueId: 8, songId: 14 })).rejects.toThrow("FORBIDDEN");
   });
 });
