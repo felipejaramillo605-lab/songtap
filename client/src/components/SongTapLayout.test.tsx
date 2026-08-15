@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const mocks = vi.hoisted(() => ({ logout: vi.fn() }));
+const mocks = vi.hoisted(() => ({ logout: vi.fn(), navigate: vi.fn(), location: "/manager" }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({
@@ -24,7 +24,7 @@ vi.mock("@/lib/trpc", () => ({
 
 vi.mock("wouter", () => ({
   Link: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a href={href} {...props}>{children}</a>,
-  useLocation: () => ["/manager", vi.fn()],
+  useLocation: () => [mocks.location, mocks.navigate],
 }));
 
 vi.mock("@/components/ui/sheet", () => ({
@@ -37,7 +37,7 @@ vi.mock("@/components/ui/sheet", () => ({
 import SongTapLayout from "./SongTapLayout";
 
 describe("SongTapLayout", () => {
-  beforeEach(() => mocks.logout.mockReset());
+  beforeEach(() => { mocks.logout.mockReset(); mocks.navigate.mockReset(); mocks.location = "/manager"; });
 
   it("ejecuta logout al pulsar el botón visible Salir", async () => {
     const user = userEvent.setup();
@@ -46,5 +46,16 @@ describe("SongTapLayout", () => {
     await user.click(screen.getAllByRole("button", { name: "Salir" })[0]);
 
     expect(mocks.logout).toHaveBeenCalledTimes(1);
+  });
+
+  it("muestra Regresar en una pantalla interna y vuelve al panel si no hay historial", async () => {
+    const user = userEvent.setup();
+    mocks.location = "/manager/menu";
+    Object.defineProperty(window.history, "length", { configurable: true, value: 1 });
+    render(<SongTapLayout role="manager" title="Menú"><div>Menú</div></SongTapLayout>);
+
+    await user.click(screen.getByRole("button", { name: "Regresar a la pantalla anterior" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith("/manager");
   });
 });

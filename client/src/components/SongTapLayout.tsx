@@ -22,6 +22,7 @@ import {
   User,
   Bell,
   Menu,
+  ArrowLeft,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
@@ -73,7 +74,7 @@ const roleColors = {
 export default function SongTapLayout({ children, role, title }: SongTapLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const { user, logout } = useAuth();
 
   // Consultar solicitudes pendientes y configuración de notificaciones para Owner
@@ -131,6 +132,15 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
 
   const roleNavMap = { owner: ownerNav, manager: managerNav, staff: staffNav };
   const navItems = roleNavMap[role];
+  const dashboardHref = { owner: "/owner", manager: "/manager", staff: "/staff" }[role];
+  const showBackButton = location !== dashboardHref;
+  const goBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    navigate(dashboardHref);
+  };
 
   return (
     <div className="flex min-h-screen min-w-0 bg-background">
@@ -317,6 +327,7 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
             >
               <Menu size={20} />
             </Button>
+            {showBackButton && <Button variant="ghost" size="sm" className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground" onClick={goBack} aria-label="Regresar a la pantalla anterior" title="Regresar a la pantalla anterior"><ArrowLeft size={17} /><span className="hidden sm:inline">Regresar</span></Button>}
             <h1 className="truncate text-base font-bold text-foreground sm:text-lg">{title || "SongTap"}</h1>
           </div>
           <div className="flex min-w-0 items-center justify-end gap-2">

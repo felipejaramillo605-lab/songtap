@@ -355,3 +355,6 @@
 - [x] Impedir el restablecimiento desde este flujo de la cuenta Owner o de cuentas no beta
 - [x] Añadir confirmación, estado de éxito y visualización temporal de la nueva clave en el panel Owner
 - [x] Cubrir permisos, restricciones y actualización efectiva de contraseña con pruebas
+- [x] Añadir un control de regreso contextual y accesible en las pantallas internas de SongTap
+- [x] Mantener el menú lateral o drawer móvil como vía de navegación visible y fácilmente recuperable
+- [x] Cubrir navegación de regreso, ruta de respaldo y comportamiento responsivo con pruebas
