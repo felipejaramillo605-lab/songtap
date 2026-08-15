@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], writeFileXLSX: vi.fn() }));
 
@@ -19,7 +19,7 @@ vi.mock("@/lib/trpc", () => ({
       } },
     },
     pqrs: {
-      ownerAnalytics: { useQuery: () => ({ data: { totals: { total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50 }, venues: [{ venueId: 7, venueName: "Bar Central", total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50, averageResponseMinutes: 42 }] }, isLoading: false }) },
+      ownerAnalytics: { useQuery: () => ({ data: { totals: { total: 14, open: 3, inReview: 3, resolved: 8, resolutionRate: 57 }, venues: [{ venueId: 7, venueName: "Bar Central", total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50, averageResponseMinutes: 42 }, { venueId: 8, venueName: "Bar Norte", total: 4, open: 1, inReview: 0, resolved: 3, resolutionRate: 75, averageResponseMinutes: 15 }] }, isLoading: false }) },
     },
   },
 }));
@@ -36,7 +36,7 @@ describe("OwnerDashboard analytics", () => {
   beforeEach(() => { mocks.analyticsInputs = []; mocks.writeFileXLSX.mockReset(); });
   afterEach(() => cleanup());
 
-  it("muestra métricas y ranking interlocal, permite ampliar el periodo y exporta PQRS", () => {
+  it("muestra métricas y ranking interlocal, filtra sucursales y exporta PQRS", async () => {
     render(<OwnerDashboard />);
 
     expect(screen.getByText("Analítica interlocal")).toBeTruthy();
@@ -51,12 +51,21 @@ describe("OwnerDashboard analytics", () => {
     expect(mocks.analyticsInputs).toHaveLength(2);
     expect((mocks.analyticsInputs[1] as { dateFrom: Date }).dateFrom).toBeInstanceOf(Date);
 
-    const createObjectUrl = vi.fn(() => "blob:pqrs");
+    const createObjectUrl = vi.fn((_: Blob) => "blob:pqrs");
     const revokeObjectUrl = vi.fn();
     vi.stubGlobal("URL", { createObjectURL: createObjectUrl, revokeObjectURL: revokeObjectUrl });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Incluir sucursal Bar Central" }));
+    expect((screen.getByRole("checkbox", { name: "Incluir sucursal Bar Central" }) as HTMLInputElement).checked).toBe(false);
+    const comparisonTable = screen.getByRole("table", { name: "Indicadores de desempeño de PQRS por sucursal seleccionada para el periodo activo." });
+    expect(within(comparisonTable).getAllByRole("row")).toHaveLength(2);
+    expect(within(comparisonTable).getByRole("rowheader", { name: "Bar Norte" })).toBeTruthy();
+    expect(within(comparisonTable).getByText("4")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Descargar comparativo PQRS en CSV" }));
     expect(createObjectUrl).toHaveBeenCalledOnce();
+    const [csvBlob] = createObjectUrl.mock.calls[0]!;
+    expect(await csvBlob.text()).toContain("Bar Norte");
+    expect(await csvBlob.text()).not.toContain("Bar Central");
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:pqrs");
     fireEvent.click(screen.getByRole("button", { name: "Descargar comparativo PQRS en Excel" }));
     expect(mocks.writeFileXLSX).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^songtap-desempeno-pqrs-.*\.xlsx$/));

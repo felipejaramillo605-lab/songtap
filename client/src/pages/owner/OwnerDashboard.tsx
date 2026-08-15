@@ -23,6 +23,7 @@ export default function OwnerDashboard() {
   const { data: venues } = trpc.venues.list.useQuery(undefined, { enabled: !!user });
   const { data: users } = trpc.users.list.useQuery(undefined, { enabled: !!user });
   const [periodDays, setPeriodDays] = useState<7 | 30>(7);
+  const [selectedPqrsVenueIds, setSelectedPqrsVenueIds] = useState<number[] | null>(null);
   const { dateFrom, dateTo } = useMemo(() => {
     const dateTo = new Date();
     dateTo.setHours(23, 59, 59, 999);
@@ -46,8 +47,22 @@ export default function OwnerDashboard() {
   const totalUsers = users?.length ?? 0;
   const managers = users?.filter((u) => u.role === "manager").length ?? 0;
   const staff = users?.filter((u) => u.role === "staff").length ?? 0;
-  const pqrsExportRows = toPqrsExportRows(pqrsAnalytics?.venues ?? []);
+  const allPqrsVenues = pqrsAnalytics?.venues ?? [];
+  const selectedPqrsVenues = selectedPqrsVenueIds === null ? allPqrsVenues : allPqrsVenues.filter((venue) => selectedPqrsVenueIds.includes(venue.venueId));
+  const selectedPqrsTotals = selectedPqrsVenues.reduce((totals, venue) => ({
+    total: totals.total + venue.total,
+    open: totals.open + venue.open,
+    inReview: totals.inReview + venue.inReview,
+    resolved: totals.resolved + venue.resolved,
+    resolutionRate: 0,
+  }), { total: 0, open: 0, inReview: 0, resolved: 0, resolutionRate: 0 });
+  selectedPqrsTotals.resolutionRate = selectedPqrsTotals.total ? Math.round((selectedPqrsTotals.resolved / selectedPqrsTotals.total) * 100) : 0;
+  const pqrsExportRows = toPqrsExportRows(selectedPqrsVenues);
   const canExportPqrs = pqrsExportRows.length > 0 && !isLoadingPqrsAnalytics;
+  const togglePqrsVenue = (venueId: number) => {
+    const currentIds = selectedPqrsVenueIds ?? allPqrsVenues.map((venue) => venue.venueId);
+    setSelectedPqrsVenueIds(currentIds.includes(venueId) ? currentIds.filter((id) => id !== venueId) : [...currentIds, venueId]);
+  };
   const downloadPqrsCsv = () => {
     const csv = createPqrsCsv(pqrsExportRows);
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
@@ -59,7 +74,7 @@ export default function OwnerDashboard() {
   };
   const downloadPqrsExcel = () => {
     if (!pqrsAnalytics) return;
-    writeFileXLSX(createPqrsWorkbook(pqrsExportRows, pqrsAnalytics.totals, dateFrom, dateTo), buildPqrsFilename("xlsx"));
+    writeFileXLSX(createPqrsWorkbook(pqrsExportRows, selectedPqrsTotals, dateFrom, dateTo), buildPqrsFilename("xlsx"));
   };
 
   return (
@@ -158,20 +173,28 @@ export default function OwnerDashboard() {
               <Button variant="outline" size="sm" onClick={downloadPqrsExcel} disabled={!canExportPqrs} aria-label="Descargar comparativo PQRS en Excel"><FileSpreadsheet size={14} className="mr-2" /> Excel</Button>
             </div>
           </div>
+          <fieldset className="rounded-lg border border-border bg-muted/20 p-3" aria-describedby="pqrs-venue-filter-description">
+            <legend className="px-1 text-sm font-semibold text-foreground">Sucursales incluidas</legend>
+            <p id="pqrs-venue-filter-description" className="mb-3 text-xs text-muted-foreground">La selección actual modifica las métricas, la tabla y los archivos CSV y Excel.</p>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground"><input type="checkbox" checked={selectedPqrsVenueIds === null} onChange={(event) => setSelectedPqrsVenueIds(event.target.checked ? null : [])} aria-label="Incluir todas las sucursales" className="size-4 accent-primary" /> Todas las sucursales</label>
+              {allPqrsVenues.map((venue) => <label key={venue.venueId} className="flex cursor-pointer items-center gap-2 text-sm text-foreground"><input type="checkbox" checked={selectedPqrsVenueIds === null || selectedPqrsVenueIds.includes(venue.venueId)} onChange={() => togglePqrsVenue(venue.venueId)} aria-label={`Incluir sucursal ${venue.venueName}`} className="size-4 accent-primary" /> {venue.venueName}</label>)}
+            </div>
+          </fieldset>
           <div className="grid gap-4 sm:grid-cols-4">
             {[
-              { label: "PQRS recibidas", value: pqrsAnalytics?.totals.total ?? 0, color: "text-foreground" },
-              { label: "Abiertas", value: pqrsAnalytics?.totals.open ?? 0, color: "text-yellow-300" },
-              { label: "En revisión", value: pqrsAnalytics?.totals.inReview ?? 0, color: "text-blue-300" },
-              { label: "Resolución", value: `${pqrsAnalytics?.totals.resolutionRate ?? 0}%`, color: "text-primary" },
+              { label: "PQRS recibidas", value: selectedPqrsTotals.total, color: "text-foreground" },
+              { label: "Abiertas", value: selectedPqrsTotals.open, color: "text-yellow-300" },
+              { label: "En revisión", value: selectedPqrsTotals.inReview, color: "text-blue-300" },
+              { label: "Resolución", value: `${selectedPqrsTotals.resolutionRate}%`, color: "text-primary" },
             ].map((metric) => <Card key={metric.label} className="border-border bg-card"><CardContent className="p-4"><p className="text-xs uppercase tracking-wide text-muted-foreground">{metric.label}</p><p className={`mt-1 text-2xl font-bold ${metric.color}`}>{metric.value}</p></CardContent></Card>)}
           </div>
 
           <Card className="border-border bg-card">
             <CardHeader><CardTitle className="text-base text-foreground flex items-center gap-2"><Timer size={17} className="text-primary" /> Comparativo de atención</CardTitle></CardHeader>
             <CardContent>
-              {isLoadingPqrsAnalytics ? <p className="py-8 text-center text-sm text-muted-foreground">Cargando desempeño PQRS...</p> : !pqrsAnalytics?.venues.length ? <p className="py-8 text-center text-sm text-muted-foreground">No hay locales disponibles para comparar.</p> : (
-                <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><caption className="sr-only">Indicadores de desempeño de PQRS por local para el periodo seleccionado.</caption><thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground"><tr><th scope="col" className="pb-3 pr-4 font-medium">Local</th><th scope="col" className="pb-3 px-3 text-right font-medium">Total</th><th scope="col" className="pb-3 px-3 text-right font-medium">Abiertas</th><th scope="col" className="pb-3 px-3 text-right font-medium">En revisión</th><th scope="col" className="pb-3 px-3 text-right font-medium">Resueltas</th><th scope="col" className="pb-3 px-3 font-medium">Tasa de resolución</th><th scope="col" className="pb-3 pl-3 text-right font-medium">Respuesta media</th></tr></thead><tbody>{pqrsAnalytics.venues.map((venue) => { const response = venue.averageResponseMinutes >= 60 ? `${Math.floor(venue.averageResponseMinutes / 60)} h ${venue.averageResponseMinutes % 60} min` : `${venue.averageResponseMinutes} min`; return <tr key={venue.venueId} className="border-b border-border/60 last:border-0"><th scope="row" className="py-3 pr-4 font-semibold text-foreground">{venue.venueName}</th><td className="px-3 py-3 text-right text-foreground">{venue.total}</td><td className="px-3 py-3 text-right text-yellow-200">{venue.open}</td><td className="px-3 py-3 text-right text-blue-200">{venue.inReview}</td><td className="px-3 py-3 text-right text-primary">{venue.resolved}</td><td className="px-3 py-3"><div className="flex min-w-28 items-center gap-2"><progress className="h-2 flex-1 accent-primary" value={venue.resolutionRate} max={100} aria-label={`Tasa de resolución de ${venue.venueName}: ${venue.resolutionRate}%`} /><span className="w-9 text-right text-xs text-foreground">{venue.resolutionRate}%</span></div></td><td className="py-3 pl-3 text-right text-muted-foreground">{response}</td></tr>; })}</tbody></table></div>
+              {isLoadingPqrsAnalytics ? <p className="py-8 text-center text-sm text-muted-foreground">Cargando desempeño PQRS...</p> : !allPqrsVenues.length ? <p className="py-8 text-center text-sm text-muted-foreground">No hay locales disponibles para comparar.</p> : !selectedPqrsVenues.length ? <p className="py-8 text-center text-sm text-muted-foreground">Selecciona al menos una sucursal para visualizar y exportar el desempeño PQRS.</p> : (
+                <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><caption className="sr-only">Indicadores de desempeño de PQRS por sucursal seleccionada para el periodo activo.</caption><thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground"><tr><th scope="col" className="pb-3 pr-4 font-medium">Local</th><th scope="col" className="pb-3 px-3 text-right font-medium">Total</th><th scope="col" className="pb-3 px-3 text-right font-medium">Abiertas</th><th scope="col" className="pb-3 px-3 text-right font-medium">En revisión</th><th scope="col" className="pb-3 px-3 text-right font-medium">Resueltas</th><th scope="col" className="pb-3 px-3 font-medium">Tasa de resolución</th><th scope="col" className="pb-3 pl-3 text-right font-medium">Respuesta media</th></tr></thead><tbody>{selectedPqrsVenues.map((venue) => { const response = venue.averageResponseMinutes >= 60 ? `${Math.floor(venue.averageResponseMinutes / 60)} h ${venue.averageResponseMinutes % 60} min` : `${venue.averageResponseMinutes} min`; return <tr key={venue.venueId} className="border-b border-border/60 last:border-0"><th scope="row" className="py-3 pr-4 font-semibold text-foreground">{venue.venueName}</th><td className="px-3 py-3 text-right text-foreground">{venue.total}</td><td className="px-3 py-3 text-right text-yellow-200">{venue.open}</td><td className="px-3 py-3 text-right text-blue-200">{venue.inReview}</td><td className="px-3 py-3 text-right text-primary">{venue.resolved}</td><td className="px-3 py-3"><div className="flex min-w-28 items-center gap-2"><progress className="h-2 flex-1 accent-primary" value={venue.resolutionRate} max={100} aria-label={`Tasa de resolución de ${venue.venueName}: ${venue.resolutionRate}%`} /><span className="w-9 text-right text-xs text-foreground">{venue.resolutionRate}%</span></div></td><td className="py-3 pl-3 text-right text-muted-foreground">{response}</td></tr>; })}</tbody></table></div>
               )}
             </CardContent>
           </Card>

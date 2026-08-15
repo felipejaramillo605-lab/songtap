@@ -281,6 +281,9 @@
 
 ## Pendientes internos priorizados
 
+- [x] Añadir selector múltiple accesible de sucursales al comparativo PQRS Owner
+- [x] Recalcular métricas y limitar tabla y exportaciones PQRS a las sucursales elegidas
+- [x] Cubrir la selección de sucursales y el contenido exportado con pruebas de interfaz y archivos
 - [x] Definir filas y resumen para exportación CSV y Excel del desempeño PQRS por local
 - [x] Añadir botones accesibles para descargar el comparativo PQRS filtrado en CSV y Excel
 - [x] Cubrir los archivos, el periodo activo y las acciones de exportación PQRS con pruebas
