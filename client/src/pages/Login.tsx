@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicato
 import { Music2, Mail, Building2, User, ShieldCheck } from "lucide-react";
 
 export default function Login() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const utils = trpc.useUtils();
   const [, navigate] = useLocation();
   const [mode, setMode] = useState<"choose" | "password" | "register" | "forgot" | "reset">("choose");
@@ -25,20 +25,19 @@ export default function Login() {
   const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      if (user.mustChangePassword) navigate("/change-password");
-      else if (user.role === "owner") navigate("/owner");
-      else if (user.role === "manager") navigate("/manager");
-      else if (user.role === "staff") navigate("/staff");
-      else navigate("/");
-    }
-  }, [isAuthenticated, user, navigate]);
+  const navigateByRole = (account?: { role?: string; mustChangePassword?: boolean | null }) => {
+    if (account?.mustChangePassword) return navigate("/change-password");
+    if (account?.role === "owner") return navigate("/owner");
+    if (account?.role === "manager") return navigate("/manager");
+    if (account?.role === "staff") return navigate("/staff");
+    return navigate("/");
+  };
 
   const loginPassword = trpc.auth.loginPassword.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       toast.success("¡Bienvenido de vuelta!");
       await utils.auth.me.invalidate();
+      navigateByRole(data.user);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -51,6 +50,7 @@ export default function Login() {
         toast.success("¡Cuenta creada con éxito!");
       }
       await utils.auth.me.invalidate();
+      navigateByRole(data.user);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -93,6 +93,7 @@ export default function Login() {
 
           {mode === "choose" && (
             <div className="space-y-3">
+              {isAuthenticated && user && <div role="status" className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-left text-xs text-muted-foreground"><p><span className="font-semibold text-foreground">Sesión activa:</span> {user.email ?? user.name ?? "usuario"}. Si necesitas usar otra cuenta, ciérrala primero.</p><Button type="button" variant="link" size="sm" className="mt-1 h-auto px-0 text-amber-300 hover:text-amber-200" onClick={async () => { await logout(); setMode("choose"); }} >Cerrar sesión y cambiar de cuenta</Button></div>}
               <div role="note" aria-label="Acceso para cuentas beta" className="flex gap-2 rounded-lg border border-primary/30 bg-primary/10 p-3 text-left text-xs text-muted-foreground">
                 <ShieldCheck size={17} className="mt-0.5 shrink-0 text-primary" />
                 <p><span className="font-semibold text-foreground">¿Tienes una cuenta beta?</span> Selecciona <span className="font-semibold text-primary">Correo y Contraseña</span>. No uses Manus OAuth ni necesitas un código enviado al correo.</p>

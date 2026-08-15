@@ -378,3 +378,6 @@
 - [x] Validar acceso de Manager y Staff beta con sus credenciales y redirección por rol
 - [x] Mostrar un aviso accesible en Login que indique a cuentas beta usar Correo y Contraseña
 - [x] Cubrir el contenido del aviso beta y su visualización en la pantalla de acceso
+- [x] Reproducir y corregir el botón público de inicio de sesión que no navega al formulario local
+- [x] Auditar rutas, eventos de clic, sesión local, cambio obligatorio y redirecciones por rol
+- [x] Añadir cobertura de interacción real para los accesos de inicio de sesión y validar desktop y móvil

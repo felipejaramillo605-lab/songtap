@@ -62,12 +62,7 @@ export default function Home() {
             <span className="text-muted-foreground text-sm ml-1">by CS2</span>
           </div>
         </div>
-        <Button
-          onClick={() => navigate("/login")}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-6"
-        >
-          Iniciar sesión
-        </Button>
+        <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-6"><a href="/login">Iniciar sesión</a></Button>
       </header>
 
       {/* Hero */}
@@ -93,13 +88,7 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              size="lg"
-              onClick={() => navigate("/login")}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold px-8 py-3 text-base neon-glow"
-            >
-              Acceder al panel
-            </Button>
+            <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold px-8 py-3 text-base neon-glow"><a href="/login">Acceder al panel</a></Button>
             <Button
               size="lg"
               variant="outline"
