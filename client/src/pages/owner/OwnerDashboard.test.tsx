@@ -3,7 +3,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], pqrsInputs: [] as any[], writeFileXLSX: vi.fn(), upsertSlaTarget: vi.fn(), invalidateSlaTargets: vi.fn(), invalidateOwnerAnalytics: vi.fn() }));
+const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], pqrsInputs: [] as any[], writeFileXLSX: vi.fn(), upsertSlaTarget: vi.fn(), invalidateSlaTargets: vi.fn(), invalidateOwnerAnalytics: vi.fn(), simulateSlaDrop: false, currentPqrsDateTo: 0 }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: 1, name: "Felipe", role: "owner" }, isAuthenticated: true, loading: false }),
@@ -20,7 +20,7 @@ vi.mock("@/lib/trpc", () => ({
       } },
     },
     pqrs: {
-      ownerAnalytics: { useQuery: (input: unknown) => { mocks.pqrsInputs.push(input); return { data: { totals: { total: 14, open: 3, inReview: 3, resolved: 8, resolutionRate: 57, slaEvaluated: 10, slaMet: 7, slaBreached: 3, slaComplianceRate: 70 }, venues: [{ venueId: 7, venueName: "Bar Central", total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50, averageResponseMinutes: 42, slaEvaluated: 8, slaMet: 6, slaBreached: 2, slaComplianceRate: 75 }, { venueId: 8, venueName: "Bar Norte", total: 4, open: 1, inReview: 0, resolved: 3, resolutionRate: 75, averageResponseMinutes: 15, slaEvaluated: 2, slaMet: 1, slaBreached: 1, slaComplianceRate: 50 }] }, isLoading: false }; } },
+      ownerAnalytics: { useQuery: (input: unknown) => { mocks.pqrsInputs.push(input); const inputDateTo = (input as { dateTo: Date }).dateTo.getTime(); if (inputDateTo > mocks.currentPqrsDateTo) mocks.currentPqrsDateTo = inputDateTo; const isPreviousPeriod = inputDateTo < mocks.currentPqrsDateTo; const centralSlaMet = mocks.simulateSlaDrop && isPreviousPeriod ? 7 : 6; const totalSlaMet = centralSlaMet + 1; return { data: { totals: { total: 14, open: 3, inReview: 3, resolved: 8, resolutionRate: 57, slaEvaluated: 10, slaMet: totalSlaMet, slaBreached: 10 - totalSlaMet, slaComplianceRate: Math.round((totalSlaMet / 10) * 100) }, venues: [{ venueId: 7, venueName: "Bar Central", total: 10, open: 2, inReview: 3, resolved: 5, resolutionRate: 50, averageResponseMinutes: 42, slaEvaluated: 8, slaMet: centralSlaMet, slaBreached: 8 - centralSlaMet, slaComplianceRate: Math.round((centralSlaMet / 8) * 100) }, { venueId: 8, venueName: "Bar Norte", total: 4, open: 1, inReview: 0, resolved: 3, resolutionRate: 75, averageResponseMinutes: 15, slaEvaluated: 2, slaMet: 1, slaBreached: 1, slaComplianceRate: 50 }] }, isLoading: false }; } },
       slaTargets: { useQuery: () => ({ data: [{ venueId: 7, type: "complaint", targetMinutes: 240 }] }) },
       upsertSlaTarget: { useMutation: (options?: { onSuccess?: (result: { success: boolean }, variables: { venueId: number; type: string; targetMinutes: number }) => void }) => ({ mutate: (input: { venueId: number; type: string; targetMinutes: number }) => { mocks.upsertSlaTarget(input); options?.onSuccess?.({ success: true }, input); }, isPending: false, isSuccess: true, error: null }) },
     },
@@ -36,7 +36,7 @@ vi.mock("xlsx", async () => ({ ...(await vi.importActual<typeof import("xlsx")>(
 import OwnerDashboard from "./OwnerDashboard";
 
 describe("OwnerDashboard analytics", () => {
-  beforeEach(() => { mocks.analyticsInputs = []; mocks.pqrsInputs = []; mocks.writeFileXLSX.mockReset(); mocks.upsertSlaTarget.mockReset(); mocks.invalidateSlaTargets.mockReset(); mocks.invalidateOwnerAnalytics.mockReset(); });
+  beforeEach(() => { mocks.analyticsInputs = []; mocks.pqrsInputs = []; mocks.writeFileXLSX.mockReset(); mocks.upsertSlaTarget.mockReset(); mocks.invalidateSlaTargets.mockReset(); mocks.invalidateOwnerAnalytics.mockReset(); mocks.simulateSlaDrop = false; mocks.currentPqrsDateTo = 0; });
   afterEach(() => cleanup());
 
   it("muestra métricas y ranking interlocal, filtra sucursales y exporta PQRS", async () => {
@@ -103,5 +103,12 @@ describe("OwnerDashboard analytics", () => {
     expect((screen.getByRole("button", { name: "Descargar comparativo PQRS en CSV" }) as HTMLButtonElement).disabled).toBe(true);
     clickSpy.mockRestore();
     vi.unstubAllGlobals();
+  });
+
+  it("resalta una caída SLA de diez o más puntos porcentuales", () => {
+    mocks.simulateSlaDrop = true;
+    render(<OwnerDashboard />);
+    expect(screen.getByRole("alert").textContent).toContain("Caída significativa de cumplimiento SLA");
+    expect(screen.getByLabelText("Sucursales con caída significativa de SLA").textContent).toContain("Bar Central: -13 pp");
   });
 });

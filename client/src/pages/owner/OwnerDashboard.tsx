@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { buildPqrsFilename, createPqrsCsv, createPqrsWorkbook, toPqrsExportRows } from "@/lib/pqrsExport";
 import { getPreviousPqrsPeriod } from "@/lib/pqrsPeriod";
-import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet, ShieldCheck } from "lucide-react";
+import { getSlaRisk } from "@/lib/pqrsSlaRisk";
+import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { getLoginUrl } from "@/const";
@@ -123,6 +124,8 @@ export default function OwnerDashboard() {
   const selectedPreviousSlaMet = selectedPqrsVenues.reduce((total, venue) => total + (previousPqrsVenueMap.get(venue.venueId)?.slaMet ?? 0), 0);
   selectedPqrsTotals.previousSlaComplianceRate = selectedPreviousSlaEvaluated ? Math.round((selectedPreviousSlaMet / selectedPreviousSlaEvaluated) * 100) : 0;
   selectedPqrsTotals.slaComplianceChange = selectedPqrsTotals.slaComplianceRate - selectedPqrsTotals.previousSlaComplianceRate;
+  const selectedSlaRisk = getSlaRisk(selectedPqrsTotals.slaComplianceChange);
+  const significantDropVenues = selectedPqrsVenues.filter((venue) => getSlaRisk(venue.slaComplianceChange) === "significant_drop");
   const pqrsTypeLabel = { all: "Todos los tipos", petition: "Petición", complaint: "Queja", claim: "Reclamo", suggestion: "Sugerencia", congratulation: "Felicitación" }[pqrsType];
   const pqrsStatusLabel = { all: "Todos los estados", open: "Abierta", in_review: "En revisión", resolved: "Resuelta", closed: "Cerrada" }[pqrsStatus];
   const pqrsExportFilters = { typeLabel: pqrsTypeLabel, statusLabel: pqrsStatusLabel };
@@ -309,6 +312,8 @@ export default function OwnerDashboard() {
               {isLoadingPreviousPqrsAnalytics ? <span className="text-sm text-muted-foreground">Calculando comparación…</span> : <div className="text-left sm:text-right"><p className="text-sm text-muted-foreground">Anterior: <span className="font-semibold text-foreground">{selectedPqrsTotals.previousSlaComplianceRate}%</span></p><p className={`text-lg font-bold ${selectedPqrsTotals.slaComplianceChange > 0 ? "text-primary" : selectedPqrsTotals.slaComplianceChange < 0 ? "text-destructive" : "text-muted-foreground"}`}>{selectedPqrsTotals.slaComplianceChange >= 0 ? "+" : ""}{selectedPqrsTotals.slaComplianceChange} pp</p></div>}
             </CardContent>
           </Card>
+          {selectedSlaRisk === "significant_drop" && <div role="alert" className="flex items-start gap-3 rounded-lg border border-destructive/60 bg-destructive/10 p-4 text-destructive"><TriangleAlert size={20} className="mt-0.5 shrink-0" /><div><p className="font-semibold">Caída significativa de cumplimiento SLA</p><p className="mt-1 text-sm">El cumplimiento cayó {Math.abs(selectedPqrsTotals.slaComplianceChange)} puntos porcentuales frente al periodo anterior. Revisa las sucursales señaladas antes de que aumenten los vencimientos.</p></div></div>}
+          {significantDropVenues.length > 0 && <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3" aria-label="Sucursales con caída significativa de SLA"><p className="flex items-center gap-2 text-sm font-semibold text-destructive"><TriangleAlert size={16} /> Sucursales con caída SLA significativa</p><div className="mt-2 flex flex-wrap gap-2">{significantDropVenues.map((venue) => <span key={`risk-${venue.venueId}`} className="rounded-full border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive">{venue.venueName}: {venue.slaComplianceChange} pp</span>)}</div></div>}
 
           <Card className="border-border bg-card">
             <CardHeader><CardTitle className="text-base text-foreground flex items-center gap-2"><Timer size={17} className="text-primary" /> Comparativo de atención</CardTitle></CardHeader>

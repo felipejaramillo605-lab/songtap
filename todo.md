@@ -281,6 +281,10 @@
 
 ## Pendientes internos priorizados
 
+- [x] Definir caída SLA significativa como disminución de 10 o más puntos porcentuales frente al periodo anterior
+- [x] Resaltar el riesgo SLA global y por sucursal con indicadores visuales y texto accesible
+- [x] Incluir el estado de riesgo SLA en CSV y Excel de desempeño PQRS
+- [x] Cubrir umbral, ausencia de caída, accesibilidad y exportación del indicador SLA
 - [x] Calcular automáticamente el periodo anterior equivalente para el rango PQRS seleccionado
 - [x] Obtener y comparar cumplimiento SLA actual versus periodo anterior por sucursal
 - [x] Mostrar variación SLA accesible y utilizarla en CSV y Excel de desempeño PQRS

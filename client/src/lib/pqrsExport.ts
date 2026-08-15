@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { getSlaRiskLabel } from "./pqrsSlaRisk";
 
 export type PqrsAnalyticsVenue = {
   venueId: number;
@@ -34,6 +35,7 @@ export type PqrsExportRow = {
   "Cumplimiento SLA": string;
   "Cumplimiento SLA anterior": string;
   "Variación SLA (pp)": string;
+  "Estado de riesgo SLA": string;
   "Tipo PQRS": string;
   "Estado PQRS": string;
 };
@@ -56,6 +58,7 @@ export function toPqrsExportRows(venues: PqrsAnalyticsVenue[], filters: PqrsExpo
     "Cumplimiento SLA": `${venue.slaComplianceRate}%`,
     "Cumplimiento SLA anterior": `${venue.previousSlaComplianceRate}%`,
     "Variación SLA (pp)": `${venue.slaComplianceChange >= 0 ? "+" : ""}${venue.slaComplianceChange} pp`,
+    "Estado de riesgo SLA": getSlaRiskLabel(venue.slaComplianceChange),
     "Tipo PQRS": filters.typeLabel,
     "Estado PQRS": filters.statusLabel,
   }));
@@ -95,11 +98,12 @@ export function createPqrsWorkbook(rows: PqrsExportRow[], totals: PqrsAnalyticsT
     ["Cumplimiento SLA", `${totals.slaComplianceRate}%`],
     ["Cumplimiento SLA anterior", `${totals.previousSlaComplianceRate}%`],
     ["Variación SLA", `${totals.slaComplianceChange >= 0 ? "+" : ""}${totals.slaComplianceChange} pp`],
+    ["Estado de riesgo SLA", getSlaRiskLabel(totals.slaComplianceChange)],
   ]);
   summary["!cols"] = [{ wch: 28 }, { wch: 34 }];
   const venues = XLSX.utils.json_to_sheet(rows);
-  venues["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 27 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 20 }, { wch: 20 }];
-  venues["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 15, r: Math.max(rows.length, 1) } }) };
+  venues["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 27 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 22 }, { wch: 20 }, { wch: 20 }];
+  venues["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 16, r: Math.max(rows.length, 1) } }) };
   XLSX.utils.book_append_sheet(workbook, summary, "Resumen");
   XLSX.utils.book_append_sheet(workbook, venues, "Locales");
   return workbook;
