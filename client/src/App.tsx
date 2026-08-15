@@ -35,6 +35,7 @@ import ManagerStaff from "./pages/manager/ManagerStaff";
 import ManagerFinance from "./pages/manager/ManagerFinance";
 import ManagerSettings from "./pages/manager/ManagerSettings";
 import ManagerActivities from "./pages/manager/ManagerActivities";
+import ManagerPqrs from "./pages/manager/ManagerPqrs";
 
 // Staff pages
 import StaffOrders from "./pages/staff/StaffOrders";
@@ -84,12 +85,14 @@ function Router() {
       <Route path="/manager/finance" component={ManagerFinance} />
       <Route path="/manager/settings" component={ManagerSettings} />
       <Route path="/manager/activities" component={ManagerActivities} />
+      <Route path="/manager/pqrs" component={ManagerPqrs} />
 
       {/* Staff */}
       <Route path="/staff" component={StaffOrders} />
       <Route path="/staff/music" component={StaffMusic} />
       <Route path="/staff/tables" component={StaffTables} />
       <Route path="/staff/activities" component={StaffActivities} />
+      <Route path="/staff/pqrs" component={ManagerPqrs} />
 
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

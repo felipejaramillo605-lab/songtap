@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import MusicQueue from "@/components/MusicQueue";
 import ApplauseVoting from "@/components/ApplauseVoting";
+import ClientPqrs from "@/components/ClientPqrs";
 import { toast } from "sonner";
 import { 
   UtensilsCrossed, 
@@ -19,7 +20,8 @@ import {
   Minus, 
   Trash2, 
   Send, 
-  Clock 
+  Clock,
+  MessageSquare,
 } from "lucide-react";
 
 interface SessionData {
@@ -245,8 +247,8 @@ export default function ClientMenu() {
       </header>
 
       <div className="max-w-lg mx-auto px-4 pt-4">
-        <Tabs defaultValue={new URLSearchParams(searchString).get("tab") === "music" ? "music" : "menu"}>
-          <TabsList className="w-full bg-secondary border border-border mb-4">
+        <Tabs defaultValue={["music", "orders", "pqrs"].includes(new URLSearchParams(searchString).get("tab") ?? "") ? new URLSearchParams(searchString).get("tab")! : "menu"}>
+          <TabsList className="grid w-full grid-cols-4 bg-secondary border border-border mb-4">
             <TabsTrigger value="menu" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <UtensilsCrossed size={14} className="mr-1.5" /> Menú
             </TabsTrigger>
@@ -260,6 +262,9 @@ export default function ClientMenu() {
             </TabsTrigger>
             <TabsTrigger value="music" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Music2 size={14} className="mr-1.5" /> Música
+            </TabsTrigger>
+            <TabsTrigger value="pqrs" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="PQRS">
+              <MessageSquare size={14} className="mr-1.5" /> PQRS
             </TabsTrigger>
           </TabsList>
 
@@ -436,6 +441,10 @@ export default function ClientMenu() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="pqrs">
+            <ClientPqrs session={session} />
           </TabsContent>
         </Tabs>
       </div>

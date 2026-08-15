@@ -254,6 +254,9 @@
 - [x] Corregir y validar la persistencia de la preferencia de proveedor desde Configuración Manager
 - [x] Restaurar la preferencia temporal de proveedor del local de prueba al modo manual
 - [ ] Implementar búsqueda y normalización automática de metadatos con respaldo manual
+- [ ] Implementar búsqueda gratuita de metadatos MusicBrainz con límite de uso seguro y respaldo manual
+- [ ] Añadir la acción de sugerir metadatos a la cola musical del Staff
+- [ ] Cubrir con pruebas la normalización y el aislamiento del enriquecimiento musical por local
 - [x] Actualizar las interfaces de Manager y Staff con el estado del proveedor y el respaldo manual por local
 - [x] Añadir pruebas de aislamiento multiempresa y documentar la configuración de los proveedores musicales
 - [x] Guardar checkpoint de la preparación de proveedores musicales por local
@@ -275,6 +278,12 @@
 
 ## Pendientes internos priorizados
 
+- [x] Implementar módulo PQRS por sesión QR: creación segura, clasificación y seguimiento por local
+- [x] Añadir bandeja Manager/Staff para gestionar estados y respuestas de PQRS con aislamiento por empresa
+- [x] Cubrir con pruebas los permisos, la sesión QR y el flujo de PQRS
+- [x] Añadir pruebas de interfaz para ClientPqrs y ManagerPqrs que cubran envío, listado, cambio de estado y respuesta visible
+- [x] Añadir una prueba integrada del flujo PQRS con sesión QR válida y aislamiento por empresa de extremo a extremo
+- [x] Añadir una prueba integrada PQRS sin mocks de persistencia que compruebe sesión QR, aislamiento y respuesta en el mismo flujo
 - [x] Implementar actualización automática gratuita de notificaciones mientras el panel Owner está abierto
 - [x] Mostrar estado de actualización, refresco manual y nueva alerta en el historial Owner
 - [x] Cubrir la actualización automática de notificaciones con una prueba de interfaz

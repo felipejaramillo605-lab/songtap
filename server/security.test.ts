@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import { getDb } from "./db";
-import { menuCategories, qrSessions, songQueue, staffActivities, tables, users, venues } from "../drizzle/schema";
+import { auditLogs, menuCategories, pqrsTickets, qrSessions, songQueue, staffActivities, tables, users, venues } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
 const req = { cookies: {}, headers: { "x-forwarded-proto": "https" } } as any;
@@ -175,6 +175,62 @@ describe("Aislamiento por IDs adivinables y token QR", () => {
     const orders = await caller.orders.getBySession({ sessionId, sessionToken: token });
     expect(Array.isArray(orders)).toBe(true);
     await db.delete(qrSessions).where(eq(qrSessions.id, sessionId));
+  });
+
+  it("recorre PQRS con persistencia real, bloquea otro local y devuelve la respuesta a la sesión QR", async () => {
+    const db = await getDb();
+    if (!db) return;
+    const token = `security-pqrs-session-${Date.now()}-token`;
+    const sessionResult = await db.insert(qrSessions).values({
+      venueId: 30001,
+      tableId: 99501,
+      sessionToken: token,
+      clientName: "Cliente PQRS",
+      isActive: true,
+    });
+    const sessionId = Number((sessionResult[0] as { insertId?: number }).insertId);
+    const client = appRouter.createCaller(ctx("user", null, 9025));
+    let ticketId = 0;
+
+    try {
+      const created = await client.pqrs.create({
+        sessionToken: token,
+        sessionId,
+        venueId: 30001,
+        tableId: 99501,
+        type: "complaint",
+        subject: "Prueba integrada PQRS",
+        message: "La prueba valida el recorrido completo con persistencia real.",
+      });
+      ticketId = created.ticketId;
+      expect(ticketId).toBeGreaterThan(0);
+
+      const [persisted] = await db.select().from(pqrsTickets).where(eq(pqrsTickets.id, ticketId)).limit(1);
+      expect(persisted).toMatchObject({ venueId: 30001, sessionId, tableId: 99501, status: "open" });
+
+      const manager = appRouter.createCaller(ctx("manager", 30001, 9026));
+      await expect(manager.pqrs.listByVenue({ venueId: 30001, status: "open" })).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: ticketId }),
+      ]));
+      const otherManager = appRouter.createCaller(ctx("manager", 30002, 9027));
+      await expect(otherManager.pqrs.listByVenue({ venueId: 30001 })).rejects.toThrow("No tienes acceso");
+
+      await manager.pqrs.update({
+        venueId: 30001,
+        ticketId,
+        status: "resolved",
+        response: "Respuesta integrada visible para el cliente QR.",
+      });
+      await expect(client.pqrs.getMyTickets({ sessionToken: token, sessionId, venueId: 30001 })).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: ticketId, status: "resolved", response: "Respuesta integrada visible para el cliente QR." }),
+      ]));
+    } finally {
+      if (ticketId) {
+        await db.delete(auditLogs).where(eq(auditLogs.entityId, ticketId));
+        await db.delete(pqrsTickets).where(eq(pqrsTickets.id, ticketId));
+      }
+      await db.delete(qrSessions).where(eq(qrSessions.id, sessionId));
+    }
   });
 
   it("una sesión QR no permite consultar ni actuar sobre menú o música de otro contexto", async () => {

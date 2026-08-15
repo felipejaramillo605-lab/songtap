@@ -234,6 +234,27 @@ export const orderStatusHistory = mysqlTable("order_status_history", {
 export type OrderStatusHistory = typeof orderStatusHistory.$inferSelect;
 export type InsertOrderStatusHistory = typeof orderStatusHistory.$inferInsert;
 
+// ─── PQRS (peticiones, quejas, reclamos y sugerencias) ───────────────────────
+export const pqrsTickets = mysqlTable("pqrs_tickets", {
+  id: int("id").autoincrement().primaryKey(),
+  venueId: int("venueId").notNull(),
+  tableId: int("tableId").notNull(),
+  sessionId: int("sessionId").notNull(),
+  clientName: varchar("clientName", { length: 128 }).notNull(),
+  type: mysqlEnum("type", ["petition", "complaint", "claim", "suggestion", "congratulation"]).notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  status: mysqlEnum("status", ["open", "in_review", "resolved", "closed"]).default("open").notNull(),
+  response: text("response"),
+  respondedByUserId: int("respondedByUserId"),
+  respondedAt: timestamp("respondedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PqrsTicket = typeof pqrsTickets.$inferSelect;
+export type InsertPqrsTicket = typeof pqrsTickets.$inferInsert;
+
 // ─── VENUE REQUESTS (solicitudes de empresas por managers) ────────────────────
 export const venueRequests = mysqlTable("venue_requests", {
   id: int("id").autoincrement().primaryKey(),

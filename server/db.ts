@@ -10,6 +10,7 @@ import {
   orderItems,
   orderStatusHistory,
   orders,
+  pqrsTickets,
   qrSessions,
   songQueue,
   staffActivities,
@@ -136,6 +137,59 @@ export async function updateStaffActivityForAssignee(
     .update(staffActivities)
     .set(data)
     .where(and(eq(staffActivities.id, activityId), eq(staffActivities.venueId, venueId), eq(staffActivities.assignedToUserId, userId)));
+  return (result[0] as { affectedRows: number }).affectedRows > 0;
+}
+
+// ─── PQRS ────────────────────────────────────────────────────────────────────
+
+export async function createPqrsTicket(data: typeof pqrsTickets.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(pqrsTickets).values(data);
+  return result[0];
+}
+
+export async function getPqrsTicketsBySession(sessionId: number, venueId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(pqrsTickets)
+    .where(and(eq(pqrsTickets.sessionId, sessionId), eq(pqrsTickets.venueId, venueId)))
+    .orderBy(desc(pqrsTickets.createdAt));
+}
+
+export async function getPqrsTicketsByVenue(venueId: number, status?: typeof pqrsTickets.$inferSelect.status) {
+  const db = await getDb();
+  if (!db) return [];
+  const condition = status
+    ? and(eq(pqrsTickets.venueId, venueId), eq(pqrsTickets.status, status))
+    : eq(pqrsTickets.venueId, venueId);
+  return db.select().from(pqrsTickets).where(condition).orderBy(desc(pqrsTickets.createdAt));
+}
+
+export async function getPqrsTicketForVenue(ticketId: number, venueId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [ticket] = await db
+    .select()
+    .from(pqrsTickets)
+    .where(and(eq(pqrsTickets.id, ticketId), eq(pqrsTickets.venueId, venueId)))
+    .limit(1);
+  return ticket;
+}
+
+export async function updatePqrsTicketForVenue(
+  ticketId: number,
+  venueId: number,
+  data: Pick<typeof pqrsTickets.$inferInsert, "status" | "response" | "respondedByUserId" | "respondedAt">
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db
+    .update(pqrsTickets)
+    .set(data)
+    .where(and(eq(pqrsTickets.id, ticketId), eq(pqrsTickets.venueId, venueId)));
   return (result[0] as { affectedRows: number }).affectedRows > 0;
 }
 
