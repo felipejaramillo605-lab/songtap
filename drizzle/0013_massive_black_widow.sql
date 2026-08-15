@@ -1,0 +1,2 @@
+ALTER TABLE `venues` ADD `musicProvider` enum('manual','spotify','youtube','soundcloud') DEFAULT 'manual' NOT NULL;--> statement-breakpoint
+ALTER TABLE `venues` ADD `musicConnectionStatus` enum('not_configured','pending','connected') DEFAULT 'not_configured' NOT NULL;

@@ -250,7 +250,11 @@
 - [ ] Crear y configurar una aplicación Spotify cuando el panel de desarrolladores habilite el alta
 - [ ] Implementar vínculo OAuth de Spotify por Manager y almacenamiento seguro de tokens renovables
 - [x] Evaluar alternativas oficiales: YouTube Data para metadatos por local y SoundCloud OAuth como opción futura; no sustituir licencias de reproducción comercial
+- [x] Preparar configuración de proveedor musical y estado de conexión aislados por `venueId`, sin almacenar credenciales externas todavía
+- [x] Corregir y validar la persistencia de la preferencia de proveedor desde Configuración Manager
+- [x] Restaurar la preferencia temporal de proveedor del local de prueba al modo manual
 - [ ] Implementar búsqueda y normalización automática de metadatos con respaldo manual
-- [ ] Actualizar las interfaces de Manager, Staff y Cliente con el estado y metadatos del proveedor musical del local
-- [ ] Añadir pruebas de aislamiento multiempresa y documentar la configuración de los proveedores musicales
+- [x] Actualizar las interfaces de Manager y Staff con el estado del proveedor y el respaldo manual por local
+- [x] Añadir pruebas de aislamiento multiempresa y documentar la configuración de los proveedores musicales
+- [x] Guardar checkpoint de la preparación de proveedores musicales por local
 - [ ] Guardar checkpoint de las integraciones musicales

@@ -83,6 +83,7 @@ export const venuesRouter = router({
         logoUrl: z.string().optional(),
         socialLinks: z.string().optional(),
         musicMode: z.enum(["auto", "manual"]).optional(),
+        musicProvider: z.enum(["manual", "spotify", "youtube", "soundcloud"]).optional(),
         isActive: z.boolean().optional(),
         privacyPolicyAccepted: z.boolean().optional(),
       })
@@ -92,6 +93,10 @@ export const venuesRouter = router({
         throw new TRPCError({ code: "FORBIDDEN" });
       }
       const { id, ...data } = input;
+      if (data.musicProvider) {
+        (data as Record<string, unknown>).musicConnectionStatus = data.musicProvider === "manual" ? "not_configured" : "pending";
+        (data as Record<string, unknown>).musicMode = "manual";
+      }
       if (data.privacyPolicyAccepted) {
         (data as Record<string, unknown>).privacyPolicyAcceptedAt = new Date();
       }

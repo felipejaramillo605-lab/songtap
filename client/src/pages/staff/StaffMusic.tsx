@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { MusicProvider, musicProviderInfo, providerConnectionMessage } from "@/lib/musicProvider";
 
 export default function StaffMusic() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -23,6 +24,7 @@ export default function StaffMusic() {
     { venueId: venueId! },
     { enabled: !!venueId, refetchInterval: 5000 }
   );
+  const { data: venue } = trpc.venues.getById.useQuery({ id: venueId! }, { enabled: !!venueId });
 
   const playSong = trpc.music.playSong.useMutation({
     onSuccess: () => { toast.success("Canción reproduciéndose"); refetch(); },
@@ -38,6 +40,8 @@ export default function StaffMusic() {
 
   const currentSong = musicData?.current;
   const queueList = musicData?.queue || [];
+  const provider = (venue?.musicProvider ?? "manual") as MusicProvider;
+  const connectionStatus = venue?.musicConnectionStatus ?? "not_configured";
 
   return (
     <SongTapLayout role="staff" title="Cola Musical">
@@ -45,6 +49,11 @@ export default function StaffMusic() {
         <div>
           <h2 className="text-xl font-bold text-foreground">Gestión de Reproductor & Cola Musical</h2>
           <p className="text-sm text-muted-foreground">Controla las canciones solicitadas por las mesas y marca la que está sonando actualmente.</p>
+        </div>
+
+        <div className={`rounded-xl border px-4 py-3 text-sm ${provider === "manual" ? "border-primary/20 bg-primary/10 text-primary" : "border-yellow-400/20 bg-yellow-400/10 text-yellow-200"}`}>
+          <span className="font-semibold">{musicProviderInfo[provider].shortLabel}:</span>{" "}
+          {providerConnectionMessage(provider, connectionStatus)}
         </div>
 
         {/* Canción Actual */}

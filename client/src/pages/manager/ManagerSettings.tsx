@@ -12,6 +12,7 @@ import { Cog, Music2, Shield } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
+import { MusicProvider, musicProviderInfo, providerConnectionMessage } from "@/lib/musicProvider";
 
 export default function ManagerSettings() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -31,12 +32,16 @@ export default function ManagerSettings() {
 
   const [form, setForm] = useState({ name: "", address: "", phone: "", email: "", socialLinks: "" });
   const [musicMode, setMusicMode] = useState<"auto" | "manual">("manual");
+  const [musicProvider, setMusicProvider] = useState<MusicProvider>("manual");
+  const [musicConnectionStatus, setMusicConnectionStatus] = useState<"not_configured" | "pending" | "connected">("not_configured");
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
   useEffect(() => {
     if (venue) {
       setForm({ name: venue.name, address: venue.address ?? "", phone: venue.phone ?? "", email: venue.email ?? "", socialLinks: venue.socialLinks ?? "" });
       setMusicMode(venue.musicMode);
+      setMusicProvider(venue.musicProvider ?? "manual");
+      setMusicConnectionStatus(venue.musicConnectionStatus ?? "not_configured");
       setPrivacyAccepted(venue.privacyPolicyAccepted);
     }
   }, [venue]);
@@ -84,14 +89,31 @@ export default function ManagerSettings() {
               </SelectTrigger>
               <SelectContent className="bg-popover border-border">
                 <SelectItem value="manual">Manual — El staff reproduce las canciones</SelectItem>
-                <SelectItem value="auto">Automático — Integración con Spotify</SelectItem>
+                <SelectItem value="auto" disabled>Automático — Disponible al conectar un proveedor</SelectItem>
               </SelectContent>
             </Select>
-            {musicMode === "auto" && (
-              <p className="text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 rounded-lg p-3">
-                El modo automático requiere configurar la integración con Spotify API. Contacta al Owner para activarla.
-              </p>
-            )}
+            <p className="text-xs text-primary bg-primary/10 border border-primary/20 rounded-lg p-3">El control manual continúa activo hasta que una conexión externa sea validada.</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardHeader><CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2"><Music2 size={16} /> Fuente de metadatos</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">Elige el proveedor que este local desea conectar. La cola y reproducción manual siguen disponibles mientras la conexión esté pendiente.</p>
+            <Select value={musicProvider} onValueChange={(value) => {
+              const provider = value as MusicProvider;
+              setMusicProvider(provider);
+              setMusicConnectionStatus(provider === "manual" ? "not_configured" : "pending");
+              setMusicMode("manual");
+            }}>
+              <SelectTrigger className="bg-input border-border text-foreground"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-popover border-border">
+                {Object.entries(musicProviderInfo).map(([value, info]) => <SelectItem key={value} value={value}>{info.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className={`text-xs rounded-lg border p-3 ${musicProvider === "manual" ? "border-primary/20 bg-primary/10 text-primary" : "border-yellow-400/20 bg-yellow-400/10 text-yellow-300"}`}>
+              {providerConnectionMessage(musicProvider, musicConnectionStatus)}
+            </p>
           </CardContent>
         </Card>
 
@@ -110,7 +132,7 @@ export default function ManagerSettings() {
 
         <Button
           className="bg-primary text-primary-foreground hover:bg-primary/90 w-full"
-          onClick={() => update.mutate({ id: venueId!, ...form, musicMode, privacyPolicyAccepted: privacyAccepted })}
+          onClick={() => update.mutate({ id: venueId!, ...form, musicMode, musicProvider, privacyPolicyAccepted: privacyAccepted })}
           disabled={update.isPending}
         >
           {update.isPending ? "Guardando..." : "Guardar configuración"}

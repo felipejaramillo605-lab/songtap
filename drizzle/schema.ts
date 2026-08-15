@@ -47,6 +47,8 @@ export const venues = mysqlTable("venues", {
   logoUrl: text("logoUrl"),
   socialLinks: text("socialLinks"), // JSON string
   musicMode: mysqlEnum("musicMode", ["auto", "manual"]).default("manual").notNull(),
+  musicProvider: mysqlEnum("musicProvider", ["manual", "spotify", "youtube", "soundcloud"]).default("manual").notNull(),
+  musicConnectionStatus: mysqlEnum("musicConnectionStatus", ["not_configured", "pending", "connected"]).default("not_configured").notNull(),
   isActive: boolean("isActive").default(true).notNull(),
   privacyPolicyAccepted: boolean("privacyPolicyAccepted").default(false).notNull(),
   privacyPolicyAcceptedAt: timestamp("privacyPolicyAcceptedAt"),

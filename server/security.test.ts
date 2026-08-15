@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import { getDb } from "./db";
-import { menuCategories, qrSessions, songQueue, staffActivities, tables, users } from "../drizzle/schema";
+import { menuCategories, qrSessions, songQueue, staffActivities, tables, users, venues } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
 const req = { cookies: {}, headers: { "x-forwarded-proto": "https" } } as any;
@@ -72,6 +72,23 @@ describe("Seguridad de roles y aislamiento por empresa", () => {
   it("un Staff no puede actualizar actividades de otro Staff", async () => {
     const caller = appRouter.createCaller(ctx("staff", 30001, 9010));
     await expect(caller.activities.updateMyStatus({ activityId: 1, status: "completed" })).rejects.toThrow();
+  });
+
+  it("un Manager solo puede guardar la preferencia musical pendiente de su propio local", async () => {
+    const db = await getDb();
+    if (!db) return;
+    const caller = appRouter.createCaller(ctx("manager", 30001, 9014));
+    const [originalVenue] = await db.select().from(venues).where(eq(venues.id, 30001)).limit(1);
+    await caller.venues.update({ id: 30001, musicProvider: "youtube" });
+    const [updatedVenue] = await db.select().from(venues).where(eq(venues.id, 30001)).limit(1);
+    expect(updatedVenue?.musicProvider).toBe("youtube");
+    expect(updatedVenue?.musicConnectionStatus).toBe("pending");
+    await expect(caller.venues.update({ id: 30002, musicProvider: "soundcloud" })).rejects.toThrow("FORBIDDEN");
+    await db.update(venues).set({
+      musicProvider: originalVenue?.musicProvider ?? "manual",
+      musicConnectionStatus: originalVenue?.musicConnectionStatus ?? "not_configured",
+      musicMode: originalVenue?.musicMode ?? "manual",
+    }).where(eq(venues.id, 30001));
   });
 
   it("un Manager no puede editar, mover ni eliminar un usuario de otra empresa por ID", async () => {

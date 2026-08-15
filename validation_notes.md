@@ -53,3 +53,11 @@ La actividad, la evidencia asociada en la base de datos y la asignación tempora
 La prueba autenticada como Owner aplicó el filtro de compañía **Bar La Noche**, reduciendo el conjunto visible a 56 de 84 eventos. El botón CSV se activó desde el panel con ese filtro; la validación de utilidad y la prueba de interfaz confirman que descarga exclusivamente ese subconjunto. La validación del archivo Excel continúa en la siguiente comprobación.
 
 Los botones CSV y Excel descargaron archivos reales desde el panel Owner. El CSV incluye la cabecera esperada y registros de `Bar La Noche` con `venueId` 30001. El libro `.xlsx` superó la comprobación de integridad ZIP, contiene las hojas **Resumen** y **Eventos** y las celdas de eventos contienen 57 referencias a `Bar La Noche` —una en cabecera de contexto y 56 correspondientes a los eventos filtrados— sin referencias a `SongTap · Global`.
+
+La configuración real de Manager muestra la sección **Fuente de metadatos** para el local `Bar La Noche`. Por defecto indica modo Manual, conserva la cola operada por Staff y explica que toda conexión externa permanece pendiente de validación.
+
+Al seleccionar **YouTube Data**, el formulario mantiene el modo musical Manual y presenta un aviso explícito: puede aportar metadatos por local, no reemplaza licencias de reproducción pública y SongTap conserva la operación manual hasta completar una conexión futura.
+
+La prueba visual de selección confirma que el formulario carga la opción YouTube Data y conserva el modo Manual. La persistencia se valida además mediante el procedimiento protegido y se vuelve a comprobar después de activar el guardado desde la interfaz.
+
+El flujo protegido persistió `musicProvider=youtube` y `musicConnectionStatus=pending` únicamente para el local de prueba, preservando `musicMode=manual`; una actualización con ID de otro local fue rechazada por la suite de seguridad. Después de comprobarlo, el local se restauró a `manual/not_configured`. La suite finaliza con 62 pruebas exitosas y TypeScript sin errores.
