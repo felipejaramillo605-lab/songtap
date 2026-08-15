@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
-import { getAuditLogs, getFinanceSummary, getOrderHistory, getRevenueByCategory, getRevenueByHour } from "../db";
+import { getAuditLogs, getFinanceSummary, getOrderHistory, getOwnerRevenueByDay, getOwnerVenueAnalytics, getRevenueByCategory, getRevenueByHour } from "../db";
 
 export const financeRouter = router({
   summary: protectedProcedure
@@ -77,5 +77,31 @@ export const financeRouter = router({
     .input(z.object({ venueId: z.number().optional(), limit: z.number().optional() }))
     .query(async ({ input }) => {
       return getAuditLogs(input.venueId, input.limit);
+    }),
+
+  ownerVenueAnalytics: adminProcedure
+    .input(z.object({ dateFrom: z.date(), dateTo: z.date() }))
+    .query(async ({ input }) => {
+      const [venues, dailyRevenue] = await Promise.all([
+        getOwnerVenueAnalytics(input.dateFrom, input.dateTo),
+        getOwnerRevenueByDay(input.dateFrom, input.dateTo),
+      ]);
+      const totals = venues.reduce(
+        (acc, venue) => ({
+          revenue: acc.revenue + Number(venue.revenue),
+          orderCount: acc.orderCount + Number(venue.orderCount),
+        }),
+        { revenue: 0, orderCount: 0 }
+      );
+      return {
+        venues: venues.map((venue) => ({
+          ...venue,
+          revenue: Number(venue.revenue),
+          orderCount: Number(venue.orderCount),
+          averageTicket: Number(venue.averageTicket),
+        })),
+        dailyRevenue: dailyRevenue.map((day) => ({ ...day, revenue: Number(day.revenue), orderCount: Number(day.orderCount) })),
+        totals: { ...totals, averageTicket: totals.orderCount ? totals.revenue / totals.orderCount : 0 },
+      };
     }),
 });

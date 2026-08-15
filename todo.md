@@ -278,6 +278,11 @@
 
 ## Pendientes internos priorizados
 
+- [x] Añadir analítica Owner interlocal con métricas comparativas y ranking de locales
+- [x] Incluir filtros de periodo y gráficos accesibles para los ingresos interlocales
+- [x] Cubrir los contratos y la interfaz de analítica interlocal Owner con pruebas
+- [x] Añadir una alternativa accesible al gráfico interlocal Owner y cubrirla con prueba de interfaz
+- [x] Documentar la validación visual de finance.ownerVenueAnalytics tras la corrección TiDB
 - [x] Implementar módulo PQRS por sesión QR: creación segura, clasificación y seguimiento por local
 - [x] Añadir bandeja Manager/Staff para gestionar estados y respuestas de PQRS con aislamiento por empresa
 - [x] Cubrir con pruebas los permisos, la sesión QR y el flujo de PQRS

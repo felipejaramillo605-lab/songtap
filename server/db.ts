@@ -460,6 +460,48 @@ export async function getFinanceSummary(venueId: number, dateFrom: Date, dateTo:
   };
 }
 
+export async function getOwnerVenueAnalytics(dateFrom: Date, dateTo: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      venueId: venues.id,
+      venueName: venues.name,
+      isActive: venues.isActive,
+      revenue: sql<number>`COALESCE(SUM(CAST(${orders.totalAmount} AS DECIMAL(10,2))), 0)`,
+      orderCount: sql<number>`COUNT(${orders.id})`,
+      averageTicket: sql<number>`COALESCE(AVG(CAST(${orders.totalAmount} AS DECIMAL(10,2))), 0)`,
+    })
+    .from(venues)
+    .leftJoin(
+      orders,
+      and(
+        eq(orders.venueId, venues.id),
+        eq(orders.status, "delivered"),
+        gte(orders.createdAt, dateFrom),
+        lte(orders.createdAt, dateTo)
+      )
+    )
+    .groupBy(venues.id, venues.name, venues.isActive)
+    .orderBy(sql`COALESCE(SUM(CAST(${orders.totalAmount} AS DECIMAL(10,2))), 0) DESC`);
+}
+
+export async function getOwnerRevenueByDay(dateFrom: Date, dateTo: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const dayExpression = sql<string>`DATE(\`createdAt\`)`;
+  return db
+    .select({
+      date: dayExpression,
+      revenue: sql<number>`COALESCE(SUM(CAST(${orders.totalAmount} AS DECIMAL(10,2))), 0)`,
+      orderCount: sql<number>`COUNT(*)`,
+    })
+    .from(orders)
+    .where(and(eq(orders.status, "delivered"), gte(orders.createdAt, dateFrom), lte(orders.createdAt, dateTo)))
+    .groupBy(dayExpression)
+    .orderBy(dayExpression);
+}
+
 export async function getRevenueByCategory(venueId: number, dateFrom: Date, dateTo: Date) {
   const db = await getDb();
   if (!db) return [];

@@ -61,3 +61,9 @@ Al seleccionar **YouTube Data**, el formulario mantiene el modo musical Manual y
 La prueba visual de selección confirma que el formulario carga la opción YouTube Data y conserva el modo Manual. La persistencia se valida además mediante el procedimiento protegido y se vuelve a comprobar después de activar el guardado desde la interfaz.
 
 El flujo protegido persistió `musicProvider=youtube` y `musicConnectionStatus=pending` únicamente para el local de prueba, preservando `musicMode=manual`; una actualización con ID de otro local fue rechazada por la suite de seguridad. Después de comprobarlo, el local se restauró a `manual/not_configured`. La suite finaliza con 62 pruebas exitosas y TypeScript sin errores.
+
+## Analítica interlocal Owner — 15 de agosto de 2026
+
+La vista `/owner` se comprobó en navegador autenticado después de ajustar el agregado diario para el modo `ONLY_FULL_GROUP_BY` de TiDB. La consulta `finance.ownerVenueAnalytics` terminó correctamente: el panel mostró el selector de periodo, las métricas consolidadas, el estado vacío descriptivo de la tendencia cuando no existen pedidos entregados en el periodo y el ranking de los tres locales registrados sin errores de consulta.
+
+La pantalla incorpora una alternativa accesible al gráfico: el contenedor tiene nombre accesible y una descripción que dirige al resumen diario tabular. La suite cubre el contrato Owner, el cambio de periodo y la alternativa accesible; la validación completa en este hito finaliza con 76 pruebas exitosas y TypeScript sin errores.
