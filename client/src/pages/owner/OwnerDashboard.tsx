@@ -55,7 +55,17 @@ export default function OwnerDashboard() {
     const isValid = !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && start <= end;
     return { dateFrom: start, dateTo: end, isValid };
   }, [dateFrom, dateTo, pqrsStartDate, pqrsEndDate, useCustomPqrsRange]);
-  const previousPqrsDateRange = useMemo(() => getPreviousPqrsPeriod(pqrsDateRange.dateFrom, pqrsDateRange.dateTo), [pqrsDateRange.dateFrom, pqrsDateRange.dateTo]);
+  const automaticPreviousPqrsDateRange = useMemo(() => getPreviousPqrsPeriod(pqrsDateRange.dateFrom, pqrsDateRange.dateTo), [pqrsDateRange.dateFrom, pqrsDateRange.dateTo]);
+  const [useManualSlaComparisonRange, setUseManualSlaComparisonRange] = useState(false);
+  const [slaComparisonStartDate, setSlaComparisonStartDate] = useState(() => toDateInputValue(automaticPreviousPqrsDateRange.dateFrom));
+  const [slaComparisonEndDate, setSlaComparisonEndDate] = useState(() => toDateInputValue(automaticPreviousPqrsDateRange.dateTo));
+  const comparisonPqrsDateRange = useMemo(() => {
+    if (!useManualSlaComparisonRange) return { ...automaticPreviousPqrsDateRange, isValid: true };
+    const start = new Date(`${slaComparisonStartDate}T00:00:00`);
+    const end = new Date(`${slaComparisonEndDate}T23:59:59.999`);
+    const isValid = !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && start <= end;
+    return { dateFrom: start, dateTo: end, isValid };
+  }, [automaticPreviousPqrsDateRange, slaComparisonEndDate, slaComparisonStartDate, useManualSlaComparisonRange]);
   const { data: analytics, isLoading: isLoadingAnalytics } = trpc.finance.ownerVenueAnalytics.useQuery(
     { dateFrom, dateTo },
     { enabled: isAuthenticated && user?.role === "owner" }
@@ -65,8 +75,8 @@ export default function OwnerDashboard() {
     { enabled: isAuthenticated && user?.role === "owner" && pqrsDateRange.isValid }
   );
   const { data: previousPqrsAnalytics, isLoading: isLoadingPreviousPqrsAnalytics } = trpc.pqrs.ownerAnalytics.useQuery(
-    { dateFrom: previousPqrsDateRange.dateFrom, dateTo: previousPqrsDateRange.dateTo, type: pqrsType, status: pqrsStatus },
-    { enabled: isAuthenticated && user?.role === "owner" && pqrsDateRange.isValid }
+    { dateFrom: comparisonPqrsDateRange.dateFrom, dateTo: comparisonPqrsDateRange.dateTo, type: pqrsType, status: pqrsStatus },
+    { enabled: isAuthenticated && user?.role === "owner" && pqrsDateRange.isValid && comparisonPqrsDateRange.isValid }
   );
   const utils = trpc.useUtils();
   const { data: slaTargets } = trpc.pqrs.slaTargets.useQuery(undefined, { enabled: isAuthenticated && user?.role === "owner" });
@@ -130,7 +140,7 @@ export default function OwnerDashboard() {
   const pqrsStatusLabel = { all: "Todos los estados", open: "Abierta", in_review: "En revisión", resolved: "Resuelta", closed: "Cerrada" }[pqrsStatus];
   const pqrsExportFilters = { typeLabel: pqrsTypeLabel, statusLabel: pqrsStatusLabel };
   const pqrsExportRows = toPqrsExportRows(selectedPqrsVenues, pqrsExportFilters);
-  const canExportPqrs = pqrsExportRows.length > 0 && pqrsDateRange.isValid && !isLoadingPqrsAnalytics && !isLoadingPreviousPqrsAnalytics;
+  const canExportPqrs = pqrsExportRows.length > 0 && pqrsDateRange.isValid && comparisonPqrsDateRange.isValid && !isLoadingPqrsAnalytics && !isLoadingPreviousPqrsAnalytics;
   const togglePqrsVenue = (venueId: number) => {
     const currentIds = selectedPqrsVenueIds ?? allPqrsVenues.map((venue) => venue.venueId);
     setSelectedPqrsVenueIds(currentIds.includes(venueId) ? currentIds.filter((id) => id !== venueId) : [...currentIds, venueId]);
@@ -283,6 +293,21 @@ export default function OwnerDashboard() {
             </div>
             {useCustomPqrsRange && !pqrsDateRange.isValid && <p role="alert" className="mt-3 text-sm text-destructive">La fecha inicial debe ser anterior o igual a la fecha final.</p>}
           </fieldset>
+          <fieldset className="rounded-lg border border-border bg-muted/20 p-3" aria-describedby="sla-comparison-range-description">
+            <legend className="px-1 text-sm font-semibold text-foreground">Período de referencia SLA</legend>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground"><input type="checkbox" checked={useManualSlaComparisonRange} onChange={(event) => { setUseManualSlaComparisonRange(event.target.checked); if (event.target.checked) { setSlaComparisonStartDate(toDateInputValue(automaticPreviousPqrsDateRange.dateFrom)); setSlaComparisonEndDate(toDateInputValue(automaticPreviousPqrsDateRange.dateTo)); } }} aria-label="Usar período de referencia manual para SLA" className="size-4 accent-primary" /> Usar período manual</label>
+                <p id="sla-comparison-range-description" className="mt-1 text-xs text-muted-foreground">Al desactivarlo, SongTap compara automáticamente contra el período anterior equivalente.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="grid gap-1 text-xs font-medium text-foreground">Desde<input aria-label="Fecha inicial de referencia SLA" type="date" value={slaComparisonStartDate} disabled={!useManualSlaComparisonRange} onChange={(event) => setSlaComparisonStartDate(event.target.value)} className="h-9 rounded-md border border-border bg-input px-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50" /></label>
+                <label className="grid gap-1 text-xs font-medium text-foreground">Hasta<input aria-label="Fecha final de referencia SLA" type="date" value={slaComparisonEndDate} disabled={!useManualSlaComparisonRange} onChange={(event) => setSlaComparisonEndDate(event.target.value)} className="h-9 rounded-md border border-border bg-input px-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50" /></label>
+              </div>
+            </div>
+            {useManualSlaComparisonRange && <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-muted-foreground">Referencia automática disponible: {automaticPreviousPqrsDateRange.dateFrom.toLocaleDateString("es-CO")} – {automaticPreviousPqrsDateRange.dateTo.toLocaleDateString("es-CO")}</p><Button type="button" variant="outline" size="sm" onClick={() => setUseManualSlaComparisonRange(false)}>Restaurar período automático</Button></div>}
+            {useManualSlaComparisonRange && !comparisonPqrsDateRange.isValid && <p role="alert" className="mt-3 text-sm text-destructive">La fecha inicial del período de referencia debe ser anterior o igual a la fecha final.</p>}
+          </fieldset>
           <Card className="border-border bg-secondary/20">
             <CardContent className="p-4">
               <div className="mb-3 flex items-center gap-2"><ShieldCheck size={17} className="text-primary" /><h4 className="font-semibold text-foreground">Objetivo SLA de respuesta</h4></div>
@@ -308,11 +333,11 @@ export default function OwnerDashboard() {
           </div>
           <Card className="border-border bg-secondary/20" aria-live="polite">
             <CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div><p className="text-sm font-semibold text-foreground">Comparación SLA frente al periodo anterior</p><p className="text-xs text-muted-foreground">Actual: {pqrsDateRange.dateFrom.toLocaleDateString("es-CO")} – {pqrsDateRange.dateTo.toLocaleDateString("es-CO")} · Anterior equivalente: {previousPqrsDateRange.dateFrom.toLocaleDateString("es-CO")} – {previousPqrsDateRange.dateTo.toLocaleDateString("es-CO")}</p></div>
+              <div><p className="text-sm font-semibold text-foreground">Comparación SLA frente al periodo anterior</p><p className="text-xs text-muted-foreground">Actual: {pqrsDateRange.dateFrom.toLocaleDateString("es-CO")} – {pqrsDateRange.dateTo.toLocaleDateString("es-CO")} · {useManualSlaComparisonRange ? "Referencia manual" : "Anterior equivalente"}: {comparisonPqrsDateRange.dateFrom.toLocaleDateString("es-CO")} – {comparisonPqrsDateRange.dateTo.toLocaleDateString("es-CO")}</p></div>
               {isLoadingPreviousPqrsAnalytics ? <span className="text-sm text-muted-foreground">Calculando comparación…</span> : <div className="text-left sm:text-right"><p className="text-sm text-muted-foreground">Anterior: <span className="font-semibold text-foreground">{selectedPqrsTotals.previousSlaComplianceRate}%</span></p><p className={`text-lg font-bold ${selectedPqrsTotals.slaComplianceChange > 0 ? "text-primary" : selectedPqrsTotals.slaComplianceChange < 0 ? "text-destructive" : "text-muted-foreground"}`}>{selectedPqrsTotals.slaComplianceChange >= 0 ? "+" : ""}{selectedPqrsTotals.slaComplianceChange} pp</p></div>}
             </CardContent>
           </Card>
-          {selectedSlaRisk === "significant_drop" && <div role="alert" className="flex items-start gap-3 rounded-lg border border-destructive/60 bg-destructive/10 p-4 text-destructive"><TriangleAlert size={20} className="mt-0.5 shrink-0" /><div><p className="font-semibold">Caída significativa de cumplimiento SLA</p><p className="mt-1 text-sm">El cumplimiento cayó {Math.abs(selectedPqrsTotals.slaComplianceChange)} puntos porcentuales frente al periodo anterior. Revisa las sucursales señaladas antes de que aumenten los vencimientos.</p></div></div>}
+          {selectedSlaRisk === "significant_drop" && <div role="alert" className="flex items-start gap-3 rounded-lg border border-destructive/60 bg-destructive/10 p-4 text-destructive"><TriangleAlert size={20} className="mt-0.5 shrink-0" /><div><p className="font-semibold">Caída significativa de cumplimiento SLA</p><p className="mt-1 text-sm">El cumplimiento cayó {Math.abs(selectedPqrsTotals.slaComplianceChange)} puntos porcentuales frente al {useManualSlaComparisonRange ? "período de referencia manual" : "período anterior equivalente"}. Revisa las sucursales señaladas antes de que aumenten los vencimientos.</p></div></div>}
           {significantDropVenues.length > 0 && <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3" aria-label="Sucursales con caída significativa de SLA"><p className="flex items-center gap-2 text-sm font-semibold text-destructive"><TriangleAlert size={16} /> Sucursales con caída SLA significativa</p><div className="mt-2 flex flex-wrap gap-2">{significantDropVenues.map((venue) => <span key={`risk-${venue.venueId}`} className="rounded-full border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive">{venue.venueName}: {venue.slaComplianceChange} pp</span>)}</div></div>}
 
           <Card className="border-border bg-card">

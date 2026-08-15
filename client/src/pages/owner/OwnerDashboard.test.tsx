@@ -111,4 +111,22 @@ describe("OwnerDashboard analytics", () => {
     expect(screen.getByRole("alert").textContent).toContain("Caída significativa de cumplimiento SLA");
     expect(screen.getByLabelText("Sucursales con caída significativa de SLA").textContent).toContain("Bar Central: -13 pp");
   });
+
+  it("permite comparar SLA con un período manual y restaurar el automático", () => {
+    render(<OwnerDashboard />);
+    const manualComparison = screen.getByLabelText("Usar período de referencia manual para SLA") as HTMLInputElement;
+    fireEvent.click(manualComparison);
+    fireEvent.change(screen.getByLabelText("Fecha inicial de referencia SLA"), { target: { value: "2026-07-01" } });
+    fireEvent.change(screen.getByLabelText("Fecha final de referencia SLA"), { target: { value: "2026-07-10" } });
+    expect(screen.getByText(/Referencia manual:/)).toBeTruthy();
+    expect(mocks.pqrsInputs.some((input) => (input as { dateFrom: Date; dateTo: Date }).dateFrom.getTime() === new Date("2026-07-01T00:00:00").getTime() && (input as { dateFrom: Date; dateTo: Date }).dateTo.getTime() === new Date("2026-07-10T23:59:59.999").getTime())).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("Fecha inicial de referencia SLA"), { target: { value: "2026-07-12" } });
+    expect(screen.getByRole("alert").textContent).toContain("La fecha inicial del período de referencia debe ser anterior o igual a la fecha final.");
+    expect((screen.getByRole("button", { name: "Descargar comparativo PQRS en CSV" }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Restaurar período automático" }));
+    expect(manualComparison.checked).toBe(false);
+    expect(screen.getByText(/Anterior equivalente:/)).toBeTruthy();
+  });
 });

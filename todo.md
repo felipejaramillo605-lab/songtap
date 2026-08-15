@@ -340,3 +340,7 @@
 - [x] Manejar fallos de recarga manual del historial Owner sin confirmar una actualización inexistente
 - [x] Mostrar un estado visible de error si la recarga del historial Owner falla
 - [x] Validar y guardar checkpoint del siguiente pendiente interno implementado — **checkpoint 1221d713: normalización local sin proveedores externos**
+- [x] Permitir seleccionar manualmente un período de referencia para comparar el cumplimiento SLA
+- [x] Validar el rango de referencia y conservar los filtros de sucursal, tipo y estado al comparar SLA
+- [x] Mostrar de forma accesible el período SLA de referencia manual y restaurar el período automático bajo demanda
+- [x] Cubrir selección manual, validaciones y cálculo de comparación SLA con pruebas
