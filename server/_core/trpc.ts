@@ -10,7 +10,7 @@ const t = initTRPC.context<TrpcContext>().create({
 export const router = t.router;
 export const publicProcedure = t.procedure;
 
-const requireUser = t.middleware(async opts => {
+const requireAuthenticatedUser = t.middleware(async opts => {
   const { ctx, next } = opts;
 
   if (!ctx.user) {
@@ -25,6 +25,25 @@ const requireUser = t.middleware(async opts => {
   });
 });
 
+const requireUser = t.middleware(async opts => {
+  const { ctx, next } = opts;
+
+  if (!ctx.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  }
+  if (ctx.user.mustChangePassword) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Debes cambiar tu contraseña temporal antes de continuar" });
+  }
+
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user,
+    },
+  });
+});
+
+export const temporaryPasswordProcedure = t.procedure.use(requireAuthenticatedUser);
 export const protectedProcedure = t.procedure.use(requireUser);
 
 export const adminProcedure = t.procedure.use(

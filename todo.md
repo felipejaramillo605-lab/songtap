@@ -365,3 +365,7 @@
 - [x] Permitir fijar o quitar módulos disponibles según el rol desde la navegación del panel
 - [x] Mostrar accesos directos favoritos en el panel principal de Owner, Manager y Staff
 - [x] Cubrir aislamiento, cambios de favoritos, persistencia y accesibilidad con pruebas
+- [x] Marcar las contraseñas temporales generadas para cuentas beta después de un restablecimiento
+- [x] Restringir el acceso a los módulos hasta que la cuenta beta defina una nueva contraseña personal
+- [x] Crear una pantalla accesible de cambio obligatorio con validación de seguridad de clave
+- [x] Cubrir el bloqueo, la actualización de contraseña y la recuperación de acceso con pruebas

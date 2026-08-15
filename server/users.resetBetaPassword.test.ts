@@ -37,6 +37,25 @@ describe("users.resetBetaPassword", () => {
     const [updatedUser] = await db!.select().from(users).where(eq(users.id, betaUser.id)).limit(1);
     expect(await bcrypt.compare(result.temporaryPassword, updatedUser!.passwordHash!)).toBe(true);
     expect(await bcrypt.compare("ClaveAnterior!26", updatedUser!.passwordHash!)).toBe(false);
+    expect(updatedUser!.mustChangePassword).toBe(true);
+  });
+
+  it("bloquea los módulos hasta que la cuenta beta establezca una contraseña personal", async () => {
+    const betaUser = await createUserWithPassword({ email: `beta-required-${Date.now()}@songtap.test`, passwordHash: await bcrypt.hash("ClaveAnterior!26", 10), name: "Beta Required", role: "staff", venueId: 30001 });
+    if (!betaUser) throw new Error("No se creó la cuenta beta temporal");
+    createdUserIds.push(betaUser.id);
+    const reset = await appRouter.createCaller(ownerContext).users.resetBetaPassword({ userId: betaUser.id });
+    const temporaryContext = { ...ownerContext, user: { ...ownerContext.user, id: betaUser.id, role: "staff" as const, venueId: 30001, mustChangePassword: true } };
+    const caller = appRouter.createCaller(temporaryContext);
+
+    await expect(caller.users.favoriteModules()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.users.completeTemporaryPassword({ newPassword: "NuevaClaveBeta!26" })).resolves.toEqual({ success: true });
+
+    const db = await getDb();
+    const [updatedUser] = await db!.select().from(users).where(eq(users.id, betaUser.id)).limit(1);
+    expect(updatedUser!.mustChangePassword).toBe(false);
+    expect(await bcrypt.compare("NuevaClaveBeta!26", updatedUser!.passwordHash!)).toBe(true);
+    expect(await bcrypt.compare(reset.temporaryPassword, updatedUser!.passwordHash!)).toBe(false);
   });
 
   it("rechaza a usuarios que no sean Owner y a cuentas no beta", async () => {

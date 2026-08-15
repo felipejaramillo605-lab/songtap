@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
+import { adminProcedure, protectedProcedure, router, temporaryPasswordProcedure } from "../_core/trpc";
 import { createAuditLog, getAllUsers, getUserFavoriteModules, getUsersByVenue, setUserFavoriteModule, updateUserPassword, updateUserRole, getDb } from "../db";
 import { users } from "../../drizzle/schema";
 import bcrypt from "bcrypt";
@@ -78,7 +78,7 @@ export const usersRouter = router({
       }
 
       const temporaryPassword = `Beta!${randomBytes(12).toString("base64url")}`;
-      await updateUserPassword(targetUser.id, await bcrypt.hash(temporaryPassword, 10));
+      await updateUserPassword(targetUser.id, await bcrypt.hash(temporaryPassword, 10), true);
       await createAuditLog({
         userId: ctx.user.id,
         userRole: ctx.user.role,
@@ -212,6 +212,29 @@ export const usersRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.update(users).set({ language: input.language }).where(eq(users.id, ctx.user.id));
+      return { success: true };
+    }),
+
+  completeTemporaryPassword: temporaryPasswordProcedure
+    .input(z.object({ newPassword: z.string().min(10) }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user.mustChangePassword) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No tienes un cambio de contraseña pendiente" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [userRecord] = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      if (!userRecord?.passwordHash) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Esta cuenta no usa contraseña local" });
+      }
+      await updateUserPassword(ctx.user.id, await bcrypt.hash(input.newPassword, 10), false);
+      await createAuditLog({
+        userId: ctx.user.id,
+        userRole: ctx.user.role,
+        action: "COMPLETE_TEMPORARY_PASSWORD_CHANGE",
+        entity: "user",
+        entityId: ctx.user.id,
+      });
       return { success: true };
     }),
 

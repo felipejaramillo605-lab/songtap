@@ -976,12 +976,12 @@ export async function getUserByResetToken(token: string) {
   return result[0];
 }
 
-export async function updateUserPassword(userId: number, passwordHash: string) {
+export async function updateUserPassword(userId: number, passwordHash: string, mustChangePassword = false) {
   const db = await getDb();
   if (!db) return;
   await db
     .update(users)
-    .set({ passwordHash, resetPasswordToken: null, resetPasswordExpires: null })
+    .set({ passwordHash, mustChangePassword, resetPasswordToken: null, resetPasswordExpires: null })
     .where(eq(users.id, userId));
 }
 

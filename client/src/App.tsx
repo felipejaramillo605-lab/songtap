@@ -15,6 +15,7 @@ import PrivacyPolicy from "./pages/client/PrivacyPolicy";
 
 // Auth
 import Login from "./pages/Login";
+import ForcePasswordChange from "./pages/ForcePasswordChange";
 
 // Profile Page
 import Profile from "./pages/Profile";
@@ -54,11 +55,15 @@ function ProfilePageWrapper() {
 }
 
 function Router() {
+  const { user, isAuthenticated, loading } = useAuth();
+  if (!loading && isAuthenticated && user?.mustChangePassword) return <ForcePasswordChange />;
+
   return (
     <Switch>
       {/* Landing */}
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
+      <Route path="/change-password" component={ForcePasswordChange} />
 
       {/* Client QR Portal */}
       <Route path="/mesa/:qrToken" component={ClientPortal} />

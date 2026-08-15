@@ -27,7 +27,8 @@ export default function Login() {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (user.role === "owner") navigate("/owner");
+      if (user.mustChangePassword) navigate("/change-password");
+      else if (user.role === "owner") navigate("/owner");
       else if (user.role === "manager") navigate("/manager");
       else if (user.role === "staff") navigate("/staff");
       else navigate("/");
