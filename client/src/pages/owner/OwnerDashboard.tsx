@@ -2,11 +2,14 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import SongTapLayout from "@/components/SongTapLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { buildPqrsFilename, createPqrsCsv, createPqrsWorkbook, toPqrsExportRows } from "@/lib/pqrsExport";
+import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { getLoginUrl } from "@/const";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { writeFileXLSX } from "xlsx";
 
 export default function OwnerDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -43,6 +46,21 @@ export default function OwnerDashboard() {
   const totalUsers = users?.length ?? 0;
   const managers = users?.filter((u) => u.role === "manager").length ?? 0;
   const staff = users?.filter((u) => u.role === "staff").length ?? 0;
+  const pqrsExportRows = toPqrsExportRows(pqrsAnalytics?.venues ?? []);
+  const canExportPqrs = pqrsExportRows.length > 0 && !isLoadingPqrsAnalytics;
+  const downloadPqrsCsv = () => {
+    const csv = createPqrsCsv(pqrsExportRows);
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = buildPqrsFilename("csv");
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const downloadPqrsExcel = () => {
+    if (!pqrsAnalytics) return;
+    writeFileXLSX(createPqrsWorkbook(pqrsExportRows, pqrsAnalytics.totals, dateFrom, dateTo), buildPqrsFilename("xlsx"));
+  };
 
   return (
     <SongTapLayout role="owner" title="Panel Owner">
@@ -130,9 +148,15 @@ export default function OwnerDashboard() {
         </section>
 
         <section className="space-y-4" aria-labelledby="owner-pqrs-analytics-title">
-          <div>
-            <h3 id="owner-pqrs-analytics-title" className="text-lg font-bold text-foreground flex items-center gap-2"><MessageSquareText className="text-primary" size={20} /> Desempeño PQRS por local</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Seguimiento de solicitudes creadas, atención en curso, resolución y tiempo de respuesta en el mismo periodo seleccionado.</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 id="owner-pqrs-analytics-title" className="text-lg font-bold text-foreground flex items-center gap-2"><MessageSquareText className="text-primary" size={20} /> Desempeño PQRS por local</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Seguimiento de solicitudes creadas, atención en curso, resolución y tiempo de respuesta en el mismo periodo seleccionado.</p>
+            </div>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Exportar desempeño PQRS">
+              <Button variant="outline" size="sm" onClick={downloadPqrsCsv} disabled={!canExportPqrs} aria-label="Descargar comparativo PQRS en CSV"><Download size={14} className="mr-2" /> CSV</Button>
+              <Button variant="outline" size="sm" onClick={downloadPqrsExcel} disabled={!canExportPqrs} aria-label="Descargar comparativo PQRS en Excel"><FileSpreadsheet size={14} className="mr-2" /> Excel</Button>
+            </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-4">
             {[

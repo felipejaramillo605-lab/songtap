@@ -281,6 +281,9 @@
 
 ## Pendientes internos priorizados
 
+- [x] Definir filas y resumen para exportación CSV y Excel del desempeño PQRS por local
+- [x] Añadir botones accesibles para descargar el comparativo PQRS filtrado en CSV y Excel
+- [x] Cubrir los archivos, el periodo activo y las acciones de exportación PQRS con pruebas
 - [x] Definir métricas PQRS por local: volumen, abiertas, resueltas, tasa de resolución y tiempo medio de respuesta
 - [x] Añadir agregados PQRS seguros y exclusivos para Owner con filtro de periodo
 - [x] Integrar panel comparativo PQRS por local con tabla y visualización accesible

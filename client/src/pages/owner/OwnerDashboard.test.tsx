@@ -3,7 +3,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[] }));
+const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], writeFileXLSX: vi.fn() }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: 1, name: "Felipe", role: "owner" }, isAuthenticated: true, loading: false }),
@@ -28,14 +28,15 @@ vi.mock("@/components/ui/card", () => ({ Card: ({ children }: { children: React.
 vi.mock("@/const", () => ({ getLoginUrl: () => "/login" }));
 vi.mock("wouter", () => ({ useLocation: () => ["/owner", vi.fn()] }));
 vi.mock("recharts", () => ({ ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, BarChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, Bar: () => null, CartesianGrid: () => null, Tooltip: () => null, XAxis: () => null, YAxis: () => null }));
+vi.mock("xlsx", async () => ({ ...(await vi.importActual<typeof import("xlsx")>("xlsx")), writeFileXLSX: mocks.writeFileXLSX }));
 
 import OwnerDashboard from "./OwnerDashboard";
 
 describe("OwnerDashboard analytics", () => {
-  beforeEach(() => { mocks.analyticsInputs = []; });
+  beforeEach(() => { mocks.analyticsInputs = []; mocks.writeFileXLSX.mockReset(); });
   afterEach(() => cleanup());
 
-  it("muestra métricas y ranking interlocal, y permite ampliar el periodo", () => {
+  it("muestra métricas y ranking interlocal, permite ampliar el periodo y exporta PQRS", () => {
     render(<OwnerDashboard />);
 
     expect(screen.getByText("Analítica interlocal")).toBeTruthy();
@@ -49,5 +50,17 @@ describe("OwnerDashboard analytics", () => {
     fireEvent.change(screen.getByLabelText("Periodo de analítica interlocal"), { target: { value: "30" } });
     expect(mocks.analyticsInputs).toHaveLength(2);
     expect((mocks.analyticsInputs[1] as { dateFrom: Date }).dateFrom).toBeInstanceOf(Date);
+
+    const createObjectUrl = vi.fn(() => "blob:pqrs");
+    const revokeObjectUrl = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL: createObjectUrl, revokeObjectURL: revokeObjectUrl });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    fireEvent.click(screen.getByRole("button", { name: "Descargar comparativo PQRS en CSV" }));
+    expect(createObjectUrl).toHaveBeenCalledOnce();
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:pqrs");
+    fireEvent.click(screen.getByRole("button", { name: "Descargar comparativo PQRS en Excel" }));
+    expect(mocks.writeFileXLSX).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^songtap-desempeno-pqrs-.*\.xlsx$/));
+    clickSpy.mockRestore();
+    vi.unstubAllGlobals();
   });
 });
