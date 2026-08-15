@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import SongTapLayout from "@/components/SongTapLayout";
+import FavoriteModules from "@/components/FavoriteModules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { buildPqrsFilename, createPqrsCsv, createPqrsWorkbook, toPqrsExportRows } from "@/lib/pqrsExport";
@@ -166,6 +167,7 @@ export default function OwnerDashboard() {
   return (
     <SongTapLayout role="owner" title="Panel Owner">
       <div className="space-y-6 animate-slide-up">
+        <FavoriteModules role="owner" />
         <div>
           <h2 className="text-2xl font-bold text-foreground">Bienvenido, {user?.name}</h2>
           <p className="text-muted-foreground mt-1">Vista global de la plataforma SongTap</p>

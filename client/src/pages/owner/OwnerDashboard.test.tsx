@@ -10,9 +10,9 @@ vi.mock("@/_core/hooks/useAuth", () => ({
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    useUtils: () => ({ pqrs: { slaTargets: { invalidate: mocks.invalidateSlaTargets }, ownerAnalytics: { invalidate: mocks.invalidateOwnerAnalytics } } }),
+    useUtils: () => ({ pqrs: { slaTargets: { invalidate: mocks.invalidateSlaTargets }, ownerAnalytics: { invalidate: mocks.invalidateOwnerAnalytics } }, users: { favoriteModules: { invalidate: vi.fn() } } }),
     venues: { list: { useQuery: () => ({ data: [{ id: 7, name: "Bar Central", address: "Calle 1", isActive: true, musicMode: "manual" }] }) } },
-    users: { list: { useQuery: () => ({ data: [{ id: 1, role: "owner" }, { id: 2, role: "manager" }, { id: 3, role: "staff" }] }) } },
+    users: { list: { useQuery: () => ({ data: [{ id: 1, role: "owner" }, { id: 2, role: "manager" }, { id: 3, role: "staff" }] }) }, favoriteModules: { useQuery: () => ({ data: [], isLoading: false }) }, setFavoriteModule: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) } },
     finance: {
       ownerVenueAnalytics: { useQuery: (input: unknown) => {
         mocks.analyticsInputs.push(input);

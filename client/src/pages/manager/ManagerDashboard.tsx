@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import SongTapLayout from "@/components/SongTapLayout";
+import FavoriteModules from "@/components/FavoriteModules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, TrendingUp, ShoppingBag, TrendingDown, BarChart3, Clock, Zap } from "lucide-react";
@@ -95,6 +96,7 @@ export default function ManagerDashboard() {
   return (
     <SongTapLayout role="manager" title="Dashboard Manager">
       <div className="space-y-8 animate-slide-up">
+        <FavoriteModules role="manager" />
         {/* Header Section */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">

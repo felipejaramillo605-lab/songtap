@@ -17,6 +17,7 @@ import {
   staffActivities,
   tables,
   users,
+  userFavoriteModules,
   venueRequests,
   venues,
   venueNotificationSettings,
@@ -81,6 +82,22 @@ export async function getUserByOpenId(openId: string) {
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
   return result[0];
+}
+
+export async function getUserFavoriteModules(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(userFavoriteModules).where(eq(userFavoriteModules.userId, userId)).orderBy(desc(userFavoriteModules.createdAt));
+}
+
+export async function setUserFavoriteModule(userId: number, moduleKey: string, isFavorite: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  if (isFavorite) {
+    await db.insert(userFavoriteModules).values({ userId, moduleKey }).onDuplicateKeyUpdate({ set: { moduleKey } });
+    return;
+  }
+  await db.delete(userFavoriteModules).where(and(eq(userFavoriteModules.userId, userId), eq(userFavoriteModules.moduleKey, moduleKey)));
 }
 
 export async function getAllUsers() {

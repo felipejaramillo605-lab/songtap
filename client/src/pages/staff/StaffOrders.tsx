@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import SongTapLayout from "@/components/SongTapLayout";
+import FavoriteModules from "@/components/FavoriteModules";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +77,7 @@ export default function StaffOrders() {
   return (
     <SongTapLayout role="staff" title="Cola de Pedidos">
       <div className="space-y-6 animate-slide-up">
+        <FavoriteModules role="staff" />
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-foreground">Pedidos en tiempo real</h2>

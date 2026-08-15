@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 4, role: "staff", venueId: 7 }, isAuthenticated: true, loading: false }) }));
-vi.mock("@/lib/trpc", () => ({ trpc: { orders: { getByVenue: { useQuery: () => ({ data: mocks.orders, refetch: mocks.refetch, isFetching: false, dataUpdatedAt: new Date("2026-08-15T18:00:00.000Z").getTime(), error: null }) }, updateStatus: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) } } } }));
+vi.mock("@/lib/trpc", () => ({ trpc: { useUtils: () => ({ users: { favoriteModules: { invalidate: vi.fn() } } }), users: { favoriteModules: { useQuery: () => ({ data: [], isLoading: false }) }, setFavoriteModule: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) } }, orders: { getByVenue: { useQuery: () => ({ data: mocks.orders, refetch: mocks.refetch, isFetching: false, dataUpdatedAt: new Date("2026-08-15T18:00:00.000Z").getTime(), error: null }) }, updateStatus: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) } } } }));
 vi.mock("@/components/SongTapLayout", () => ({ default: ({ children }: { children: React.ReactNode }) => <main>{children}</main> }));
 vi.mock("@/components/OrderStatusTimeline", () => ({ default: () => <div>Historial</div> }));
 vi.mock("@/components/ui/button", () => ({ Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button> }));

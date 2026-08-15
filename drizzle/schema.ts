@@ -38,6 +38,22 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+// ─── USER FAVORITE MODULES (accesos personales) ──────────────────────────────
+export const userFavoriteModules = mysqlTable(
+  "user_favorite_modules",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    moduleKey: varchar("moduleKey", { length: 96 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({
+    userModuleUnique: uniqueIndex("user_favorite_modules_user_module_uq").on(table.userId, table.moduleKey),
+  })
+);
+
+export type UserFavoriteModule = typeof userFavoriteModules.$inferSelect;
+
 // ─── VENUES (locales) ─────────────────────────────────────────────────────────
 export const venues = mysqlTable("venues", {
   id: int("id").autoincrement().primaryKey(),

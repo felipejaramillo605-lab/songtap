@@ -361,3 +361,7 @@
 - [x] Añadir migas de pan accesibles y contextuales a las pantallas internas por rol
 - [x] Mantener las migas de pan compactas y legibles junto al control Regresar en móvil y escritorio
 - [x] Cubrir etiquetas, rutas principales y adaptación visual de las migas de pan con pruebas
+- [x] Persistir los módulos favoritos de cada usuario sin exponer ni mezclar preferencias entre cuentas
+- [x] Permitir fijar o quitar módulos disponibles según el rol desde la navegación del panel
+- [x] Mostrar accesos directos favoritos en el panel principal de Owner, Manager y Staff
+- [x] Cubrir aislamiento, cambios de favoritos, persistencia y accesibilidad con pruebas

@@ -2,12 +2,36 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
-import { createAuditLog, getAllUsers, getUsersByVenue, updateUserPassword, updateUserRole, getDb } from "../db";
+import { createAuditLog, getAllUsers, getUserFavoriteModules, getUsersByVenue, setUserFavoriteModule, updateUserPassword, updateUserRole, getDb } from "../db";
 import { users } from "../../drizzle/schema";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
+import { favoriteModulesByRole, isFavoriteModuleAllowed } from "../../shared/favoriteModules";
 
 export const usersRouter = router({
+  favoriteModules: protectedProcedure.query(async ({ ctx }) => {
+    if (!(ctx.user.role in favoriteModulesByRole)) return [];
+    const favoriteKeys = new Set((await getUserFavoriteModules(ctx.user.id)).map((favorite) => favorite.moduleKey));
+    return favoriteModulesByRole[ctx.user.role as keyof typeof favoriteModulesByRole].map((module) => ({ ...module, isFavorite: favoriteKeys.has(module.key) }));
+  }),
+
+  setFavoriteModule: protectedProcedure
+    .input(z.object({ moduleKey: z.string().min(1).max(96), isFavorite: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      if (!isFavoriteModuleAllowed(ctx.user.role, input.moduleKey)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Este módulo no está disponible para tu rol" });
+      }
+      await setUserFavoriteModule(ctx.user.id, input.moduleKey, input.isFavorite);
+      await createAuditLog({
+        userId: ctx.user.id,
+        userRole: ctx.user.role,
+        action: input.isFavorite ? "PIN_FAVORITE_MODULE" : "UNPIN_FAVORITE_MODULE",
+        entity: "user_favorite_module",
+        details: JSON.stringify({ moduleKey: input.moduleKey }),
+      });
+      return { success: true };
+    }),
+
   list: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user.role === "owner") {
       return getAllUsers();
