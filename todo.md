@@ -369,3 +369,7 @@
 - [x] Restringir el acceso a los módulos hasta que la cuenta beta defina una nueva contraseña personal
 - [x] Crear una pantalla accesible de cambio obligatorio con validación de seguridad de clave
 - [x] Cubrir el bloqueo, la actualización de contraseña y la recuperación de acceso con pruebas
+- [x] Implementar una revocación de sesiones activa y auditable exclusiva para cuentas beta
+- [x] Impedir que un Owner revoque sesiones de cuentas no beta o de su propia cuenta desde este flujo
+- [x] Añadir confirmación y estado visible de la revocación de sesión en el panel Owner
+- [x] Cubrir permisos, alcance beta e invalidación efectiva de acceso con pruebas

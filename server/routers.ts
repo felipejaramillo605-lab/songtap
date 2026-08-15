@@ -51,6 +51,7 @@ export const appRouter = router({
         }
         const sessionToken = await sdk.createSessionToken(user.openId, {
           name: user.name || user.email || "Usuario",
+          sessionVersion: user.sessionVersion,
         });
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 365 * 24 * 60 * 60 * 1000 });

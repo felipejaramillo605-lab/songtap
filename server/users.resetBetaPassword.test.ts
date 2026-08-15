@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { appRouter } from "./routers";
 import { createUserWithPassword, getDb } from "./db";
 import { auditLogs, users } from "../drizzle/schema";
+import { sdk } from "./_core/sdk";
+import { COOKIE_NAME } from "../shared/const";
 
 const ownerContext = {
   user: { id: 1, openId: "owner-test", name: "Owner", email: "owner@example.com", loginMethod: "test", role: "owner" as const, venueId: null, createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() },
@@ -65,5 +67,19 @@ describe("users.resetBetaPassword", () => {
 
     await expect(appRouter.createCaller(managerContext).users.resetBetaPassword({ userId: betaUser.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(appRouter.createCaller(ownerContext).users.resetBetaPassword({ userId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("revoca el token beta vigente y rechaza cuentas no beta", async () => {
+    const betaUser = await createUserWithPassword({ email: `beta-session-${Date.now()}@songtap.test`, passwordHash: await bcrypt.hash("ClaveAnterior!26", 10), name: "Beta Session", role: "staff", venueId: 30001 });
+    if (!betaUser) throw new Error("No se creó la cuenta beta temporal");
+    createdUserIds.push(betaUser.id);
+    const token = await sdk.createSessionToken(betaUser.openId, { name: betaUser.name ?? "Beta Session", sessionVersion: betaUser.sessionVersion });
+    const request = { headers: { cookie: `${COOKIE_NAME}=${token}` } } as any;
+    await expect(sdk.authenticateRequest(request)).resolves.toMatchObject({ id: betaUser.id });
+
+    const result = await appRouter.createCaller(ownerContext).users.revokeBetaSessions({ userId: betaUser.id });
+    expect(result).toMatchObject({ success: true, userId: betaUser.id, sessionVersion: 1 });
+    await expect(sdk.authenticateRequest(request)).rejects.toThrow("Session revoked");
+    await expect(appRouter.createCaller(ownerContext).users.revokeBetaSessions({ userId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

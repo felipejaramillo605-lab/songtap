@@ -985,6 +985,14 @@ export async function updateUserPassword(userId: number, passwordHash: string, m
     .where(eq(users.id, userId));
 }
 
+export async function revokeUserSessions(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  await db.update(users).set({ sessionVersion: sql`${users.sessionVersion} + 1` }).where(eq(users.id, userId));
+  const [user] = await db.select({ sessionVersion: users.sessionVersion }).from(users).where(eq(users.id, userId)).limit(1);
+  return user?.sessionVersion ?? null;
+}
+
 // ─── NOTIFICATION SETTINGS HELPERS ───────────────────────────────────────────
 export async function getNotificationSettings(ownerId: number) {
   const db = await getDb();

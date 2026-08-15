@@ -30,6 +30,7 @@ export const users = mysqlTable("users", {
   resetPasswordToken: varchar("resetPasswordToken", { length: 255 }),
   resetPasswordExpires: timestamp("resetPasswordExpires"),
   mustChangePassword: boolean("mustChangePassword").default(false).notNull(),
+  sessionVersion: int("sessionVersion").default(0).notNull(),
   language: varchar("language", { length: 16 }).default("es").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

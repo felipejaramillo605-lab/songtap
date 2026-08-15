@@ -3,7 +3,7 @@ import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ resetBetaPassword: vi.fn(), refetchUsers: vi.fn() }));
+const mocks = vi.hoisted(() => ({ resetBetaPassword: vi.fn(), revokeBetaSessions: vi.fn(), refetchUsers: vi.fn() }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: 1, name: "Felipe", role: "owner" }, isAuthenticated: true, loading: false }),
@@ -14,6 +14,7 @@ vi.mock("@/lib/trpc", () => ({
       list: { useQuery: () => ({ data: [{ id: 1, name: "Felipe", email: "owner@example.com", role: "owner", venueId: null }, { id: 2, name: "Beta Manager", email: "manager.noche@songtap.test", role: "manager", venueId: 30001 }], refetch: mocks.refetchUsers }) },
       updateRole: { useMutation: () => ({ mutate: vi.fn() }) },
       resetBetaPassword: { useMutation: (options?: { onSuccess?: (result: { email: string; temporaryPassword: string }) => void }) => ({ mutate: (input: { userId: number }) => { mocks.resetBetaPassword(input); options?.onSuccess?.({ email: "manager.noche@songtap.test", temporaryPassword: "Beta!NuevaClaveTemporal26" }); }, isPending: false }) },
+      revokeBetaSessions: { useMutation: (options?: { onSuccess?: () => void }) => ({ mutate: (input: { userId: number }) => { mocks.revokeBetaSessions(input); options?.onSuccess?.(); }, isPending: false }) },
     },
     venues: { list: { useQuery: () => ({ data: [{ id: 30001, name: "Bar La Noche" }] }) } },
   },
@@ -25,7 +26,7 @@ vi.mock("wouter", () => ({ useLocation: () => ["/owner/users", vi.fn()] }));
 import OwnerUsers from "./OwnerUsers";
 
 describe("OwnerUsers beta password reset", () => {
-  afterEach(() => { cleanup(); mocks.resetBetaPassword.mockReset(); mocks.refetchUsers.mockReset(); });
+  afterEach(() => { cleanup(); mocks.resetBetaPassword.mockReset(); mocks.revokeBetaSessions.mockReset(); mocks.refetchUsers.mockReset(); });
 
   it("solicita confirmación y muestra la nueva clave beta sólo tras restablecerla", () => {
     render(<OwnerUsers />);
@@ -39,5 +40,13 @@ describe("OwnerUsers beta password reset", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Ocultar" }));
     expect(screen.queryByText("Beta!NuevaClaveTemporal26")).toBeNull();
+  });
+
+  it("solicita confirmación antes de revocar las sesiones de una cuenta beta", () => {
+    render(<OwnerUsers />);
+    fireEvent.click(screen.getByRole("button", { name: "Revocar sesiones" }));
+    expect(screen.getByText("¿Revocar sesiones beta?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Sí, revocar sesiones" }));
+    expect(mocks.revokeBetaSessions).toHaveBeenCalledWith({ userId: 2 });
   });
 });

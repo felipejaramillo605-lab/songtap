@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Users, Crown, Briefcase, UserCheck, KeyRound, Copy, EyeOff } from "lucide-react";
+import { Users, Crown, Briefcase, UserCheck, KeyRound, Copy, EyeOff, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
@@ -37,6 +37,7 @@ export default function OwnerUsers() {
   const { data: users, refetch } = trpc.users.list.useQuery(undefined, { enabled: !!user });
   const { data: venues } = trpc.venues.list.useQuery(undefined, { enabled: !!user });
   const [resetTarget, setResetTarget] = useState<(NonNullable<typeof users>[number]) | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<(NonNullable<typeof users>[number]) | null>(null);
   const [revealedCredential, setRevealedCredential] = useState<{ email: string; password: string } | null>(null);
   const updateRole = trpc.users.updateRole.useMutation({
     onSuccess: () => { toast.success("Rol actualizado"); refetch(); },
@@ -47,6 +48,14 @@ export default function OwnerUsers() {
       setRevealedCredential({ email: result.email ?? "Cuenta beta", password: result.temporaryPassword });
       setResetTarget(null);
       toast.success("Contraseña beta restablecida. Copia la nueva clave antes de ocultarla.");
+      refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const revokeBetaSessions = trpc.users.revokeBetaSessions.useMutation({
+    onSuccess: () => {
+      setRevokeTarget(null);
+      toast.success("Sesiones beta revocadas. La cuenta deberá iniciar sesión de nuevo.");
       refetch();
     },
     onError: (error) => toast.error(error.message),
@@ -77,8 +86,8 @@ export default function OwnerUsers() {
         </Card>}
 
         <Card className="border-border bg-card">
-          <CardHeader><CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground"><KeyRound size={16} className="text-primary" /> Cuentas beta</CardTitle><p className="text-xs text-muted-foreground">Restablece una clave temporal para las cuentas beta operativas. Esta acción no está disponible para cuentas Owner ni ajenas al entorno beta.</p></CardHeader>
-          <CardContent><div className="space-y-2">{betaUsers.length ? betaUsers.map((betaUser) => <div key={`beta-${betaUser.id}`} className="flex flex-col gap-3 rounded-lg border border-border bg-secondary/20 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-medium text-foreground">{betaUser.name ?? betaUser.email}</p><p className="text-xs text-muted-foreground">{betaUser.email} · {venueNameFor(betaUser.venueId)}</p></div><div className="flex items-center gap-3"><span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${roleColors[betaUser.role]}`}>{roleIcons[betaUser.role]} {betaUser.role}</span><Button type="button" size="sm" variant="outline" onClick={() => setResetTarget(betaUser)}><KeyRound size={14} className="mr-2" /> Restablecer clave</Button></div></div>) : <p className="py-4 text-center text-sm text-muted-foreground">No hay cuentas beta elegibles.</p>}</div></CardContent>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground"><KeyRound size={16} className="text-primary" /> Cuentas beta</CardTitle><p className="text-xs text-muted-foreground">Restablece una clave temporal o revoca todas las sesiones activas de las cuentas beta operativas. Estas acciones no están disponibles para cuentas Owner ni ajenas al entorno beta.</p></CardHeader>
+          <CardContent><div className="space-y-2">{betaUsers.length ? betaUsers.map((betaUser) => <div key={`beta-${betaUser.id}`} className="flex flex-col gap-3 rounded-lg border border-border bg-secondary/20 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-medium text-foreground">{betaUser.name ?? betaUser.email}</p><p className="text-xs text-muted-foreground">{betaUser.email} · {venueNameFor(betaUser.venueId)}</p></div><div className="flex flex-wrap items-center gap-2 sm:justify-end"><span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${roleColors[betaUser.role]}`}>{roleIcons[betaUser.role]} {betaUser.role}</span><Button type="button" size="sm" variant="outline" onClick={() => setResetTarget(betaUser)}><KeyRound size={14} className="mr-2" /> Restablecer clave</Button><Button type="button" size="sm" variant="outline" className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200" onClick={() => setRevokeTarget(betaUser)}><LogOut size={14} className="mr-2" /> Revocar sesiones</Button></div></div>) : <p className="py-4 text-center text-sm text-muted-foreground">No hay cuentas beta elegibles.</p>}</div></CardContent>
         </Card>
 
         <Card className="bg-card border-border">
@@ -137,6 +146,12 @@ export default function OwnerUsers() {
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>¿Restablecer contraseña beta?</AlertDialogTitle><AlertDialogDescription>Se generará una nueva clave temporal para <span className="font-medium text-foreground">{resetTarget?.email}</span>. La clave anterior dejará de funcionar inmediatamente.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel disabled={resetBetaPassword.isPending}>Cancelar</AlertDialogCancel><AlertDialogAction disabled={!resetTarget || resetBetaPassword.isPending} onClick={() => resetTarget && resetBetaPassword.mutate({ userId: resetTarget.id })}>{resetBetaPassword.isPending ? "Restableciendo..." : "Sí, restablecer"}</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={Boolean(revokeTarget)} onOpenChange={(open) => { if (!open) setRevokeTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>¿Revocar sesiones beta?</AlertDialogTitle><AlertDialogDescription>Se cerrarán todas las sesiones activas de <span className="font-medium text-foreground">{revokeTarget?.email}</span>. La cuenta deberá iniciar sesión nuevamente para continuar.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel disabled={revokeBetaSessions.isPending}>Cancelar</AlertDialogCancel><AlertDialogAction disabled={!revokeTarget || revokeBetaSessions.isPending} onClick={() => revokeTarget && revokeBetaSessions.mutate({ userId: revokeTarget.id })}>{revokeBetaSessions.isPending ? "Revocando..." : "Sí, revocar sesiones"}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </SongTapLayout>

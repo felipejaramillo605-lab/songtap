@@ -35,10 +35,12 @@ export function registerOAuthRoutes(app: Express) {
         loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
         lastSignedIn: new Date(),
       });
+      const syncedUser = await db.getUserByOpenId(userInfo.openId);
 
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {
         name: userInfo.name || "",
         expiresInMs: ONE_YEAR_MS,
+        sessionVersion: syncedUser?.sessionVersion ?? 0,
       });
 
       const cookieOptions = getSessionCookieOptions(req);

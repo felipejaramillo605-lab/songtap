@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { adminProcedure, protectedProcedure, router, temporaryPasswordProcedure } from "../_core/trpc";
-import { createAuditLog, getAllUsers, getUserFavoriteModules, getUsersByVenue, setUserFavoriteModule, updateUserPassword, updateUserRole, getDb } from "../db";
+import { createAuditLog, getAllUsers, getUserFavoriteModules, getUsersByVenue, revokeUserSessions, setUserFavoriteModule, updateUserPassword, updateUserRole, getDb } from "../db";
 import { users } from "../../drizzle/schema";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
@@ -88,6 +88,30 @@ export const usersRouter = router({
         details: JSON.stringify({ email: targetUser.email }),
       });
       return { success: true, userId: targetUser.id, email: targetUser.email, temporaryPassword };
+    }),
+
+  revokeBetaSessions: adminProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "owner") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [targetUser] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "Usuario no encontrado" });
+      const isBetaAccount = Boolean(targetUser.email?.endsWith("@songtap.test")) && (targetUser.role === "manager" || targetUser.role === "staff");
+      if (!isBetaAccount || targetUser.id === ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Solo se pueden revocar sesiones de cuentas beta operativas" });
+      }
+      const sessionVersion = await revokeUserSessions(targetUser.id);
+      await createAuditLog({
+        userId: ctx.user.id,
+        userRole: ctx.user.role,
+        action: "REVOKE_BETA_SESSIONS",
+        entity: "user",
+        entityId: targetUser.id,
+        details: JSON.stringify({ email: targetUser.email, sessionVersion }),
+      });
+      return { success: true, userId: targetUser.id, sessionVersion };
     }),
 
   assignToVenue: protectedProcedure
