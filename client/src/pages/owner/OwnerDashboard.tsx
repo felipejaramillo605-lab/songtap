@@ -11,6 +11,10 @@ import { getLoginUrl } from "@/const";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { writeFileXLSX } from "xlsx";
 
+function toDateInputValue(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
 export default function OwnerDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
@@ -26,6 +30,7 @@ export default function OwnerDashboard() {
   const [selectedPqrsVenueIds, setSelectedPqrsVenueIds] = useState<number[] | null>(null);
   const [pqrsType, setPqrsType] = useState<"all" | "petition" | "complaint" | "claim" | "suggestion" | "congratulation">("all");
   const [pqrsStatus, setPqrsStatus] = useState<"all" | "open" | "in_review" | "resolved" | "closed">("all");
+  const [useCustomPqrsRange, setUseCustomPqrsRange] = useState(false);
   const { dateFrom, dateTo } = useMemo(() => {
     const dateTo = new Date();
     dateTo.setHours(23, 59, 59, 999);
@@ -34,13 +39,22 @@ export default function OwnerDashboard() {
     dateFrom.setHours(0, 0, 0, 0);
     return { dateFrom, dateTo };
   }, [periodDays]);
+  const [pqrsStartDate, setPqrsStartDate] = useState(() => toDateInputValue(dateFrom));
+  const [pqrsEndDate, setPqrsEndDate] = useState(() => toDateInputValue(dateTo));
+  const pqrsDateRange = useMemo(() => {
+    if (!useCustomPqrsRange) return { dateFrom, dateTo, isValid: true };
+    const start = new Date(`${pqrsStartDate}T00:00:00`);
+    const end = new Date(`${pqrsEndDate}T23:59:59.999`);
+    const isValid = !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && start <= end;
+    return { dateFrom: start, dateTo: end, isValid };
+  }, [dateFrom, dateTo, pqrsStartDate, pqrsEndDate, useCustomPqrsRange]);
   const { data: analytics, isLoading: isLoadingAnalytics } = trpc.finance.ownerVenueAnalytics.useQuery(
     { dateFrom, dateTo },
     { enabled: isAuthenticated && user?.role === "owner" }
   );
   const { data: pqrsAnalytics, isLoading: isLoadingPqrsAnalytics } = trpc.pqrs.ownerAnalytics.useQuery(
-    { dateFrom, dateTo, type: pqrsType, status: pqrsStatus },
-    { enabled: isAuthenticated && user?.role === "owner" }
+    { dateFrom: pqrsDateRange.dateFrom, dateTo: pqrsDateRange.dateTo, type: pqrsType, status: pqrsStatus },
+    { enabled: isAuthenticated && user?.role === "owner" && pqrsDateRange.isValid }
   );
 
   if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
@@ -63,13 +77,13 @@ export default function OwnerDashboard() {
   const pqrsStatusLabel = { all: "Todos los estados", open: "Abierta", in_review: "En revisión", resolved: "Resuelta", closed: "Cerrada" }[pqrsStatus];
   const pqrsExportFilters = { typeLabel: pqrsTypeLabel, statusLabel: pqrsStatusLabel };
   const pqrsExportRows = toPqrsExportRows(selectedPqrsVenues, pqrsExportFilters);
-  const canExportPqrs = pqrsExportRows.length > 0 && !isLoadingPqrsAnalytics;
+  const canExportPqrs = pqrsExportRows.length > 0 && pqrsDateRange.isValid && !isLoadingPqrsAnalytics;
   const togglePqrsVenue = (venueId: number) => {
     const currentIds = selectedPqrsVenueIds ?? allPqrsVenues.map((venue) => venue.venueId);
     setSelectedPqrsVenueIds(currentIds.includes(venueId) ? currentIds.filter((id) => id !== venueId) : [...currentIds, venueId]);
   };
   const downloadPqrsCsv = () => {
-    const csv = createPqrsCsv(pqrsExportRows);
+    const csv = createPqrsCsv(pqrsExportRows, pqrsDateRange.dateFrom, pqrsDateRange.dateTo);
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
@@ -79,7 +93,7 @@ export default function OwnerDashboard() {
   };
   const downloadPqrsExcel = () => {
     if (!pqrsAnalytics) return;
-    writeFileXLSX(createPqrsWorkbook(pqrsExportRows, selectedPqrsTotals, dateFrom, dateTo, pqrsExportFilters), buildPqrsFilename("xlsx"));
+    writeFileXLSX(createPqrsWorkbook(pqrsExportRows, selectedPqrsTotals, pqrsDateRange.dateFrom, pqrsDateRange.dateTo, pqrsExportFilters), buildPqrsFilename("xlsx"));
   };
 
   return (
@@ -198,6 +212,20 @@ export default function OwnerDashboard() {
               </select>
             </label>
           </div>
+          <fieldset className="rounded-lg border border-border bg-muted/20 p-3" aria-describedby="pqrs-custom-range-description">
+            <legend className="px-1 text-sm font-semibold text-foreground">Rango de fechas PQRS</legend>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground"><input type="checkbox" checked={useCustomPqrsRange} onChange={(event) => { setUseCustomPqrsRange(event.target.checked); if (event.target.checked) { setPqrsStartDate(toDateInputValue(dateFrom)); setPqrsEndDate(toDateInputValue(dateTo)); } }} aria-label="Usar rango de fechas personalizado para PQRS" className="size-4 accent-primary" /> Usar rango personalizado</label>
+                <p id="pqrs-custom-range-description" className="mt-1 text-xs text-muted-foreground">Si está desactivado se usa el periodo general seleccionado arriba.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="grid gap-1 text-xs font-medium text-foreground">Desde<input aria-label="Fecha inicial personalizada de PQRS" type="date" value={pqrsStartDate} disabled={!useCustomPqrsRange} onChange={(event) => setPqrsStartDate(event.target.value)} className="h-9 rounded-md border border-border bg-input px-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50" /></label>
+                <label className="grid gap-1 text-xs font-medium text-foreground">Hasta<input aria-label="Fecha final personalizada de PQRS" type="date" value={pqrsEndDate} disabled={!useCustomPqrsRange} onChange={(event) => setPqrsEndDate(event.target.value)} className="h-9 rounded-md border border-border bg-input px-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50" /></label>
+              </div>
+            </div>
+            {useCustomPqrsRange && !pqrsDateRange.isValid && <p role="alert" className="mt-3 text-sm text-destructive">La fecha inicial debe ser anterior o igual a la fecha final.</p>}
+          </fieldset>
           <div className="grid gap-4 sm:grid-cols-4">
             {[
               { label: "PQRS recibidas", value: selectedPqrsTotals.total, color: "text-foreground" },

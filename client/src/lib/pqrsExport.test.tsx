@@ -8,7 +8,9 @@ describe("pqrsExport", () => {
   it("convierte el desempeño por local a filas exportables y CSV escapado", () => {
     const rows = toPqrsExportRows(venues, { typeLabel: "Queja", statusLabel: "Resuelta" });
     expect(rows[0]).toMatchObject({ Local: "Bar, Central", "PQRS recibidas": 10, "Tasa de resolución": "50%", "Tipo PQRS": "Queja", "Estado PQRS": "Resuelta" });
-    const csv = createPqrsCsv(rows);
+    const csv = createPqrsCsv(rows, new Date("2026-08-01T00:00:00"), new Date("2026-08-15T23:59:59.999"));
+    expect(csv).toContain('"Periodo desde","2026-08-01"');
+    expect(csv).toContain('"Periodo hasta","2026-08-15"');
     expect(csv).toContain('"Bar, Central"');
     expect(csv).toContain('"Respuesta media (minutos)"');
   });

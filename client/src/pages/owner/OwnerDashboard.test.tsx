@@ -55,6 +55,11 @@ describe("OwnerDashboard analytics", () => {
     fireEvent.change(screen.getByLabelText("Filtrar PQRS por estado"), { target: { value: "resolved" } });
     expect(mocks.pqrsInputs.at(-1)).toMatchObject({ type: "complaint", status: "resolved" });
 
+    fireEvent.click(screen.getByRole("checkbox", { name: "Usar rango de fechas personalizado para PQRS" }));
+    fireEvent.change(screen.getByLabelText("Fecha inicial personalizada de PQRS"), { target: { value: "2026-08-01" } });
+    fireEvent.change(screen.getByLabelText("Fecha final personalizada de PQRS"), { target: { value: "2026-08-10" } });
+    expect(mocks.pqrsInputs.at(-1)).toMatchObject({ type: "complaint", status: "resolved", dateFrom: new Date("2026-08-01T00:00:00"), dateTo: new Date("2026-08-10T23:59:59.999") });
+
     const createObjectUrl = vi.fn((_: Blob) => "blob:pqrs");
     const revokeObjectUrl = vi.fn();
     vi.stubGlobal("URL", { createObjectURL: createObjectUrl, revokeObjectURL: revokeObjectUrl });
@@ -72,9 +77,17 @@ describe("OwnerDashboard analytics", () => {
     expect(await csvBlob.text()).not.toContain("Bar Central");
     expect(await csvBlob.text()).toContain("Queja");
     expect(await csvBlob.text()).toContain("Resuelta");
+    expect(await csvBlob.text()).toContain("Periodo desde");
+    expect(await csvBlob.text()).toContain("2026-08-01");
+    expect(await csvBlob.text()).toContain("Periodo hasta");
+    expect(await csvBlob.text()).toContain("2026-08-10");
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:pqrs");
     fireEvent.click(screen.getByRole("button", { name: "Descargar comparativo PQRS en Excel" }));
     expect(mocks.writeFileXLSX).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^songtap-desempeno-pqrs-.*\.xlsx$/));
+
+    fireEvent.change(screen.getByLabelText("Fecha inicial personalizada de PQRS"), { target: { value: "2026-08-20" } });
+    expect(screen.getByRole("alert").textContent).toContain("La fecha inicial debe ser anterior o igual a la fecha final.");
+    expect((screen.getByRole("button", { name: "Descargar comparativo PQRS en CSV" }) as HTMLButtonElement).disabled).toBe(true);
     clickSpy.mockRestore();
     vi.unstubAllGlobals();
   });

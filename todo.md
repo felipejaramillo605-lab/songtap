@@ -281,6 +281,12 @@
 
 ## Pendientes internos priorizados
 
+- [x] Añadir selector de rango de fechas personalizado accesible al análisis PQRS
+- [x] Validar fechas inicio y fin, combinarlas con sucursal, tipo y estado, y aplicarlas a agregados
+- [x] Reflejar el rango personalizado en las exportaciones CSV y Excel de PQRS
+- [x] Cubrir rango personalizado, validaciones y filtros combinados con pruebas
+- [x] Incluir explícitamente periodo desde y hasta en el CSV de desempeño PQRS
+- [x] Verificar en pruebas que CSV y Excel reflejen el rango personalizado activo
 - [x] Añadir filtros accesibles de tipo y estado de PQRS al comparativo Owner
 - [x] Aplicar tipo y estado como condiciones seguras en agregados, métricas y tabla PQRS
 - [x] Incluir los filtros activos de tipo y estado en CSV y Excel de desempeño PQRS

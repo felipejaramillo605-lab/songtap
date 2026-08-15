@@ -43,10 +43,16 @@ export function toPqrsExportRows(venues: PqrsAnalyticsVenue[], filters: PqrsExpo
   }));
 }
 
-export function createPqrsCsv(rows: PqrsExportRow[]) {
+export function createPqrsCsv(rows: PqrsExportRow[], dateFrom?: Date, dateTo?: Date) {
   const headers = Object.keys(rows[0] ?? ({} as PqrsExportRow));
   const escapeCell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
-  return [headers, ...rows.map((row) => headers.map((header) => row[header as keyof PqrsExportRow]))]
+  const periodSummary = dateFrom && dateTo ? [
+    ["Reporte de desempeño PQRS · SongTap"],
+    ["Periodo desde", dateFrom.toISOString().slice(0, 10)],
+    ["Periodo hasta", dateTo.toISOString().slice(0, 10)],
+    [],
+  ] : [];
+  return [...periodSummary, headers, ...rows.map((row) => headers.map((header) => row[header as keyof PqrsExportRow]))]
     .map((record) => record.map(escapeCell).join(","))
     .join("\n");
 }
