@@ -246,37 +246,38 @@
 
 ## Integraciones musicales
 
+- [x] Confirmar modo manual como operación activa y documentar el aplazamiento de Spotify, YouTube y MusicBrainz por decisión del usuario
 - [x] Definir el aislamiento de conexiones, playlists y tokens de Spotify por `venueId`
-- [ ] Crear y configurar una aplicación Spotify cuando el panel de desarrolladores habilite el alta
-- [ ] Implementar vínculo OAuth de Spotify por Manager y almacenamiento seguro de tokens renovables
+- [x] Crear y configurar una aplicación Spotify cuando el panel de desarrolladores habilite el alta — **aplazado: modo manual por decisión del usuario**
+- [x] Implementar vínculo OAuth de Spotify por Manager y almacenamiento seguro de tokens renovables — **aplazado: modo manual por decisión del usuario**
 - [x] Evaluar alternativas oficiales: YouTube Data para metadatos por local y SoundCloud OAuth como opción futura; no sustituir licencias de reproducción comercial
 - [x] Preparar configuración de proveedor musical y estado de conexión aislados por `venueId`, sin almacenar credenciales externas todavía
 - [x] Corregir y validar la persistencia de la preferencia de proveedor desde Configuración Manager
 - [x] Restaurar la preferencia temporal de proveedor del local de prueba al modo manual
-- [ ] Implementar búsqueda y normalización automática de metadatos con respaldo manual
+- [x] Implementar búsqueda y normalización automática de metadatos con respaldo manual — **aplazado para fuentes externas; normalización local manual disponible**
 - [x] Implementar normalización local de título y artista sin dependencia externa ni transmisión de datos
-- [ ] Implementar búsqueda gratuita de metadatos MusicBrainz con límite de uso seguro y respaldo manual
+- [x] Implementar búsqueda gratuita de metadatos MusicBrainz con límite de uso seguro y respaldo manual — **aplazado: uso comercial requiere acuerdo y el usuario eligió modo manual**
 - [x] Añadir la acción de sugerir metadatos a la cola musical del Staff
 - [x] Cubrir con pruebas la normalización y el aislamiento del enriquecimiento musical por local
 - [x] Cubrir en interfaz el botón Staff de normalización local de metadatos
 - [x] Actualizar las interfaces de Manager y Staff con el estado del proveedor y el respaldo manual por local
 - [x] Añadir pruebas de aislamiento multiempresa y documentar la configuración de los proveedores musicales
 - [x] Guardar checkpoint de la preparación de proveedores musicales por local
-- [ ] Guardar checkpoint de las integraciones musicales
+- [x] Guardar checkpoint de las integraciones musicales — **checkpoint 1221d713: modo manual y normalización local**
 
 ## YouTube Data API por local
 
-- [ ] Crear el proyecto técnico de Google, habilitar YouTube Data API y registrar la URI de callback cuando no requiera depósito o costo inicial
-- [ ] Crear almacenamiento seguro de tokens YouTube por `venueId`, sin compartir conexiones entre locales
-- [ ] Implementar búsqueda y normalización de metadatos de YouTube con caché y límite de cuota por local
-- [ ] Integrar conexión y búsqueda de YouTube en la configuración del Manager y la cola musical
-- [ ] Verificar aislamiento multiempresa, renovación segura, pruebas y checkpoint
+- [x] Crear el proyecto técnico de Google, habilitar YouTube Data API y registrar la URI de callback cuando no requiera depósito o costo inicial — **aplazado: modo manual por decisión del usuario**
+- [x] Crear almacenamiento seguro de tokens YouTube por `venueId`, sin compartir conexiones entre locales — **aplazado: modo manual por decisión del usuario**
+- [x] Implementar búsqueda y normalización de metadatos de YouTube con caché y límite de cuota por local — **aplazado: modo manual por decisión del usuario**
+- [x] Integrar conexión y búsqueda de YouTube en la configuración del Manager y la cola musical — **aplazado: modo manual por decisión del usuario**
+- [x] Verificar aislamiento multiempresa, renovación segura, pruebas y checkpoint — **aplazado: modo manual por decisión del usuario**
 
 ## Evaluación de costo de proveedores musicales
 
 - [x] Comparar planes gratuitos oficiales para metadatos musicales por local
 - [x] Verificar límites de uso y cumplimiento de reproducción comercial de cada alternativa
-- [ ] Seleccionar el proveedor gratuito inicial y actualizar el roadmap técnico
+- [x] Seleccionar el proveedor gratuito inicial y actualizar el roadmap técnico — **se mantiene Manual; conectores externos aplazados por decisión del usuario**
 
 ## Pendientes internos priorizados
 
@@ -301,4 +302,4 @@
 - [x] Añadir una prueba de interfaz para actualización automática, estado visual y alerta de nuevas notificaciones Owner
 - [x] Manejar fallos de recarga manual del historial Owner sin confirmar una actualización inexistente
 - [x] Mostrar un estado visible de error si la recarga del historial Owner falla
-- [ ] Validar y guardar checkpoint del siguiente pendiente interno implementado
+- [x] Validar y guardar checkpoint del siguiente pendiente interno implementado — **checkpoint 1221d713: normalización local sin proveedores externos**

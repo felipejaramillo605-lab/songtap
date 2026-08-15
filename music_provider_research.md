@@ -33,6 +33,10 @@ Mantener un adaptador de proveedor por local, con una tabla de conexión vincula
 
 La mejor ruta sin costo directo es mantener **YouTube Data API** como proveedor de metadatos por Manager, usando la cuota base de Google y protegiendo las llamadas con caché y límites internos. La integración no habilita ni licencia reproducción pública: SongTap mantiene el control manual de Staff y cada local debe contar con los permisos musicales que le correspondan.
 
+## Decisión operativa vigente — 15 de agosto de 2026
+
+Por decisión del usuario, SongTap permanecerá en **modo manual**. Se verificó que los tres locales existentes tienen `musicMode=manual`, `musicProvider=manual` y `musicConnectionStatus=not_configured`. Spotify, YouTube Data y MusicBrainz quedan aplazados: no se crearán cuentas, aplicaciones, tokens ni llamadas de búsqueda externas hasta recibir una autorización posterior y, cuando corresponda, la validación comercial o las credenciales de cada empresa.
+
 ## Fuentes oficiales
 
 - Spotify Authorization Code Flow: https://developer.spotify.com/documentation/web-api/tutorials/code-flow
