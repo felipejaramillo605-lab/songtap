@@ -258,3 +258,27 @@
 - [x] Añadir pruebas de aislamiento multiempresa y documentar la configuración de los proveedores musicales
 - [x] Guardar checkpoint de la preparación de proveedores musicales por local
 - [ ] Guardar checkpoint de las integraciones musicales
+
+## YouTube Data API por local
+
+- [ ] Crear el proyecto técnico de Google, habilitar YouTube Data API y registrar la URI de callback cuando no requiera depósito o costo inicial
+- [ ] Crear almacenamiento seguro de tokens YouTube por `venueId`, sin compartir conexiones entre locales
+- [ ] Implementar búsqueda y normalización de metadatos de YouTube con caché y límite de cuota por local
+- [ ] Integrar conexión y búsqueda de YouTube en la configuración del Manager y la cola musical
+- [ ] Verificar aislamiento multiempresa, renovación segura, pruebas y checkpoint
+
+## Evaluación de costo de proveedores musicales
+
+- [x] Comparar planes gratuitos oficiales para metadatos musicales por local
+- [x] Verificar límites de uso y cumplimiento de reproducción comercial de cada alternativa
+- [ ] Seleccionar el proveedor gratuito inicial y actualizar el roadmap técnico
+
+## Pendientes internos priorizados
+
+- [x] Implementar actualización automática gratuita de notificaciones mientras el panel Owner está abierto
+- [x] Mostrar estado de actualización, refresco manual y nueva alerta en el historial Owner
+- [x] Cubrir la actualización automática de notificaciones con una prueba de interfaz
+- [x] Añadir una prueba de interfaz para actualización automática, estado visual y alerta de nuevas notificaciones Owner
+- [x] Manejar fallos de recarga manual del historial Owner sin confirmar una actualización inexistente
+- [x] Mostrar un estado visible de error si la recarga del historial Owner falla
+- [ ] Validar y guardar checkpoint del siguiente pendiente interno implementado

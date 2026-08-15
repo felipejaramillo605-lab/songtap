@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,18 +11,31 @@ import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { filterNotificationHistory } from "@/lib/notificationFilters";
-import { Bell, Mail, Phone, Volume2, ShieldAlert, CheckCheck, Clock3, Inbox, CircleCheck, Search, RotateCcw, CalendarDays } from "lucide-react";
+import { Bell, Mail, Phone, Volume2, ShieldAlert, CheckCheck, Clock3, Inbox, CircleCheck, Search, RotateCcw, CalendarDays, RefreshCw } from "lucide-react";
 
 export default function OwnerNotificationsSettings() {
   const { user, isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   const { data: settings, isLoading } = trpc.notifications.getSettings.useQuery();
-  const { data: history = [], isLoading: isLoadingHistory } = trpc.notifications.getHistory.useQuery(undefined, {
+  const {
+    data: history = [],
+    isLoading: isLoadingHistory,
+    isFetching: isFetchingHistory,
+    dataUpdatedAt: historyUpdatedAt,
+    refetch: refetchHistory,
+  } = trpc.notifications.getHistory.useQuery(undefined, {
     refetchInterval: 10000,
+    refetchIntervalInBackground: false,
   });
-  const { data: unreadCount = 0 } = trpc.notifications.getUnreadCount.useQuery(undefined, {
+  const {
+    data: unreadCount = 0,
+    isFetching: isFetchingUnreadCount,
+    dataUpdatedAt: unreadCountUpdatedAt,
+    refetch: refetchUnreadCount,
+  } = trpc.notifications.getUnreadCount.useQuery(undefined, {
     refetchInterval: 10000,
+    refetchIntervalInBackground: false,
   });
 
   const [enabled, setEnabled] = useState(true);
@@ -34,6 +47,10 @@ export default function OwnerNotificationsSettings() {
   const [historySearch, setHistorySearch] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
+  const [manualRefreshError, setManualRefreshError] = useState<string | null>(null);
+  const previousUnreadCountRef = useRef<number | null>(null);
+  const isRefreshingHistory = isFetchingHistory || isFetchingUnreadCount;
 
   useEffect(() => {
     if (!loading && !isAuthenticated) window.location.href = getLoginUrl();
@@ -50,6 +67,27 @@ export default function OwnerNotificationsSettings() {
       setSoundType(settings.soundType || "chime");
     }
   }, [settings]);
+
+  useEffect(() => {
+    const latestUpdate = Math.max(historyUpdatedAt || 0, unreadCountUpdatedAt || 0);
+    if (latestUpdate > 0) {
+      setLastRefreshAt(new Date(latestUpdate));
+      setManualRefreshError(null);
+    }
+  }, [historyUpdatedAt, unreadCountUpdatedAt]);
+
+  useEffect(() => {
+    const previousUnreadCount = previousUnreadCountRef.current;
+    if (previousUnreadCount !== null && unreadCount > previousUnreadCount) {
+      const createdCount = unreadCount - previousUnreadCount;
+      toast.info(
+        createdCount === 1
+          ? "Hay una nueva alerta en el historial."
+          : `Hay ${createdCount} nuevas alertas en el historial.`
+      );
+    }
+    previousUnreadCountRef.current = unreadCount;
+  }, [unreadCount]);
 
   const updateMutation = trpc.notifications.updateSettings.useMutation({
     onSuccess: () => {
@@ -89,6 +127,21 @@ export default function OwnerNotificationsSettings() {
     setHistorySearch("");
     setStartDate("");
     setEndDate("");
+  };
+
+  const refreshNotificationHistory = async () => {
+    setManualRefreshError(null);
+    try {
+      const [historyResult, unreadResult] = await Promise.all([refetchHistory(), refetchUnreadCount()]);
+      if (historyResult.error || unreadResult.error) {
+        throw historyResult.error || unreadResult.error;
+      }
+      toast.success("Historial de notificaciones actualizado.");
+    } catch {
+      const message = "No se pudo actualizar el historial. Revisa tu conexión e inténtalo de nuevo.";
+      setManualRefreshError(message);
+      toast.error(message);
+    }
   };
 
   const playTestSound = (type: string) => {
@@ -146,14 +199,42 @@ export default function OwnerNotificationsSettings() {
   return (
     <SongTapLayout role="owner" title="Notificaciones">
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <Bell className="text-primary" /> Configuración de Notificaciones
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Gestiona las alertas visuales, sonoras y los envíos de correo para solicitudes de nuevos Managers.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Bell className="text-primary" /> Configuración de Notificaciones
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Gestiona las alertas visuales, sonoras y los envíos de correo para solicitudes de nuevos Managers.
+          </p>
+        </div>
+        <div className="flex items-center gap-2" aria-live="polite">
+          <span className="hidden text-xs text-muted-foreground sm:inline">
+            {isRefreshingHistory
+              ? "Actualizando alertas..."
+              : lastRefreshAt
+                ? `Actualizado ${lastRefreshAt.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`
+                : "Actualización automática activa"}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-border text-foreground hover:bg-secondary"
+            onClick={refreshNotificationHistory}
+            disabled={isRefreshingHistory}
+            aria-label="Actualizar historial de notificaciones ahora"
+          >
+            <RefreshCw className={`mr-1.5 h-4 w-4 ${isRefreshingHistory ? "animate-spin" : ""}`} aria-hidden="true" />
+            {isRefreshingHistory ? "Actualizando" : "Actualizar"}
+          </Button>
+        </div>
       </div>
+      {manualRefreshError && (
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {manualRefreshError}
+        </p>
+      )}
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* Interruptor general */}
