@@ -47,3 +47,9 @@ El procedimiento de logout respondió correctamente y la activación directa del
 Una prueba de interfaz adicional ejerce directamente el botón visible Salir del layout y confirma que invoca el flujo de logout. Esto cubre tanto la estructura de la interfaz como el handler asociado.
 
 La actividad, la evidencia asociada en la base de datos y la asignación temporal utilizadas para la validación real fueron eliminadas; las cuentas de prueba se devolvieron a sus roles y asignaciones iniciales.
+
+## Exportación de auditoría
+
+La prueba autenticada como Owner aplicó el filtro de compañía **Bar La Noche**, reduciendo el conjunto visible a 56 de 84 eventos. El botón CSV se activó desde el panel con ese filtro; la validación de utilidad y la prueba de interfaz confirman que descarga exclusivamente ese subconjunto. La validación del archivo Excel continúa en la siguiente comprobación.
+
+Los botones CSV y Excel descargaron archivos reales desde el panel Owner. El CSV incluye la cabecera esperada y registros de `Bar La Noche` con `venueId` 30001. El libro `.xlsx` superó la comprobación de integridad ZIP, contiene las hojas **Resumen** y **Eventos** y las celdas de eventos contienen 57 referencias a `Bar La Noche` —una en cabecera de contexto y 56 correspondientes a los eventos filtrados— sin referencias a `SongTap · Global`.

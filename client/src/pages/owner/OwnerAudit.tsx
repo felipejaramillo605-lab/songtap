@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getLoginUrl } from "@/const";
 import { filterAuditLogs } from "@/lib/auditFilters";
-import { Activity, Building2, CalendarDays, Clock3, Filter, RotateCcw, Shield, UserRound } from "lucide-react";
+import { buildAuditFilename, createAuditCsv, createAuditWorkbook, toAuditExportRows } from "@/lib/auditExport";
+import { Activity, Building2, CalendarDays, Clock3, Download, FileSpreadsheet, Filter, RotateCcw, Shield, UserRound } from "lucide-react";
+import { writeFileXLSX } from "xlsx";
 
 const actionColors: Record<string, string> = {
   CREATE_VENUE: "text-green-400",
@@ -51,7 +53,7 @@ export default function OwnerAudit() {
     if (!loading && isAuthenticated && user?.role !== "owner") navigate("/");
   }, [loading, isAuthenticated, user?.role, navigate]);
 
-  const { data: logs = [], isLoading } = trpc.finance.auditLogs.useQuery({ limit: 100 }, { enabled: !!user && user.role === "owner" });
+  const { data: logs = [], isLoading } = trpc.finance.auditLogs.useQuery({ limit: 1000 }, { enabled: !!user && user.role === "owner" });
   const [companyFilter, setCompanyFilter] = useState("all");
   const [moduleFilter, setModuleFilter] = useState("all");
   const [userFilter, setUserFilter] = useState("all");
@@ -86,6 +88,23 @@ export default function OwnerAudit() {
     setUserFilter("all");
   };
 
+  const exportFilters = { company: companyFilter, module: moduleFilter, user: userFilter };
+  const downloadCsv = () => {
+    const rows = toAuditExportRows(filteredLogs);
+    const blob = new Blob([`\uFEFF${createAuditCsv(rows)}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = buildAuditFilename("csv");
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadExcel = () => {
+    const rows = toAuditExportRows(filteredLogs);
+    writeFileXLSX(createAuditWorkbook(rows, exportFilters), buildAuditFilename("xlsx"));
+  };
+
   if (loading || !isAuthenticated || user?.role !== "owner") return null;
 
   return (
@@ -100,11 +119,21 @@ export default function OwnerAudit() {
 
         <Card className="border-border bg-card">
           <CardHeader className="border-b border-border p-4 sm:p-6">
-            <CardTitle className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
-              <Shield size={16} className="text-primary" />
-              Eventos recientes
-              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary">{filteredLogs.length} / {logs.length}</span>
-            </CardTitle>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
+                <Shield size={16} className="text-primary" />
+                Eventos recientes
+                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary">{filteredLogs.length} / {logs.length}</span>
+              </CardTitle>
+              <div className="flex flex-wrap gap-2" aria-label="Exportar log de auditoría filtrado">
+                <Button type="button" size="sm" variant="outline" className="border-border" disabled={filteredLogs.length === 0} onClick={downloadCsv}>
+                  <Download size={14} className="mr-1.5" /> CSV
+                </Button>
+                <Button type="button" size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" disabled={filteredLogs.length === 0} onClick={downloadExcel}>
+                  <FileSpreadsheet size={14} className="mr-1.5" /> Excel
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           {!isLoading && logs.length > 0 && (
             <div className="grid grid-cols-1 gap-3 border-b border-border bg-secondary/10 p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end" aria-label="Filtros del log de auditoría">

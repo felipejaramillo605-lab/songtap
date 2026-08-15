@@ -213,6 +213,13 @@
 - [x] Añadir filtros desplegables por compañía, módulo y usuario ejecutor
 - [x] Mostrar contador, estado vacío y acción para limpiar filtros
 - [x] Validar filtrado, responsive, pruebas y checkpoint
+- [x] Exportar el log de auditoría filtrado a CSV y Excel desde el panel Owner
+- [x] Verificar que los archivos exportados respeten los filtros y el aislamiento de datos
+- [x] Validar en navegador autenticado que CSV y Excel se descargan desde el panel Owner
+- [x] Inspeccionar los archivos descargados para confirmar sus filtros activos
+- [x] Añadir prueba de interfaz de Owner Audit que ejerza las acciones de exportación
+- [x] Restaurar el rol y local de la cuenta temporal utilizada para validar exportaciones Owner
+- [x] Guardar checkpoint de la exportación de auditoría y el análisis de proveedores musicales
 
 ## Seguridad Manager/Staff y actividades operativas
 - [x] Auditar rutas, procedimientos y botones críticos de Manager y Staff
@@ -236,3 +243,14 @@
 - [x] Limpiar la actividad y la asignación temporal usadas en la validación real por roles
 - [x] Guardar checkpoint posterior a la validación real por roles y la corrección del dashboard
 - [x] Guardar checkpoint posterior a la validación funcional y de seguridad
+
+## Integraciones musicales
+
+- [x] Definir el aislamiento de conexiones, playlists y tokens de Spotify por `venueId`
+- [ ] Crear y configurar una aplicación Spotify cuando el panel de desarrolladores habilite el alta
+- [ ] Implementar vínculo OAuth de Spotify por Manager y almacenamiento seguro de tokens renovables
+- [x] Evaluar alternativas oficiales: YouTube Data para metadatos por local y SoundCloud OAuth como opción futura; no sustituir licencias de reproducción comercial
+- [ ] Implementar búsqueda y normalización automática de metadatos con respaldo manual
+- [ ] Actualizar las interfaces de Manager, Staff y Cliente con el estado y metadatos del proveedor musical del local
+- [ ] Añadir pruebas de aislamiento multiempresa y documentar la configuración de los proveedores musicales
+- [ ] Guardar checkpoint de las integraciones musicales
