@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ClipboardList, ChefHat, CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ClipboardList, ChefHat, CheckCircle2, XCircle, Clock, RefreshCw, Radio } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import OrderStatusTimeline from "@/components/OrderStatusTimeline";
@@ -23,6 +23,8 @@ export default function StaffOrders() {
   const { user, isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [syncMessage, setSyncMessage] = useState("Cola lista para sincronizar.");
+  const previousOrdersRef = useRef<Map<number, string> | null>(null);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) window.location.href = getLoginUrl();
@@ -30,10 +32,33 @@ export default function StaffOrders() {
   }, [loading, isAuthenticated, user, navigate]);
 
   const venueId = user?.venueId;
-  const { data: orders, refetch } = trpc.orders.getByVenue.useQuery(
+  const { data: orders, refetch, isFetching, dataUpdatedAt, error } = trpc.orders.getByVenue.useQuery(
     { venueId: venueId! },
     { enabled: !!venueId, refetchInterval: 5000 }
   );
+
+  useEffect(() => {
+    if (!orders) return;
+    const currentOrders = new Map(orders.map((order) => [order.id, order.status]));
+    const previousOrders = previousOrdersRef.current;
+    if (previousOrders) {
+      const newOrders = orders.filter((order) => !previousOrders.has(order.id));
+      const changedOrders = orders.filter((order) => previousOrders.has(order.id) && previousOrders.get(order.id) !== order.status);
+      if (newOrders.length) {
+        const message = newOrders.length === 1 ? `Nuevo pedido #${newOrders[0].id} en la cola.` : `${newOrders.length} pedidos nuevos en la cola.`;
+        setSyncMessage(message);
+        toast.info(message);
+      } else if (changedOrders.length) {
+        const message = changedOrders.length === 1 ? `El pedido #${changedOrders[0].id} cambió a ${statusConfig[changedOrders[0].status as keyof typeof statusConfig].label.toLowerCase()}.` : `${changedOrders.length} pedidos actualizaron su estado.`;
+        setSyncMessage(message);
+      } else {
+        setSyncMessage("Cola sincronizada sin cambios nuevos.");
+      }
+    } else {
+      setSyncMessage("Cola sincronizada.");
+    }
+    previousOrdersRef.current = currentOrders;
+  }, [orders]);
 
   const updateStatus = trpc.orders.updateStatus.useMutation({
     onSuccess: () => { toast.success("Estado actualizado"); refetch(); },
@@ -56,10 +81,14 @@ export default function StaffOrders() {
             <h2 className="text-xl font-bold text-foreground">Pedidos en tiempo real</h2>
             <p className="text-sm text-muted-foreground">Cola FIFO — primero en entrar, primero en salir</p>
           </div>
-          <Button variant="outline" size="sm" className="border-border text-muted-foreground" onClick={() => refetch()}>
-            <RefreshCw size={14} className="mr-2" /> Actualizar
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button variant="outline" size="sm" className="border-border text-muted-foreground" onClick={() => refetch().then((result) => result.error ? toast.error("No fue posible actualizar la cola.") : toast.success("Cola actualizada."))} disabled={isFetching}>
+              <RefreshCw size={14} className={`mr-2 ${isFetching ? "animate-spin" : ""}`} /> {isFetching ? "Actualizando..." : "Actualizar"}
+            </Button>
+            <p className="text-[11px] text-muted-foreground flex items-center gap-1"><Radio size={11} className="text-primary" /> {dataUpdatedAt ? `Sincronizado ${new Date(dataUpdatedAt).toLocaleTimeString()}` : "Esperando sincronización"}</p>
+          </div>
         </div>
+        <p aria-live="polite" role="status" className={`rounded-md border px-3 py-2 text-xs ${error ? "border-red-500/30 bg-red-500/10 text-red-300" : "border-primary/20 bg-primary/10 text-muted-foreground"}`}>{error ? `No fue posible sincronizar la cola: ${error.message}` : syncMessage}</p>
 
         {/* Summary */}
         <div className="grid grid-cols-3 gap-3">

@@ -89,6 +89,7 @@ function Router() {
 
       {/* Staff */}
       <Route path="/staff" component={StaffOrders} />
+      <Route path="/staff/orders" component={StaffOrders} />
       <Route path="/staff/music" component={StaffMusic} />
       <Route path="/staff/tables" component={StaffTables} />
       <Route path="/staff/activities" component={StaffActivities} />

@@ -278,6 +278,10 @@
 
 ## Pendientes internos priorizados
 
+- [x] Mejorar la cola de pedidos Staff con actualización periódica visible y estado de última sincronización
+- [x] Añadir retroalimentación accesible de cambios de pedido nuevos o de estado en Staff
+- [x] Cubrir la actualización de la cola Staff con pruebas de interfaz
+- [x] Corregir y verificar la ruta accesible de la cola de pedidos Staff
 - [x] Añadir analítica Owner interlocal con métricas comparativas y ranking de locales
 - [x] Incluir filtros de periodo y gráficos accesibles para los ingresos interlocales
 - [x] Cubrir los contratos y la interfaz de analítica interlocal Owner con pruebas
