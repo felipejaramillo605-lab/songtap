@@ -14,6 +14,7 @@ export default function Login() {
   const { user, isAuthenticated, logout } = useAuth();
   const utils = trpc.useUtils();
   const [, navigate] = useLocation();
+  const activeVenuesQuery = trpc.venues.list.useQuery(undefined, { enabled: isAuthenticated });
   const [mode, setMode] = useState<"choose" | "password" | "register" | "forgot" | "reset">("choose");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,6 +25,12 @@ export default function Login() {
   const [venuePhone, setVenuePhone] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
+
+  const roleLabels: Record<string, string> = { owner: "Owner", manager: "Manager", staff: "Staff", user: "Usuario" };
+  const activeRole = user?.role ? roleLabels[user.role] ?? user.role : "Usuario";
+  const activeOrganization = user?.role === "owner"
+    ? "Acceso global a todas las organizaciones"
+    : activeVenuesQuery.data?.[0]?.name ?? (user?.venueId ? "Organización asignada" : "Sin organización asignada");
 
   const navigateByRole = (account?: { role?: string; mustChangePassword?: boolean | null }) => {
     if (account?.mustChangePassword) return navigate("/change-password");
@@ -93,7 +100,7 @@ export default function Login() {
 
           {mode === "choose" && (
             <div className="space-y-3">
-              {isAuthenticated && user && <div role="status" className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-left text-xs text-muted-foreground"><p><span className="font-semibold text-foreground">Sesión activa:</span> {user.email ?? user.name ?? "usuario"}. Si necesitas usar otra cuenta, ciérrala primero.</p><Button type="button" variant="link" size="sm" className="mt-1 h-auto px-0 text-amber-300 hover:text-amber-200" onClick={async () => { await logout(); setMode("choose"); }} >Cerrar sesión y cambiar de cuenta</Button></div>}
+              {isAuthenticated && user && <div role="status" className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-left text-xs text-muted-foreground"><p><span className="font-semibold text-foreground">Sesión activa:</span> {user.email ?? user.name ?? "usuario"}. Si necesitas usar otra cuenta, ciérrala primero.</p><p className="mt-1 leading-relaxed"><span className="font-medium text-foreground">Rol:</span> {activeRole}<br /><span className="font-medium text-foreground">Organización:</span> {activeOrganization}</p><Button type="button" variant="link" size="sm" className="mt-1 h-auto px-0 text-amber-300 hover:text-amber-200" onClick={async () => { await logout(); setMode("choose"); }} >Cerrar sesión y cambiar de cuenta</Button></div>}
               <div role="note" aria-label="Acceso para cuentas beta" className="flex gap-2 rounded-lg border border-primary/30 bg-primary/10 p-3 text-left text-xs text-muted-foreground">
                 <ShieldCheck size={17} className="mt-0.5 shrink-0 text-primary" />
                 <p><span className="font-semibold text-foreground">¿Tienes una cuenta beta?</span> Selecciona <span className="font-semibold text-primary">Correo y Contraseña</span>. No uses Manus OAuth ni necesitas un código enviado al correo.</p>

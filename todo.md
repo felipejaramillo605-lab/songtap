@@ -381,3 +381,6 @@
 - [x] Reproducir y corregir el botón público de inicio de sesión que no navega al formulario local
 - [x] Auditar rutas, eventos de clic, sesión local, cambio obligatorio y redirecciones por rol
 - [x] Añadir cobertura de interacción real para los accesos de inicio de sesión y validar desktop y móvil
+- [x] Mostrar el rol de la sesión activa de forma legible en la pantalla de Login
+- [x] Mostrar la organización asociada a la sesión activa, con un texto claro para cuentas Owner o sin organización
+- [x] Cubrir el resumen de sesión activa con rol y organización mediante pruebas de interfaz
