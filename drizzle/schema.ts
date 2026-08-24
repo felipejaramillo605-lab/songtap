@@ -522,3 +522,36 @@ export const supportTickets = mysqlTable("support_tickets", {
 });
 
 export type SupportTicket = typeof supportTickets.$inferSelect;
+
+// ─── HELP ARTICLE INTERACTIONS ───────────────────────────────────────────────
+export const helpArticleFeedback = mysqlTable(
+  "help_article_feedback",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    articleKey: varchar("articleKey", { length: 96 }).notNull(),
+    vote: mysqlEnum("vote", ["up", "down"]).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userArticleUnique: uniqueIndex("help_article_feedback_user_article_unique").on(table.userId, table.articleKey),
+  })
+);
+
+export type HelpArticleFeedback = typeof helpArticleFeedback.$inferSelect;
+
+export const helpArticleFavorites = mysqlTable(
+  "help_article_favorites",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    articleKey: varchar("articleKey", { length: 96 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    userArticleUnique: uniqueIndex("help_article_favorites_user_article_unique").on(table.userId, table.articleKey),
+  })
+);
+
+export type HelpArticleFavorite = typeof helpArticleFavorites.$inferSelect;

@@ -15,7 +15,7 @@ vi.mock("@/_core/hooks/useAuth", () => ({
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    useUtils: () => ({ onboarding: { getProgress: { invalidate: vi.fn() }, listSupportTickets: { invalidate: vi.fn() } }, notifications: { getPendingCount: { invalidate: vi.fn() } } }),
+    useUtils: () => ({ onboarding: { getProgress: { invalidate: vi.fn() }, listSupportTickets: { invalidate: vi.fn() }, getHelpInteractions: { invalidate: vi.fn() } }, notifications: { getPendingCount: { invalidate: vi.fn() } } }),
     notifications: {
       getPendingCount: { useQuery: () => ({ data: 0 }) },
       getSettings: { useQuery: () => ({ data: null }) },
@@ -24,10 +24,13 @@ vi.mock("@/lib/trpc", () => ({
     onboarding: {
       getProgress: { useQuery: () => ({ data: { completedAt: new Date() }, isLoading: false }) },
       listSupportTickets: { useQuery: () => ({ data: [] }) },
+      getHelpInteractions: { useQuery: () => ({ data: { votes: {}, favorites: [] } }) },
       markOpened: { useMutation: () => ({ mutate: vi.fn() }) },
       complete: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       reset: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       reportIssue: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+      setHelpVote: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+      toggleHelpFavorite: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
     },
   },
 }));

@@ -437,3 +437,7 @@
 - [x] Incorporar recursos animados breves a los pasos de onboarding
 - [x] Mejorar la ventana de onboarding con controles de minimizar, ampliar y cerrar
 - [x] Validar búsqueda, recursos interactivos y controles responsive del onboarding
+- [x] Persistir valoraciones de utilidad por usuario para cada solución de ayuda
+- [x] Permitir guardar y consultar soluciones favoritas desde el centro de ayuda
+- [x] Mostrar controles accesibles de voto y favoritos en cada artículo de ayuda
+- [x] Validar aislamiento, votos, favoritos y accesibilidad de la ayuda

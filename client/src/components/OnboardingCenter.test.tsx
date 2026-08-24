@@ -4,18 +4,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), navigate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn() }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    useUtils: () => ({ onboarding: { getProgress: { invalidate: vi.fn() }, listSupportTickets: { invalidate: vi.fn() } }, notifications: { getPendingCount: { invalidate: vi.fn() } } }),
+    useUtils: () => ({ onboarding: { getProgress: { invalidate: vi.fn() }, listSupportTickets: { invalidate: vi.fn() }, getHelpInteractions: { invalidate: vi.fn() } }, notifications: { getPendingCount: { invalidate: vi.fn() } } }),
     onboarding: {
       getProgress: { useQuery: () => ({ data: null, isLoading: false }) },
       listSupportTickets: { useQuery: () => ({ data: [] }) },
+      getHelpInteractions: { useQuery: () => ({ data: { votes: {}, favorites: [] } }) },
       markOpened: { useMutation: () => ({ mutate: mocks.markOpened }) },
       complete: { useMutation: () => ({ mutate: mocks.complete, isPending: false }) },
       reset: { useMutation: () => ({ mutate: mocks.reset, isPending: false }) },
       reportIssue: { useMutation: () => ({ mutate: mocks.reportIssue, isPending: false }) },
+      setHelpVote: { useMutation: () => ({ mutate: mocks.setHelpVote, isPending: false }) },
+      toggleHelpFavorite: { useMutation: () => ({ mutate: mocks.toggleHelpFavorite, isPending: false }) },
     },
   },
 }));
@@ -73,5 +76,17 @@ describe("OnboardingCenter", () => {
     expect(screen.getByRole("button", { name: "Reducir guía" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Cerrar guía" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("permite votar y guardar una solución de ayuda como favorita", async () => {
+    const user = userEvent.setup();
+    render(<OnboardingCenter role="owner" />);
+    await screen.findByRole("dialog");
+    await user.click(screen.getByRole("tab", { name: "Ayuda y errores" }));
+    const useful = await screen.findByRole("button", { name: "Esta solución fue útil: Veo Acceso denegado" });
+    await user.click(useful);
+    expect(mocks.setHelpVote).toHaveBeenCalledWith({ articleKey: "access-denied", vote: "up" });
+    await user.click(screen.getByRole("button", { name: "Guardar Veo Acceso denegado en favoritos" }));
+    expect(mocks.toggleHelpFavorite).toHaveBeenCalledWith({ articleKey: "access-denied" });
   });
 });

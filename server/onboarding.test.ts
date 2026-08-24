@@ -7,6 +7,9 @@ const dbMocks = vi.hoisted(() => ({
   resetUserOnboarding: vi.fn(),
   createSupportTicket: vi.fn(),
   getSupportTicketsForUser: vi.fn(),
+  getHelpArticleInteractions: vi.fn(),
+  setHelpArticleVote: vi.fn(),
+  toggleHelpArticleFavorite: vi.fn(),
 }));
 
 vi.mock("./db", () => dbMocks);
@@ -33,5 +36,17 @@ describe("onboarding router", () => {
 
   it("impide usar onboarding operativo a una cuenta sin rol autorizado", async () => {
     await expect(onboardingRouter.createCaller(context("user")).getProgress()).rejects.toThrow("solo está disponible para roles operativos");
+  });
+
+  it("guarda un voto de utilidad asociado únicamente al usuario autenticado", async () => {
+    dbMocks.setHelpArticleVote.mockResolvedValueOnce("up");
+    await expect(onboardingRouter.createCaller(context("manager")).setHelpVote({ articleKey: "cannot-save-change", vote: "up" })).resolves.toEqual({ vote: "up" });
+    expect(dbMocks.setHelpArticleVote).toHaveBeenCalledWith(25, "cannot-save-change", "up");
+  });
+
+  it("guarda favoritos y rechaza claves de artículos que no pertenecen a la ayuda", async () => {
+    dbMocks.toggleHelpArticleFavorite.mockResolvedValueOnce(true);
+    await expect(onboardingRouter.createCaller(context("staff")).toggleHelpFavorite({ articleKey: "invalid-qr" })).resolves.toEqual({ isFavorite: true });
+    await expect(onboardingRouter.createCaller(context("staff")).setHelpVote({ articleKey: "otro-articulo", vote: "down" })).rejects.toThrow("La solución de ayuda no existe");
   });
 });

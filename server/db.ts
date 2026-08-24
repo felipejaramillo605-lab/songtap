@@ -29,6 +29,8 @@ import {
   testModeIncidents,
   supportTickets,
   userOnboardingProgress,
+  helpArticleFeedback,
+  helpArticleFavorites,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
@@ -1759,4 +1761,42 @@ export async function getSupportTicketsForUser(userId: number, role: OnboardingR
   if (!db) return [];
   if (role === "owner") return db.select().from(supportTickets).orderBy(desc(supportTickets.createdAt)).limit(25);
   return db.select().from(supportTickets).where(eq(supportTickets.reporterId, userId)).orderBy(desc(supportTickets.createdAt)).limit(12);
+}
+
+// ─── HELP ARTICLE INTERACTIONS ───────────────────────────────────────────────
+
+export async function getHelpArticleInteractions(userId: number) {
+  const db = await getDb();
+  if (!db) return { votes: {} as Record<string, "up" | "down">, favorites: [] as string[] };
+  const [feedback, favorites] = await Promise.all([
+    db.select({ articleKey: helpArticleFeedback.articleKey, vote: helpArticleFeedback.vote }).from(helpArticleFeedback).where(eq(helpArticleFeedback.userId, userId)),
+    db.select({ articleKey: helpArticleFavorites.articleKey }).from(helpArticleFavorites).where(eq(helpArticleFavorites.userId, userId)),
+  ]);
+  return {
+    votes: Object.fromEntries(feedback.map(entry => [entry.articleKey, entry.vote])) as Record<string, "up" | "down">,
+    favorites: favorites.map(entry => entry.articleKey),
+  };
+}
+
+export async function setHelpArticleVote(userId: number, articleKey: string, vote: "up" | "down" | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  if (!vote) {
+    await db.delete(helpArticleFeedback).where(and(eq(helpArticleFeedback.userId, userId), eq(helpArticleFeedback.articleKey, articleKey)));
+    return null;
+  }
+  await db.insert(helpArticleFeedback).values({ userId, articleKey, vote }).onDuplicateKeyUpdate({ set: { vote } });
+  return vote;
+}
+
+export async function toggleHelpArticleFavorite(userId: number, articleKey: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  const [existing] = await db.select({ id: helpArticleFavorites.id }).from(helpArticleFavorites).where(and(eq(helpArticleFavorites.userId, userId), eq(helpArticleFavorites.articleKey, articleKey))).limit(1);
+  if (existing) {
+    await db.delete(helpArticleFavorites).where(eq(helpArticleFavorites.id, existing.id));
+    return false;
+  }
+  await db.insert(helpArticleFavorites).values({ userId, articleKey });
+  return true;
 }
