@@ -456,3 +456,7 @@
 - [x] Reproducir y corregir la reapertura del onboarding tras completar la guía
 - [x] Verificar persistencia de finalización y preferencia al cambiar entre módulos
 - [x] Añadir una prueba de regresión de navegación posterior a completar el onboarding
+- [x] Registrar y mostrar métricas de onboarding completado y omitido por rol
+- [x] Exponer analíticas de onboarding exclusivas para el Owner
+- [x] Implementar un modal de Novedades independiente del onboarding
+- [x] Validar métricas, novedades y accesibilidad responsive

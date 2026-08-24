@@ -32,6 +32,7 @@ import { trpc } from "@/lib/trpc";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import OnboardingCenter from "@/components/OnboardingCenter";
+import PlatformUpdates from "@/components/PlatformUpdates";
 
 interface NavItem {
   label: string;
@@ -242,6 +243,7 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
           )}
 
           <div className="space-y-1.5">
+            <PlatformUpdates compact={collapsed} />
             <OnboardingCenter role={role} compact />
             <div className="flex items-center justify-between gap-1">
             <Button
@@ -322,7 +324,7 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
                 </div>
               </div>
             )}
-            <OnboardingCenter role={role} compact />
+            <div className="space-y-1.5"><PlatformUpdates /><OnboardingCenter role={role} compact /></div>
             <Button
               variant="ghost"
               className="w-full justify-start gap-2 text-muted-foreground hover:bg-destructive/10 hover:text-foreground"

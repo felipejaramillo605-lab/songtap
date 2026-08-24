@@ -4,10 +4,11 @@ import SongTapLayout from "@/components/SongTapLayout";
 import FavoriteModules from "@/components/FavoriteModules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { buildPqrsFilename, createPqrsCsv, createPqrsWorkbook, toPqrsExportRows } from "@/lib/pqrsExport";
 import { getPreviousPqrsPeriod } from "@/lib/pqrsPeriod";
 import { getSlaRisk } from "@/lib/pqrsSlaRisk";
-import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet, ShieldCheck, TriangleAlert, FilePlus2 } from "lucide-react";
+import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet, ShieldCheck, TriangleAlert, FilePlus2, BookOpenCheck } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { getLoginUrl } from "@/const";
@@ -30,6 +31,7 @@ export default function OwnerDashboard() {
 
   const { data: venues } = trpc.venues.list.useQuery(undefined, { enabled: !!user });
   const { data: users } = trpc.users.list.useQuery(undefined, { enabled: !!user });
+  const { data: onboardingAnalytics, isLoading: isLoadingOnboardingAnalytics } = trpc.onboarding.getAnalytics.useQuery(undefined, { enabled: isAuthenticated && user?.role === "owner" });
   const [periodDays, setPeriodDays] = useState<7 | 30>(7);
   const [selectedPqrsVenueIds, setSelectedPqrsVenueIds] = useState<number[] | null>(null);
   const [pqrsType, setPqrsType] = useState<"all" | "petition" | "complaint" | "claim" | "suggestion" | "congratulation">("all");
@@ -216,6 +218,20 @@ export default function OwnerDashboard() {
             </Card>
           ))}
         </div>
+
+        <section aria-labelledby="onboarding-analytics-title" className="rounded-xl border border-primary/25 bg-primary/5 p-4 sm:p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div><h3 id="onboarding-analytics-title" className="flex items-center gap-2 text-lg font-bold"><BookOpenCheck className="h-5 w-5 text-primary" />Adopción del onboarding</h3><p className="mt-1 text-sm text-muted-foreground">Seguimiento básico de la guía por rol. Omitido representa cuentas que desactivaron su apertura automática sin completarla.</p></div>
+            <Badge variant="outline" className="w-fit border-primary/40 text-primary">Solo Owner</Badge>
+          </div>
+          {isLoadingOnboardingAnalytics ? <div className="py-6 text-sm text-muted-foreground">Cargando métricas de onboarding…</div> : <><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
+            { label: "Completaron", value: onboardingAnalytics?.overall.completed ?? 0, color: "text-primary" },
+            { label: "Omitieron", value: onboardingAnalytics?.overall.skipped ?? 0, color: "text-amber-300" },
+            { label: "Pendientes", value: onboardingAnalytics?.overall.pending ?? 0, color: "text-muted-foreground" },
+            { label: "Finalización", value: `${onboardingAnalytics?.overall.completionRate ?? 0}%`, color: "text-foreground" },
+          ].map(metric => <div key={metric.label} className="rounded-lg border border-border bg-card p-3"><p className="text-xs uppercase tracking-wide text-muted-foreground">{metric.label}</p><p className={`mt-1 text-2xl font-bold ${metric.color}`}>{metric.value}</p></div>)}</div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">{(["owner", "manager", "staff"] as const).map(role => { const metric = onboardingAnalytics?.byRole[role] ?? { total: 0, completed: 0, skipped: 0, completionRate: 0 }; const label = role === "owner" ? "Owner" : role === "manager" ? "Managers" : "Staff"; return <div key={role} className="rounded-lg border border-border bg-background p-3"><div className="flex items-center justify-between gap-2"><span className="font-medium text-foreground">{label}</span><span className="text-xs text-muted-foreground">{metric.completed}/{metric.total} completaron</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-primary" style={{ width: `${metric.completionRate}%` }} /></div><p className="mt-2 text-xs text-muted-foreground">{metric.completionRate}% finalización · {metric.skipped} omitieron</p></div> })}</div></>}
+        </section>
 
         <section className="space-y-4" aria-labelledby="owner-analytics-title">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

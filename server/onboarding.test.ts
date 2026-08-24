@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const dbMocks = vi.hoisted(() => ({
   getUserOnboardingProgress: vi.fn(),
+  getOnboardingAnalytics: vi.fn(),
   markUserOnboardingOpened: vi.fn(),
   markUserOnboardingAutoShown: vi.fn(),
   setUserOnboardingAutoSuppressed: vi.fn(),
@@ -62,5 +63,19 @@ describe("onboarding router", () => {
     dbMocks.toggleHelpArticleFavorite.mockResolvedValueOnce(true);
     await expect(onboardingRouter.createCaller(context("staff")).toggleHelpFavorite({ articleKey: "invalid-qr" })).resolves.toEqual({ isFavorite: true });
     await expect(onboardingRouter.createCaller(context("staff")).setHelpVote({ articleKey: "otro-articulo", vote: "down" })).rejects.toThrow("La solución de ayuda no existe");
+  });
+
+  it("devuelve las métricas agregadas solo al Owner", async () => {
+    const analytics = { overall: { total: 4, started: 3, completed: 2, skipped: 1, pending: 1, completionRate: 50 }, byRole: { owner: { total: 1, started: 1, completed: 1, skipped: 0, pending: 0, completionRate: 100 }, manager: { total: 2, started: 2, completed: 1, skipped: 1, pending: 0, completionRate: 50 }, staff: { total: 1, started: 0, completed: 0, skipped: 0, pending: 1, completionRate: 0 } } };
+    dbMocks.getOnboardingAnalytics.mockResolvedValueOnce(analytics);
+    await expect(onboardingRouter.createCaller(context("owner", null)).getAnalytics()).resolves.toEqual(analytics);
+    expect(dbMocks.getOnboardingAnalytics).toHaveBeenCalledTimes(1);
+  });
+
+  it("impide a Manager y Staff consultar las métricas globales de onboarding", async () => {
+    dbMocks.getOnboardingAnalytics.mockClear();
+    await expect(onboardingRouter.createCaller(context("manager")).getAnalytics()).rejects.toThrow("Solo el Owner puede consultar las analíticas");
+    await expect(onboardingRouter.createCaller(context("staff")).getAnalytics()).rejects.toThrow("Solo el Owner puede consultar las analíticas");
+    expect(dbMocks.getOnboardingAnalytics).not.toHaveBeenCalled();
   });
 });

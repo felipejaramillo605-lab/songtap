@@ -1698,6 +1698,43 @@ export async function getUserOnboardingProgress(userId: number, role: Onboarding
   return progress ?? null;
 }
 
+export async function getOnboardingAnalytics() {
+  const db = await getDb();
+  const empty = { total: 0, started: 0, completed: 0, skipped: 0, pending: 0, completionRate: 0 };
+  if (!db) return { overall: empty, byRole: { owner: empty, manager: empty, staff: empty } };
+  const eligibleRoles: OnboardingRole[] = ["owner", "manager", "staff"];
+  const [eligibleUsers, progressRows] = await Promise.all([
+    db.select({ id: users.id, role: users.role }).from(users).where(inArray(users.role, eligibleRoles)),
+    db.select().from(userOnboardingProgress),
+  ]);
+  const progressByUserRole = new Map(progressRows.map(row => [`${row.userId}:${row.role}`, row]));
+  const createMetric = () => ({ total: 0, started: 0, completed: 0, skipped: 0, pending: 0, completionRate: 0 });
+  const byRole = { owner: createMetric(), manager: createMetric(), staff: createMetric() };
+  for (const user of eligibleUsers) {
+    const role = user.role as OnboardingRole;
+    if (!eligibleRoles.includes(role)) continue;
+    const metric = byRole[role];
+    metric.total += 1;
+    const progress = progressByUserRole.get(`${user.id}:${role}`);
+    if (!progress) { metric.pending += 1; continue; }
+    metric.started += 1;
+    if (progress.completedAt) metric.completed += 1;
+    else if (progress.suppressAutoOnboarding) metric.skipped += 1;
+    else metric.pending += 1;
+  }
+  for (const metric of Object.values(byRole)) metric.completionRate = metric.total ? Math.round((metric.completed / metric.total) * 100) : 0;
+  const overall = Object.values(byRole).reduce((total, metric) => ({
+    total: total.total + metric.total,
+    started: total.started + metric.started,
+    completed: total.completed + metric.completed,
+    skipped: total.skipped + metric.skipped,
+    pending: total.pending + metric.pending,
+    completionRate: 0,
+  }), createMetric());
+  overall.completionRate = overall.total ? Math.round((overall.completed / overall.total) * 100) : 0;
+  return { overall, byRole };
+}
+
 export async function markUserOnboardingOpened(userId: number, role: OnboardingRole) {
   const db = await getDb();
   if (!db) throw new Error("Base de datos no disponible");

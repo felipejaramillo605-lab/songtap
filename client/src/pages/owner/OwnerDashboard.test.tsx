@@ -13,6 +13,7 @@ vi.mock("@/lib/trpc", () => ({
     useUtils: () => ({ pqrs: { slaTargets: { invalidate: mocks.invalidateSlaTargets }, ownerAnalytics: { invalidate: mocks.invalidateOwnerAnalytics } }, users: { favoriteModules: { invalidate: vi.fn() } }, ownerReports: { list: { invalidate: vi.fn() } }, notifications: { getHistory: { invalidate: vi.fn() }, getUnreadCount: { invalidate: vi.fn() } } }),
     venues: { list: { useQuery: () => ({ data: [{ id: 7, name: "Bar Central", address: "Calle 1", isActive: true, musicMode: "manual" }] }) } },
     users: { list: { useQuery: () => ({ data: [{ id: 1, role: "owner" }, { id: 2, role: "manager" }, { id: 3, role: "staff" }] }) }, favoriteModules: { useQuery: () => ({ data: [], isLoading: false }) }, setFavoriteModule: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) } },
+    onboarding: { getAnalytics: { useQuery: () => ({ data: { overall: { total: 3, started: 3, completed: 2, skipped: 1, pending: 0, completionRate: 67 }, byRole: { owner: { total: 1, started: 1, completed: 1, skipped: 0, pending: 0, completionRate: 100 }, manager: { total: 1, started: 1, completed: 1, skipped: 0, pending: 0, completionRate: 100 }, staff: { total: 1, started: 1, completed: 0, skipped: 1, pending: 0, completionRate: 0 } } }, isLoading: false }) } },
     finance: {
       ownerVenueAnalytics: { useQuery: (input: unknown) => {
         mocks.analyticsInputs.push(input);
@@ -46,6 +47,9 @@ describe("OwnerDashboard analytics", () => {
     render(<OwnerDashboard />);
 
     expect(screen.getByText("Analítica interlocal")).toBeTruthy();
+    expect(screen.getByText("Adopción del onboarding")).toBeTruthy();
+    expect(screen.getByText("67%")).toBeTruthy();
+    expect(screen.getByText("0% finalización · 1 omitieron")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /generar reporte ahora/i }));
     expect(mocks.generateManualReport).toHaveBeenCalledWith({ requestId: expect.any(String) });
     expect(screen.getAllByText("Bar Central").length).toBeGreaterThan(0);

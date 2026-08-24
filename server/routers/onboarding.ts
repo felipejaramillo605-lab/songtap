@@ -6,6 +6,7 @@ import {
   createSupportTicket,
   getSupportTicketsForUser,
   getUserOnboardingProgress,
+  getOnboardingAnalytics,
   markUserOnboardingOpened,
   markUserOnboardingAutoShown,
   setUserOnboardingAutoSuppressed,
@@ -26,6 +27,11 @@ export const onboardingRouter = router({
   getProgress: protectedProcedure.query(({ ctx }) => {
     const role = requireSupportedRole(ctx.user.role);
     return getUserOnboardingProgress(ctx.user.id, role);
+  }),
+
+  getAnalytics: protectedProcedure.query(({ ctx }) => {
+    if (ctx.user.role !== "owner") throw new TRPCError({ code: "FORBIDDEN", message: "Solo el Owner puede consultar las analíticas de onboarding." });
+    return getOnboardingAnalytics();
   }),
 
   markOpened: protectedProcedure.mutation(({ ctx }) => {

@@ -64,6 +64,12 @@ describe("SongTapLayout", () => {
     expect(mocks.logout).toHaveBeenCalledTimes(1);
   });
 
+  it("ofrece Novedades como acceso separado de la guía de ayuda", () => {
+    render(<SongTapLayout role="manager"><div>Contenido protegido</div></SongTapLayout>);
+    expect(screen.getAllByRole("button", { name: "Novedades" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Guía y ayuda" }).length).toBeGreaterThan(0);
+  });
+
   it("muestra Regresar en una pantalla interna y vuelve al panel si no hay historial", async () => {
     const user = userEvent.setup();
     mocks.location = "/manager/menu";
