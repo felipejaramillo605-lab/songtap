@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getProtectedRouteMetadata, type SongTapRole } from "../../shared/accessRegistry";
-import { createAccessRequest, getInternalAccessComments, getPendingAccessRequests, getUserAccessDecisionHistory, recordDeniedAccess, resolveAccessRequest, createAuditLog } from "../db";
+import { createAccessRequest, getInternalAccessComments, getOwnerAccessRequestOverview, getPendingAccessRequests, getUserAccessDecisionHistory, recordDeniedAccess, resolveAccessRequest, createAuditLog } from "../db";
 import { adminProcedure, temporaryPasswordProcedure, router } from "../_core/trpc";
 
 const protectedPathInput = z.string().min(1).max(128);
@@ -62,6 +62,8 @@ export const accessRouter = router({
     }),
 
   getPending: adminProcedure.query(async () => getPendingAccessRequests()),
+
+  getOwnerOverview: adminProcedure.query(async () => getOwnerAccessRequestOverview()),
 
   getInternalComments: adminProcedure
     .input(z.object({ startDate: z.coerce.date().optional(), endDate: z.coerce.date().optional() }).optional())

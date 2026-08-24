@@ -4,6 +4,7 @@ const dbMocks = vi.hoisted(() => ({
   recordDeniedAccess: vi.fn(),
   createAccessRequest: vi.fn(),
   getPendingAccessRequests: vi.fn(),
+  getOwnerAccessRequestOverview: vi.fn(),
   resolveAccessRequest: vi.fn(),
   createAuditLog: vi.fn(),
 }));
@@ -12,13 +13,14 @@ vi.mock("./db", () => ({
   recordDeniedAccess: dbMocks.recordDeniedAccess,
   createAccessRequest: dbMocks.createAccessRequest,
   getPendingAccessRequests: dbMocks.getPendingAccessRequests,
+  getOwnerAccessRequestOverview: dbMocks.getOwnerAccessRequestOverview,
   resolveAccessRequest: dbMocks.resolveAccessRequest,
   createAuditLog: dbMocks.createAuditLog,
 }));
 
 import { accessRouter } from "./routers/access";
 
-function ctx(role: "owner" | "manager" | "staff" | "user", options: { mustChangePassword?: boolean } = {}) {
+function ctx(role: "owner" | "manager" | "staff" | "user", options: { mustChangePassword?: boolean; preview?: boolean } = {}) {
   return {
     user: {
       id: 71234,
@@ -33,7 +35,7 @@ function ctx(role: "owner" | "manager" | "staff" | "user", options: { mustChange
       updatedAt: new Date(),
       lastSignedIn: new Date(),
     },
-    req: { headers: {} },
+    req: { headers: options.preview ? { "x-songtap-preview": "1" } : {} },
     res: {},
   } as any;
 }
@@ -92,5 +94,11 @@ describe("access router", () => {
   it("exige motivo para rechazar y bloquea a quien no sea Owner", async () => {
     await expect(accessRouter.createCaller(ctx("owner")).resolve({ requestId: 44, decision: "rejected" })).rejects.toThrow("Indica el motivo");
     await expect(accessRouter.createCaller(ctx("manager")).resolve({ requestId: 44, decision: "approved" })).rejects.toThrow("required permission");
+  });
+
+  it("bloquea mutaciones del Owner cuando usa el modo de pruebas", async () => {
+    dbMocks.resolveAccessRequest.mockClear();
+    await expect(accessRouter.createCaller(ctx("owner", { preview: true })).resolve({ requestId: 44, decision: "approved" })).rejects.toThrow("modo de pruebas es de solo lectura");
+    expect(dbMocks.resolveAccessRequest).not.toHaveBeenCalled();
   });
 });

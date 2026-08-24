@@ -830,6 +830,35 @@ export async function getPendingAccessRequests() {
     .orderBy(desc(accessRequests.createdAt));
 }
 
+export async function getOwnerAccessRequestOverview() {
+  const db = await getDb();
+  if (!db) return { summary: { approved: 0, rejected: 0, pending: 0 }, requests: [] };
+  const requests = await db
+    .select({
+      id: accessRequests.id,
+      status: accessRequests.status,
+      moduleName: accessRequests.moduleName,
+      targetPath: accessRequests.targetPath,
+      decisionReason: accessRequests.decisionReason,
+      createdAt: accessRequests.createdAt,
+      reviewedAt: accessRequests.reviewedAt,
+      requesterName: users.name,
+      requesterEmail: users.email,
+      venueName: venues.name,
+    })
+    .from(accessRequests)
+    .leftJoin(users, eq(accessRequests.userId, users.id))
+    .leftJoin(venues, eq(accessRequests.venueId, venues.id))
+    .orderBy(desc(accessRequests.createdAt));
+  const summary = requests.reduce((totals, request) => {
+    if (request.status === "approved") totals.approved += 1;
+    else if (request.status === "rejected") totals.rejected += 1;
+    else if (request.status === "pending") totals.pending += 1;
+    return totals;
+  }, { approved: 0, rejected: 0, pending: 0 });
+  return { summary, requests };
+}
+
 export async function getInternalAccessComments(filters: { startDate?: Date; endDate?: Date }) {
   const db = await getDb();
   if (!db) return [];

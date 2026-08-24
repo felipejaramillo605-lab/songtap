@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
+import { getPreviewMode } from "./lib/previewMode";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,13 @@ const trpcClient = trpc.createClient({
         // (Safari ITP / private browsing / WebView), the runtime mirrors the
         // session into sessionStorage so we can forward it as a Bearer token.
         // The regular OAuth cookie flow keeps working and takes priority server-side.
+        const headers: Record<string, string> = {};
+        const previewMode = getPreviewMode();
+        if (previewMode) {
+          headers["x-songtap-preview"] = "1";
+          headers["x-songtap-preview-role"] = previewMode.role;
+          headers["x-songtap-preview-venue"] = String(previewMode.venueId);
+        }
         try {
           const raw = sessionStorage.getItem("manus-cookie");
           if (raw) {
@@ -54,13 +62,13 @@ const trpcClient = trpc.createClient({
             const pair = raw.split(";").find(s => s.trim().startsWith(prefix));
             const token = pair?.trim().slice(prefix.length);
             if (token) {
-              return { Authorization: `Bearer ${token}` };
+              return { ...headers, Authorization: `Bearer ${token}` };
             }
           }
         } catch {
           // sessionStorage unavailable
         }
-        return {};
+        return headers;
       },
       fetch(input, init) {
         return globalThis.fetch(input, {

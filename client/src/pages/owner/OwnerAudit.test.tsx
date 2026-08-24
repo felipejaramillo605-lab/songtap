@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   resolve: vi.fn(),
   pendingRequests: [] as Array<Record<string, unknown>>,
   internalComments: [] as Array<Record<string, unknown>>,
+  accessOverview: { summary: { approved: 2, rejected: 1, pending: 3 }, requests: [] as Array<Record<string, unknown>> },
+  pdfSave: vi.fn(),
 }));
 
 const logs = [
@@ -42,6 +44,7 @@ vi.mock("@/lib/trpc", () => ({
     finance: { auditLogs: { useQuery: () => ({ data: logs, isLoading: false, refetch: mocks.refetchLogs }) } },
     access: {
       getPending: { useQuery: () => ({ data: mocks.pendingRequests, isLoading: false, refetch: mocks.refetchPending }) },
+      getOwnerOverview: { useQuery: () => ({ data: mocks.accessOverview, refetch: vi.fn() }) },
       getInternalComments: { useQuery: () => ({ data: mocks.internalComments, isLoading: false }) },
       resolve: { useMutation: () => ({ mutate: mocks.resolve, isPending: false }) },
     },
@@ -78,6 +81,22 @@ vi.mock("@/components/ui/textarea", () => ({ Textarea: (props: React.TextareaHTM
 vi.mock("@/const", () => ({ getLoginUrl: () => "/login" }));
 vi.mock("wouter", () => ({ useLocation: () => ["/owner/audit", vi.fn()] }));
 vi.mock("xlsx", () => ({ writeFileXLSX: mocks.writeFileXLSX }));
+vi.mock("recharts", () => ({
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  BarChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Bar: () => <div />,
+  Tooltip: () => <div />,
+  XAxis: () => <div />,
+  YAxis: () => <div />,
+}));
+vi.mock("jspdf", () => ({
+  jsPDF: class {
+    setFontSize = vi.fn();
+    text = vi.fn();
+    addPage = vi.fn();
+    save = mocks.pdfSave;
+  },
+}));
 vi.mock("@/lib/auditExport", () => ({
   toAuditExportRows: (items: typeof logs) => items.map((item) => ({ "ID evento": item.id, Compañía: item.companyName })),
   createAuditCsv: mocks.createAuditCsv,
@@ -98,6 +117,8 @@ describe("OwnerAudit exports", () => {
     mocks.resolve.mockReset();
     mocks.pendingRequests = [];
     mocks.internalComments = [];
+    mocks.accessOverview = { summary: { approved: 2, rejected: 1, pending: 3 }, requests: [] };
+    mocks.pdfSave.mockReset();
     vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:auditoria"), revokeObjectURL: vi.fn() });
   });
 
@@ -106,13 +127,29 @@ describe("OwnerAudit exports", () => {
     const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     render(<OwnerAudit />);
 
-    await user.click(screen.getByRole("button", { name: /csv/i }));
+    await user.click(screen.getByRole("button", { name: "CSV auditoría" }));
     expect(mocks.createAuditCsv).toHaveBeenCalledTimes(1);
     expect(anchorClick).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: /excel/i }));
     expect(mocks.createAuditWorkbook).toHaveBeenCalledTimes(1);
     expect(mocks.writeFileXLSX).toHaveBeenCalledWith("workbook", "songtap-auditoria.xlsx");
+    anchorClick.mockRestore();
+  });
+
+  it("exporta decisiones de acceso en CSV y combina el reporte Owner en PDF", async () => {
+    mocks.accessOverview = {
+      summary: { approved: 1, rejected: 0, pending: 0 },
+      requests: [{ id: 81, status: "approved", requesterName: "Andrea", requesterEmail: "andrea@songtap.test", venueName: "Bar La Noche", moduleName: "Gestión de menú", targetPath: "/manager/menu", decisionReason: null, createdAt: new Date(), reviewedAt: new Date() }],
+    };
+    const user = userEvent.setup();
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    render(<OwnerAudit />);
+
+    await user.click(screen.getByRole("button", { name: "CSV decisiones" }));
+    expect(anchorClick).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "PDF reporte" }));
+    expect(mocks.pdfSave).toHaveBeenCalledTimes(1);
     anchorClick.mockRestore();
   });
 

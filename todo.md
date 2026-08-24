@@ -413,3 +413,8 @@
 - [x] Cubrir con pruebas filtros de fecha, aislamiento del historial y archivado de notificaciones
 - [x] Diagnosticar y corregir el parpadeo causado por solicitudes o actualizaciones repetitivas
 - [x] Evitar el incremento continuo de eventos del navegador y añadir una prueba de estabilidad
+- [x] Mostrar skeletons durante la carga de rutas protegidas
+- [x] Añadir estadísticas gráficas de solicitudes aprobadas, rechazadas y pendientes para Owner
+- [x] Permitir exportar decisiones y auditoría en CSV y PDF desde Owner
+- [x] Crear un modo de pruebas Owner para previsualizar Manager y Staff sin cambiar permisos reales
+- [x] Cubrir con pruebas la seguridad de previsualización, la carga y las exportaciones

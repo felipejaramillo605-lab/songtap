@@ -1,12 +1,13 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
-import { type ReactNode } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { Toaster } from "sonner";
 import { useAuth } from "./_core/hooks/useAuth";
 import SongTapLayout from "./components/SongTapLayout";
+import { DashboardLayoutSkeleton } from "./components/DashboardLayoutSkeleton";
 
 // Public pages
 import Home from "./pages/Home";
@@ -18,6 +19,7 @@ import PrivacyPolicy from "./pages/client/PrivacyPolicy";
 import Login from "./pages/Login";
 import ForcePasswordChange from "./pages/ForcePasswordChange";
 import AccessDenied from "./pages/AccessDenied";
+import PreviewModeBanner from "./components/PreviewModeBanner";
 
 // Profile Page
 import Profile from "./pages/Profile";
@@ -29,6 +31,7 @@ import OwnerUsers from "./pages/owner/OwnerUsers";
 import OwnerAudit from "./pages/owner/OwnerAudit";
 import OwnerVenueRequests from "./pages/owner/OwnerVenueRequests";
 import OwnerNotificationsSettings from "./pages/owner/OwnerNotificationsSettings";
+import OwnerPreviewMode from "./pages/owner/OwnerPreviewMode";
 
 // Manager pages
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
@@ -59,9 +62,10 @@ function ProfilePageWrapper() {
 type InternalRole = "owner" | "manager" | "staff" | "user";
 
 export function RoleGate({ allowedRoles, children }: { allowedRoles: InternalRole[]; children: ReactNode }) {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, actualUser, isAuthenticated, isPreviewMode, loading } = useAuth();
   const [currentPath] = useLocation();
-  const isAllowed = Boolean(user && allowedRoles.includes(user.role as InternalRole));
+  const isRolePreviewAllowed = Boolean(isPreviewMode && actualUser?.role === "owner" && user && ["manager", "staff"].includes(user.role) && allowedRoles.includes(user.role as InternalRole));
+  const isAllowed = Boolean(user && allowedRoles.includes(user.role as InternalRole)) || isRolePreviewAllowed;
 
   if (loading) return <main className="min-h-screen bg-background" aria-busy="true" aria-label="Verificando acceso" />;
   if (!isAuthenticated || !user || !isAllowed) return <AccessDenied requestedPath={currentPath} />;
@@ -83,6 +87,7 @@ const OwnerVenueRequestsRoute = ownerOnly(OwnerVenueRequests);
 const OwnerUsersRoute = ownerOnly(OwnerUsers);
 const OwnerAuditRoute = ownerOnly(OwnerAudit);
 const OwnerNotificationsRoute = ownerOnly(OwnerNotificationsSettings);
+const OwnerPreviewModeRoute = ownerOnly(OwnerPreviewMode);
 const ManagerDashboardRoute = managerOnly(ManagerDashboard);
 const ManagerMenuRoute = managerOnly(ManagerMenu);
 const ManagerTablesRoute = managerOnly(ManagerTables);
@@ -99,7 +104,8 @@ const StaffPqrsRoute = staffOnly(ManagerPqrs);
 
 function Router() {
   const { user, isAuthenticated, loading } = useAuth();
-  if (!loading && isAuthenticated && user?.mustChangePassword) return <ForcePasswordChange />;
+  if (loading) return <DashboardLayoutSkeleton />;
+  if (isAuthenticated && user?.mustChangePassword) return <ForcePasswordChange />;
 
   return (
     <Switch>
@@ -124,6 +130,7 @@ function Router() {
       <Route path="/owner/users" component={OwnerUsersRoute} />
       <Route path="/owner/audit" component={OwnerAuditRoute} />
       <Route path="/owner/notifications" component={OwnerNotificationsRoute} />
+      <Route path="/owner/test-mode" component={OwnerPreviewModeRoute} />
 
       {/* Manager */}
       <Route path="/manager" component={ManagerDashboardRoute} />
@@ -150,6 +157,25 @@ function Router() {
   );
 }
 
+function ProtectedRouteTransition({ children }: { children: ReactNode }) {
+  const [path] = useLocation();
+  const previousPath = useRef(path);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const isProtectedPath = (value: string) => value === "/profile" || value.startsWith("/owner") || value.startsWith("/manager") || value.startsWith("/staff");
+
+  useLayoutEffect(() => {
+    if (previousPath.current === path) return;
+    const shouldShowSkeleton = isProtectedPath(previousPath.current) || isProtectedPath(path);
+    previousPath.current = path;
+    if (!shouldShowSkeleton) return;
+    setIsTransitioning(true);
+    const timeout = window.setTimeout(() => setIsTransitioning(false), 160);
+    return () => window.clearTimeout(timeout);
+  }, [path]);
+
+  return isTransitioning ? <DashboardLayoutSkeleton /> : <>{children}</>;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -165,7 +191,8 @@ function App() {
               },
             }}
           />
-          <Router />
+          <PreviewModeBanner />
+          <ProtectedRouteTransition><Router /></ProtectedRouteTransition>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

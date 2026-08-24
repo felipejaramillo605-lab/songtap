@@ -15,6 +15,8 @@ import { buildAuditFilename, createAuditCsv, createAuditWorkbook, toAuditExportR
 import { Activity, Building2, CalendarDays, CheckCircle2, Clock3, Download, FileSpreadsheet, Filter, RotateCcw, Search, Shield, UserRound, XCircle } from "lucide-react";
 import { writeFileXLSX } from "xlsx";
 import { toast } from "sonner";
+import { jsPDF } from "jspdf";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const actionColors: Record<string, string> = {
   CREATE_VENUE: "text-green-400",
@@ -59,6 +61,7 @@ export default function OwnerAudit() {
 
   const { data: logs = [], isLoading, refetch: refetchLogs } = trpc.finance.auditLogs.useQuery({ limit: 1000 }, { enabled: !!user && user.role === "owner" });
   const { data: pendingAccessRequests = [], isLoading: isLoadingAccessRequests, refetch: refetchPendingAccessRequests } = trpc.access.getPending.useQuery(undefined, { enabled: user?.role === "owner" });
+  const { data: accessOverview, refetch: refetchAccessOverview } = trpc.access.getOwnerOverview.useQuery(undefined, { enabled: user?.role === "owner" });
   const [commentStartDate, setCommentStartDate] = useState("");
   const [commentEndDate, setCommentEndDate] = useState("");
   const commentDateFilter = useMemo(() => ({
@@ -84,6 +87,7 @@ export default function OwnerAudit() {
       setRejectionReason("");
       setInternalComment("");
       void refetchPendingAccessRequests();
+      void refetchAccessOverview();
       void refetchLogs();
     },
     onError: (error) => toast.error(error.message || "No fue posible resolver la solicitud."),
@@ -165,6 +169,66 @@ export default function OwnerAudit() {
     writeFileXLSX(createAuditWorkbook(rows, exportFilters), buildAuditFilename("xlsx"));
   };
 
+  const downloadDecisionsCsv = () => {
+    const requests = accessOverview?.requests ?? [];
+    const rows = [
+      ["Estado", "Solicitante", "Correo", "Local", "Módulo", "Ruta", "Motivo", "Fecha de solicitud", "Fecha de decisión"],
+      ...requests.map((request) => [
+        request.status === "approved" ? "Aprobada" : request.status === "rejected" ? "Rechazada" : "Pendiente",
+        request.requesterName || "Usuario", request.requesterEmail || "", request.venueName || "Sin local", request.moduleName, request.targetPath,
+        request.decisionReason || "", new Date(request.createdAt).toLocaleString("es-CO"), request.reviewedAt ? new Date(request.reviewedAt).toLocaleString("es-CO") : "",
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `songtap-decisiones-acceso-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPdfReport = () => {
+    const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const summary = accessOverview?.summary ?? { approved: 0, rejected: 0, pending: 0 };
+    pdf.setFontSize(18);
+    pdf.text("SongTap · Reporte de auditoría y decisiones de acceso", 40, 42);
+    pdf.setFontSize(10);
+    pdf.text(`Generado: ${new Date().toLocaleString("es-CO")}`, 40, 60);
+    pdf.text(`Solicitudes — Aprobadas: ${summary.approved} · Rechazadas: ${summary.rejected} · Pendientes: ${summary.pending}`, 40, 78);
+    let y = 108;
+    pdf.setFontSize(12);
+    pdf.text("Eventos de auditoría", 40, y);
+    y += 18;
+    pdf.setFontSize(8);
+    const auditRows = toAuditExportRows(filteredLogs).slice(0, 26);
+    auditRows.forEach((row) => {
+      const line = `${row.Compañía} | ${row.Fecha} ${row.Hora} | ${row.Módulo} | ${row["Usuario ejecutor"]} | ${row.Acción}`;
+      pdf.text(line.slice(0, 185), 40, y);
+      y += 12;
+      if (y > 520) { pdf.addPage(); y = 44; }
+    });
+    y += 8;
+    pdf.setFontSize(12);
+    pdf.text("Decisiones de acceso", 40, y);
+    y += 18;
+    pdf.setFontSize(8);
+    (accessOverview?.requests ?? []).slice(0, 26).forEach((request) => {
+      const status = request.status === "approved" ? "Aprobada" : request.status === "rejected" ? "Rechazada" : "Pendiente";
+      const line = `${status} | ${request.requesterName || request.requesterEmail || "Usuario"} | ${request.moduleName} | ${request.targetPath}`;
+      pdf.text(line.slice(0, 185), 40, y);
+      y += 12;
+      if (y > 540) { pdf.addPage(); y = 44; }
+    });
+    pdf.save(`songtap-reporte-owner-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
+  const accessChartData = [
+    { name: "Aprobadas", value: accessOverview?.summary.approved ?? 0, fill: "#22c55e" },
+    { name: "Rechazadas", value: accessOverview?.summary.rejected ?? 0, fill: "#ef4444" },
+    { name: "Pendientes", value: accessOverview?.summary.pending ?? 0, fill: "#eab308" },
+  ];
+
   if (loading || !isAuthenticated || user?.role !== "owner") return null;
 
   return (
@@ -176,6 +240,22 @@ export default function OwnerAudit() {
             Trazabilidad de movimientos por compañía, módulo y usuario ejecutor.
           </p>
         </div>
+
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base text-foreground"><Activity size={17} className="text-primary" /> Estado de solicitudes de acceso</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 lg:grid-cols-[1fr_1.5fr]">
+              <div className="grid grid-cols-3 gap-3">
+                {accessChartData.map((item) => <div key={item.name} className="rounded-xl border border-border bg-secondary/10 p-3"><p className="text-xs text-muted-foreground">{item.name}</p><p className="mt-1 text-2xl font-bold text-foreground">{item.value}</p></div>)}
+              </div>
+              <div className="h-40" aria-label="Gráfico de solicitudes aprobadas, rechazadas y pendientes">
+                <ResponsiveContainer width="100%" height="100%"><BarChart data={accessChartData} margin={{ top: 6, right: 10, left: -22, bottom: 0 }}><XAxis dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis allowDecimals={false} tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} /><Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8 }} /><Bar dataKey="value" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="border-border bg-card">
           <CardHeader className="border-b border-border p-4 sm:p-6">
@@ -190,8 +270,10 @@ export default function OwnerAudit() {
                   <Clock3 size={14} className="mr-1.5" /> {pendingAccessOnly ? "Ver todos" : `Accesos pendientes (${pendingAccessRequests.length})`}
                 </Button>
                 <Button type="button" size="sm" variant="outline" className="border-border" disabled={filteredLogs.length === 0} onClick={downloadCsv}>
-                  <Download size={14} className="mr-1.5" /> CSV
+                  <Download size={14} className="mr-1.5" /> CSV auditoría
                 </Button>
+                <Button type="button" size="sm" variant="outline" className="border-border" disabled={!accessOverview?.requests.length} onClick={downloadDecisionsCsv}><Download size={14} className="mr-1.5" /> CSV decisiones</Button>
+                <Button type="button" size="sm" variant="outline" className="border-border" disabled={filteredLogs.length === 0 && !accessOverview?.requests.length} onClick={downloadPdfReport}><FileSpreadsheet size={14} className="mr-1.5" /> PDF reporte</Button>
                 <Button type="button" size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" disabled={filteredLogs.length === 0} onClick={downloadExcel}>
                   <FileSpreadsheet size={14} className="mr-1.5" /> Excel
                 </Button>

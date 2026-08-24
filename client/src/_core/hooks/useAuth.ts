@@ -2,6 +2,7 @@ import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo } from "react";
+import { usePreviewMode } from "@/lib/previewMode";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
@@ -12,6 +13,7 @@ export function useAuth(options?: UseAuthOptions) {
   const { redirectOnUnauthenticated = false, redirectPath = getLoginUrl() } =
     options ?? {};
   const utils = trpc.useUtils();
+  const previewMode = usePreviewMode();
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
@@ -52,8 +54,14 @@ export function useAuth(options?: UseAuthOptions) {
       "manus-runtime-user-info",
       JSON.stringify(meQuery.data)
     );
+    const actualUser = meQuery.data ?? null;
+    const canPreview = actualUser?.role === "owner" && previewMode;
+    const previewUser = canPreview ? { ...actualUser, role: previewMode.role, venueId: previewMode.venueId } : actualUser;
     return {
-      user: meQuery.data ?? null,
+      user: previewUser,
+      actualUser,
+      isPreviewMode: Boolean(canPreview),
+      previewMode: canPreview ? previewMode : null,
       loading: meQuery.isLoading || logoutMutation.isPending,
       error: meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
@@ -64,6 +72,7 @@ export function useAuth(options?: UseAuthOptions) {
     meQuery.isLoading,
     logoutMutation.error,
     logoutMutation.isPending,
+    previewMode,
   ]);
 
   useEffect(() => {

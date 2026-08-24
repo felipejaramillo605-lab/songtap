@@ -12,9 +12,13 @@ export const publicProcedure = t.procedure;
 
 const requireAuthenticatedUser = t.middleware(async opts => {
   const { ctx, next } = opts;
+  const headers = ctx.req?.headers ?? {};
 
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  }
+  if (opts.type === "mutation" && ctx.user.role === "owner" && headers["x-songtap-preview"] === "1") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "El modo de pruebas es de solo lectura. Sal de la previsualización para realizar cambios reales." });
   }
 
   return next({
@@ -27,6 +31,7 @@ const requireAuthenticatedUser = t.middleware(async opts => {
 
 const requireUser = t.middleware(async opts => {
   const { ctx, next } = opts;
+  const headers = ctx.req?.headers ?? {};
 
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
@@ -34,11 +39,23 @@ const requireUser = t.middleware(async opts => {
   if (ctx.user.mustChangePassword) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Debes cambiar tu contraseña temporal antes de continuar" });
   }
+  if (opts.type === "mutation" && ctx.user.role === "owner" && headers["x-songtap-preview"] === "1") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "El modo de pruebas es de solo lectura. Sal de la previsualización para realizar cambios reales." });
+  }
+  const previewRole = headers["x-songtap-preview-role"];
+  const previewVenue = Number(headers["x-songtap-preview-venue"]);
+  const canScopePreview = opts.type === "query"
+    && ctx.user.role === "owner"
+    && headers["x-songtap-preview"] === "1"
+    && (previewRole === "manager" || previewRole === "staff")
+    && Number.isInteger(previewVenue)
+    && previewVenue > 0;
+  const effectiveUser = canScopePreview ? { ...ctx.user, role: previewRole, venueId: previewVenue } : ctx.user;
 
   return next({
     ctx: {
       ...ctx,
-      user: ctx.user,
+      user: effectiveUser,
     },
   });
 });
@@ -49,9 +66,13 @@ export const protectedProcedure = t.procedure.use(requireUser);
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
+    const headers = ctx.req?.headers ?? {};
 
     if (!ctx.user || ctx.user.role !== 'owner') {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+    }
+    if (opts.type === "mutation" && headers["x-songtap-preview"] === "1") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "El modo de pruebas es de solo lectura. Sal de la previsualización para realizar cambios reales." });
     }
 
     return next({

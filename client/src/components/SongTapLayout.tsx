@@ -10,6 +10,7 @@ import {
   Cog,
   DollarSign,
   Globe,
+  TestTube2,
   LayoutDashboard,
   LogOut,
   Music2,
@@ -133,6 +134,7 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
     { label: "Notificaciones", href: "/owner/notifications", icon: <Bell size={18} /> },
     { label: "Usuarios", href: "/owner/users", icon: <Users size={18} /> },
     { label: "Auditoría", href: "/owner/audit", icon: <Shield size={18} /> },
+    { label: "Modo de pruebas", href: "/owner/test-mode", icon: <TestTube2 size={18} /> },
     { label: "Mi Perfil", href: "/profile", icon: <User size={18} /> },
   ];
 
