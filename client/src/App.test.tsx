@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React from "react";
+import React, { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
@@ -49,5 +49,19 @@ describe("RoleGate", () => {
     render(<RoleGate allowedRoles={["manager"]}><p>Panel Manager</p></RoleGate>);
     expect(screen.getByText("Panel Manager")).toBeTruthy();
     expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it("mantiene montado el panel autorizado cuando cambia el estado de autenticación", () => {
+    mocks.auth = { user: { role: "owner" }, isAuthenticated: true, loading: false };
+    const onMount = vi.fn();
+    function MountProbe() {
+      useEffect(() => { onMount(); }, []);
+      return <p>Panel estable</p>;
+    }
+    const view = render(<RoleGate allowedRoles={["owner"]}><MountProbe /></RoleGate>);
+    view.rerender(<RoleGate allowedRoles={["owner"]}><MountProbe /></RoleGate>);
+
+    expect(screen.getByText("Panel estable")).toBeTruthy();
+    expect(onMount).toHaveBeenCalledTimes(1);
   });
 });

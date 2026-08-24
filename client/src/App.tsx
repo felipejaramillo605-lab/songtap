@@ -73,6 +73,30 @@ const managerOnly = (Component: () => ReactNode) => () => <RoleGate allowedRoles
 const staffOnly = (Component: () => ReactNode) => () => <RoleGate allowedRoles={["staff"]}><Component /></RoleGate>;
 const signedIn = (Component: () => ReactNode) => () => <RoleGate allowedRoles={["owner", "manager", "staff", "user"]}><Component /></RoleGate>;
 
+// Las rutas se crean una vez fuera del render. Crear estos wrappers dentro de
+// Router cambiaba la identidad del componente ante cada actualización de auth,
+// desmontando el panel activo y volviendo a disparar todas sus consultas.
+const ProfileRoute = signedIn(ProfilePageWrapper);
+const OwnerDashboardRoute = ownerOnly(OwnerDashboard);
+const OwnerVenuesRoute = ownerOnly(OwnerVenues);
+const OwnerVenueRequestsRoute = ownerOnly(OwnerVenueRequests);
+const OwnerUsersRoute = ownerOnly(OwnerUsers);
+const OwnerAuditRoute = ownerOnly(OwnerAudit);
+const OwnerNotificationsRoute = ownerOnly(OwnerNotificationsSettings);
+const ManagerDashboardRoute = managerOnly(ManagerDashboard);
+const ManagerMenuRoute = managerOnly(ManagerMenu);
+const ManagerTablesRoute = managerOnly(ManagerTables);
+const ManagerStaffRoute = managerOnly(ManagerStaff);
+const ManagerFinanceRoute = managerOnly(ManagerFinance);
+const ManagerSettingsRoute = managerOnly(ManagerSettings);
+const ManagerActivitiesRoute = managerOnly(ManagerActivities);
+const ManagerPqrsRoute = managerOnly(ManagerPqrs);
+const StaffOrdersRoute = staffOnly(StaffOrders);
+const StaffMusicRoute = staffOnly(StaffMusic);
+const StaffTablesRoute = staffOnly(StaffTables);
+const StaffActivitiesRoute = staffOnly(StaffActivities);
+const StaffPqrsRoute = staffOnly(ManagerPqrs);
+
 function Router() {
   const { user, isAuthenticated, loading } = useAuth();
   if (!loading && isAuthenticated && user?.mustChangePassword) return <ForcePasswordChange />;
@@ -91,34 +115,34 @@ function Router() {
       <Route path="/privacy-policy" component={PrivacyPolicy} />
 
       {/* Profile */}
-      <Route path="/profile" component={signedIn(ProfilePageWrapper)} />
+      <Route path="/profile" component={ProfileRoute} />
 
       {/* Owner */}
-      <Route path="/owner" component={ownerOnly(OwnerDashboard)} />
-      <Route path="/owner/venues" component={ownerOnly(OwnerVenues)} />
-      <Route path="/owner/venue-requests" component={ownerOnly(OwnerVenueRequests)} />
-      <Route path="/owner/users" component={ownerOnly(OwnerUsers)} />
-      <Route path="/owner/audit" component={ownerOnly(OwnerAudit)} />
-      <Route path="/owner/notifications" component={ownerOnly(OwnerNotificationsSettings)} />
+      <Route path="/owner" component={OwnerDashboardRoute} />
+      <Route path="/owner/venues" component={OwnerVenuesRoute} />
+      <Route path="/owner/venue-requests" component={OwnerVenueRequestsRoute} />
+      <Route path="/owner/users" component={OwnerUsersRoute} />
+      <Route path="/owner/audit" component={OwnerAuditRoute} />
+      <Route path="/owner/notifications" component={OwnerNotificationsRoute} />
 
       {/* Manager */}
-      <Route path="/manager" component={managerOnly(ManagerDashboard)} />
-      <Route path="/manager/dashboard" component={managerOnly(ManagerDashboard)} />
-      <Route path="/manager/menu" component={managerOnly(ManagerMenu)} />
-      <Route path="/manager/tables" component={managerOnly(ManagerTables)} />
-      <Route path="/manager/staff" component={managerOnly(ManagerStaff)} />
-      <Route path="/manager/finance" component={managerOnly(ManagerFinance)} />
-      <Route path="/manager/settings" component={managerOnly(ManagerSettings)} />
-      <Route path="/manager/activities" component={managerOnly(ManagerActivities)} />
-      <Route path="/manager/pqrs" component={managerOnly(ManagerPqrs)} />
+      <Route path="/manager" component={ManagerDashboardRoute} />
+      <Route path="/manager/dashboard" component={ManagerDashboardRoute} />
+      <Route path="/manager/menu" component={ManagerMenuRoute} />
+      <Route path="/manager/tables" component={ManagerTablesRoute} />
+      <Route path="/manager/staff" component={ManagerStaffRoute} />
+      <Route path="/manager/finance" component={ManagerFinanceRoute} />
+      <Route path="/manager/settings" component={ManagerSettingsRoute} />
+      <Route path="/manager/activities" component={ManagerActivitiesRoute} />
+      <Route path="/manager/pqrs" component={ManagerPqrsRoute} />
 
       {/* Staff */}
-      <Route path="/staff" component={staffOnly(StaffOrders)} />
-      <Route path="/staff/orders" component={staffOnly(StaffOrders)} />
-      <Route path="/staff/music" component={staffOnly(StaffMusic)} />
-      <Route path="/staff/tables" component={staffOnly(StaffTables)} />
-      <Route path="/staff/activities" component={staffOnly(StaffActivities)} />
-      <Route path="/staff/pqrs" component={staffOnly(ManagerPqrs)} />
+      <Route path="/staff" component={StaffOrdersRoute} />
+      <Route path="/staff/orders" component={StaffOrdersRoute} />
+      <Route path="/staff/music" component={StaffMusicRoute} />
+      <Route path="/staff/tables" component={StaffTablesRoute} />
+      <Route path="/staff/activities" component={StaffActivitiesRoute} />
+      <Route path="/staff/pqrs" component={StaffPqrsRoute} />
 
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

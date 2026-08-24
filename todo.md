@@ -411,3 +411,5 @@
 - [x] Mostrar en el Perfil el historial de solicitudes de acceso aprobadas o rechazadas del usuario actual
 - [x] Permitir archivar notificaciones leídas sin eliminar la trazabilidad de decisiones
 - [x] Cubrir con pruebas filtros de fecha, aislamiento del historial y archivado de notificaciones
+- [x] Diagnosticar y corregir el parpadeo causado por solicitudes o actualizaciones repetitivas
+- [x] Evitar el incremento continuo de eventos del navegador y añadir una prueba de estabilidad
