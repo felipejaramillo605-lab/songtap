@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getProtectedRouteMetadata, type SongTapRole } from "../../shared/accessRegistry";
-import { createAccessRequest, getPendingAccessRequests, recordDeniedAccess, resolveAccessRequest, createAuditLog } from "../db";
+import { createAccessRequest, getInternalAccessComments, getPendingAccessRequests, getUserAccessDecisionHistory, recordDeniedAccess, resolveAccessRequest, createAuditLog } from "../db";
 import { adminProcedure, temporaryPasswordProcedure, router } from "../_core/trpc";
 
 const protectedPathInput = z.string().min(1).max(128);
@@ -62,6 +62,14 @@ export const accessRouter = router({
     }),
 
   getPending: adminProcedure.query(async () => getPendingAccessRequests()),
+
+  getInternalComments: adminProcedure
+    .input(z.object({ startDate: z.coerce.date().optional(), endDate: z.coerce.date().optional() }).optional())
+    .query(async ({ input }) => getInternalAccessComments(input ?? {})),
+
+  getMyDecisionHistory: temporaryPasswordProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).optional() }).optional())
+    .query(async ({ ctx, input }) => getUserAccessDecisionHistory(ctx.user.id, input?.limit ?? 50)),
 
   resolve: adminProcedure
     .input(z.object({ requestId: z.number().int().positive(), decision: z.enum(["approved", "rejected"]), reason: z.string().trim().max(500).optional(), internalComment: z.string().trim().max(1000).optional() }))

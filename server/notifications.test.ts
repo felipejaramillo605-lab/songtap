@@ -72,12 +72,16 @@ describe("notifications history", () => {
       res: baseResponse,
     } as any);
 
-    const [history, unreadCount] = await Promise.all([
+    const [history, unreadCount, decisions] = await Promise.all([
       caller.notifications.getMyHistory({ limit: 10 }),
       caller.notifications.getMyUnreadCount(),
+      caller.access.getMyDecisionHistory({ limit: 10 }),
     ]);
 
     expect(Array.isArray(history)).toBe(true);
     expect(typeof unreadCount).toBe("number");
+    expect(Array.isArray(decisions)).toBe(true);
+    await expect(caller.notifications.archiveMyRead({ id: 1 })).resolves.toEqual({ success: false });
+    await expect(caller.notifications.archiveAllMyRead()).resolves.toEqual({ success: true });
   });
 });

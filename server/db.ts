@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   accessRequests,
@@ -830,6 +830,54 @@ export async function getPendingAccessRequests() {
     .orderBy(desc(accessRequests.createdAt));
 }
 
+export async function getInternalAccessComments(filters: { startDate?: Date; endDate?: Date }) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [
+    isNotNull(accessRequests.internalComment),
+    inArray(accessRequests.status, ["approved", "rejected"]),
+  ];
+  if (filters.startDate) conditions.push(gte(accessRequests.reviewedAt, filters.startDate));
+  if (filters.endDate) conditions.push(lte(accessRequests.reviewedAt, filters.endDate));
+  return db
+    .select({
+      id: accessRequests.id,
+      requesterName: users.name,
+      requesterEmail: users.email,
+      moduleName: accessRequests.moduleName,
+      targetPath: accessRequests.targetPath,
+      status: accessRequests.status,
+      internalComment: accessRequests.internalComment,
+      decisionReason: accessRequests.decisionReason,
+      reviewedAt: accessRequests.reviewedAt,
+      venueName: venues.name,
+    })
+    .from(accessRequests)
+    .leftJoin(users, eq(accessRequests.userId, users.id))
+    .leftJoin(venues, eq(accessRequests.venueId, venues.id))
+    .where(and(...conditions))
+    .orderBy(desc(accessRequests.reviewedAt));
+}
+
+export async function getUserAccessDecisionHistory(userId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: accessRequests.id,
+      moduleName: accessRequests.moduleName,
+      targetPath: accessRequests.targetPath,
+      status: accessRequests.status,
+      decisionReason: accessRequests.decisionReason,
+      reviewedAt: accessRequests.reviewedAt,
+      createdAt: accessRequests.createdAt,
+    })
+    .from(accessRequests)
+    .where(and(eq(accessRequests.userId, userId), inArray(accessRequests.status, ["approved", "rejected"])))
+    .orderBy(desc(accessRequests.reviewedAt))
+    .limit(limit);
+}
+
 type AccessRequestDecision = {
   requestId: number;
   ownerId: number;
@@ -887,13 +935,13 @@ export async function resolveAccessRequest(data: AccessRequestDecision) {
   });
 }
 
-export async function getUserNotificationHistory(userId: number, limit = 50) {
+export async function getUserNotificationHistory(userId: number, limit = 50, archived = false) {
   const db = await getDb();
   if (!db) return [];
   return db
     .select()
     .from(userNotificationHistory)
-    .where(eq(userNotificationHistory.userId, userId))
+    .where(and(eq(userNotificationHistory.userId, userId), eq(userNotificationHistory.isArchived, archived)))
     .orderBy(desc(userNotificationHistory.createdAt))
     .limit(limit);
 }
@@ -904,7 +952,7 @@ export async function getUnreadUserNotificationCount(userId: number) {
   const rows = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(userNotificationHistory)
-    .where(and(eq(userNotificationHistory.userId, userId), eq(userNotificationHistory.isRead, false)));
+    .where(and(eq(userNotificationHistory.userId, userId), eq(userNotificationHistory.isRead, false), eq(userNotificationHistory.isArchived, false)));
   return Number(rows[0]?.count ?? 0);
 }
 
@@ -924,6 +972,30 @@ export async function markAllUserNotificationsRead(userId: number) {
     .update(userNotificationHistory)
     .set({ isRead: true, readAt: new Date() })
     .where(and(eq(userNotificationHistory.userId, userId), eq(userNotificationHistory.isRead, false)));
+}
+
+export async function archiveUserNotification(userId: number, notificationId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db
+    .update(userNotificationHistory)
+    .set({ isArchived: true, archivedAt: new Date() })
+    .where(and(
+      eq(userNotificationHistory.id, notificationId),
+      eq(userNotificationHistory.userId, userId),
+      eq(userNotificationHistory.isRead, true),
+      eq(userNotificationHistory.isArchived, false),
+    ));
+  return Boolean((result[0] as { affectedRows?: number }).affectedRows);
+}
+
+export async function archiveAllReadUserNotifications(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db
+    .update(userNotificationHistory)
+    .set({ isArchived: true, archivedAt: new Date() })
+    .where(and(eq(userNotificationHistory.userId, userId), eq(userNotificationHistory.isRead, true), eq(userNotificationHistory.isArchived, false)));
 }
 
 

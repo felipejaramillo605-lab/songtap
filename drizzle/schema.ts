@@ -416,6 +416,8 @@ export const userNotificationHistory = mysqlTable("user_notification_history", {
   relatedAccessRequestId: int("relatedAccessRequestId"),
   isRead: boolean("isRead").default(false).notNull(),
   readAt: timestamp("readAt"),
+  isArchived: boolean("isArchived").default(false).notNull(),
+  archivedAt: timestamp("archivedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

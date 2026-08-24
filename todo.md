@@ -407,3 +407,7 @@
 - [x] Permitir comentarios internos del Owner al resolver solicitudes sin exponerlos al solicitante
 - [x] Mostrar un badge persistente de decisiones de acceso no leídas en la navegación del usuario
 - [x] Cubrir con pruebas la búsqueda, la privacidad de comentarios y los badges de notificación
+- [x] Filtrar en Auditoría los comentarios internos por rango de fechas
+- [x] Mostrar en el Perfil el historial de solicitudes de acceso aprobadas o rechazadas del usuario actual
+- [x] Permitir archivar notificaciones leídas sin eliminar la trazabilidad de decisiones
+- [x] Cubrir con pruebas filtros de fecha, aislamiento del historial y archivado de notificaciones

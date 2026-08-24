@@ -8,6 +8,8 @@ import {
   getUnreadOwnerNotificationCount,
   markOwnerNotificationRead,
   markAllOwnerNotificationsRead,
+  archiveAllReadUserNotifications,
+  archiveUserNotification,
   getUserNotificationHistory,
   getUnreadUserNotificationCount,
   markUserNotificationRead,
@@ -84,8 +86,8 @@ export const notificationsRouter = router({
     }),
 
   getMyHistory: protectedProcedure
-    .input(z.object({ limit: z.number().int().min(1).max(100).optional() }).optional())
-    .query(async ({ ctx, input }) => getUserNotificationHistory(ctx.user.id, input?.limit ?? 50)),
+    .input(z.object({ limit: z.number().int().min(1).max(100).optional(), archived: z.boolean().optional() }).optional())
+    .query(async ({ ctx, input }) => getUserNotificationHistory(ctx.user.id, input?.limit ?? 50, input?.archived ?? false)),
 
   getMyUnreadCount: protectedProcedure.query(async ({ ctx }) => getUnreadUserNotificationCount(ctx.user.id)),
 
@@ -98,6 +100,15 @@ export const notificationsRouter = router({
 
   markAllMyRead: protectedProcedure.mutation(async ({ ctx }) => {
     await markAllUserNotificationsRead(ctx.user.id);
+    return { success: true };
+  }),
+
+  archiveMyRead: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => ({ success: await archiveUserNotification(ctx.user.id, input.id) })),
+
+  archiveAllMyRead: protectedProcedure.mutation(async ({ ctx }) => {
+    await archiveAllReadUserNotifications(ctx.user.id);
     return { success: true };
   }),
 });

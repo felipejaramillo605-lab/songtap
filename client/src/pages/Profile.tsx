@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Bell, User, Lock, Phone, CreditCard, Home, Mail, FileText, ShieldCheck, Upload, CheckCircle2, Scissors } from "lucide-react";
+import { Archive, Bell, CheckCircle2, CreditCard, FileText, History, Home, Lock, Mail, Phone, Scissors, ShieldCheck, Upload, User } from "lucide-react";
 import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
 import { ProfilePhotoCropper } from "@/components/ProfilePhotoCropper";
 
@@ -33,12 +33,17 @@ export default function Profile() {
   // Estados para el cropper de foto
   const [cropperOpen, setCropperOpen] = useState(false);
   const [rawImageSrc, setRawImageSrc] = useState("");
+  const [showArchivedNotifications, setShowArchivedNotifications] = useState(false);
 
   const uploadMutation = trpc.upload.uploadFile.useMutation();
-  const { data: accessNotifications = [], isLoading: isLoadingAccessNotifications, refetch: refetchAccessNotifications } = trpc.notifications.getMyHistory.useQuery(undefined, { enabled: Boolean(user && user.role !== "owner") });
+  const notificationHistoryInput = useMemo(() => ({ archived: showArchivedNotifications }), [showArchivedNotifications]);
+  const { data: accessNotifications = [], isLoading: isLoadingAccessNotifications, refetch: refetchAccessNotifications } = trpc.notifications.getMyHistory.useQuery(notificationHistoryInput, { enabled: Boolean(user && user.role !== "owner") });
   const { data: unreadAccessNotifications = 0, refetch: refetchUnreadAccessNotifications } = trpc.notifications.getMyUnreadCount.useQuery(undefined, { enabled: Boolean(user && user.role !== "owner") });
+  const { data: accessDecisionHistory = [], isLoading: isLoadingDecisionHistory } = trpc.access.getMyDecisionHistory.useQuery(undefined, { enabled: Boolean(user && user.role !== "owner") });
   const markAccessNotificationRead = trpc.notifications.markMyRead.useMutation({ onSuccess: () => { void refetchAccessNotifications(); void refetchUnreadAccessNotifications(); } });
   const markAllAccessNotificationsRead = trpc.notifications.markAllMyRead.useMutation({ onSuccess: () => { void refetchAccessNotifications(); void refetchUnreadAccessNotifications(); } });
+  const archiveAccessNotification = trpc.notifications.archiveMyRead.useMutation({ onSuccess: (result) => { if (result.success) { toast.success("Notificación archivada"); void refetchAccessNotifications(); } else toast.error("Solo puedes archivar notificaciones leídas."); } });
+  const archiveAllAccessNotifications = trpc.notifications.archiveAllMyRead.useMutation({ onSuccess: () => { toast.success("Notificaciones leídas archivadas"); void refetchAccessNotifications(); } });
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -181,6 +186,7 @@ export default function Profile() {
       </div>
 
       {user.role !== "owner" && (
+        <div className="space-y-6">
         <Card className="border-primary/25 bg-card">
           <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
             <div>
@@ -193,10 +199,14 @@ export default function Profile() {
             {isLoadingAccessNotifications ? (
               <p className="text-sm text-muted-foreground">Cargando decisiones...</p>
             ) : accessNotifications.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No tienes decisiones de acceso pendientes de leer.</p>
+              <p className="text-sm text-muted-foreground">{showArchivedNotifications ? "No tienes notificaciones archivadas." : "No tienes decisiones de acceso pendientes de leer."}</p>
             ) : (
               <div className="space-y-3">
-                {unreadAccessNotifications > 0 && <Button type="button" size="sm" variant="outline" className="border-border" disabled={markAllAccessNotificationsRead.isPending} onClick={() => markAllAccessNotificationsRead.mutate()}>Marcar todas como leídas</Button>}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" className="border-border" onClick={() => setShowArchivedNotifications((value) => !value)}>{showArchivedNotifications ? "Ver bandeja activa" : "Ver archivadas"}</Button>
+                  {!showArchivedNotifications && unreadAccessNotifications > 0 && <Button type="button" size="sm" variant="outline" className="border-border" disabled={markAllAccessNotificationsRead.isPending} onClick={() => markAllAccessNotificationsRead.mutate()}>Marcar todas como leídas</Button>}
+                  {!showArchivedNotifications && accessNotifications.some((notification) => notification.isRead) && <Button type="button" size="sm" variant="outline" className="border-border" disabled={archiveAllAccessNotifications.isPending} onClick={() => archiveAllAccessNotifications.mutate()}><Archive className="mr-1.5 h-3.5 w-3.5" /> Archivar leídas</Button>}
+                </div>
                 {accessNotifications.map((notification) => (
                   <article key={notification.id} className={`rounded-lg border p-3 ${notification.isRead ? "border-border bg-secondary/10" : "border-primary/35 bg-primary/5"}`}>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -205,7 +215,10 @@ export default function Profile() {
                         <p className="mt-1 text-sm text-muted-foreground">{notification.content}</p>
                         <p className="mt-2 text-xs text-muted-foreground">{new Date(notification.createdAt).toLocaleString()}</p>
                       </div>
-                      {!notification.isRead && <Button type="button" size="sm" variant="ghost" className="text-primary" disabled={markAccessNotificationRead.isPending} onClick={() => markAccessNotificationRead.mutate({ id: notification.id })}>Marcar leída</Button>}
+                      {!showArchivedNotifications && <div className="flex shrink-0 gap-1">
+                        {!notification.isRead && <Button type="button" size="sm" variant="ghost" className="text-primary" disabled={markAccessNotificationRead.isPending} onClick={() => markAccessNotificationRead.mutate({ id: notification.id })}>Marcar leída</Button>}
+                        {notification.isRead && <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" disabled={archiveAccessNotification.isPending} onClick={() => archiveAccessNotification.mutate({ id: notification.id })}><Archive className="mr-1 h-3.5 w-3.5" /> Archivar</Button>}
+                      </div>}
                     </div>
                   </article>
                 ))}
@@ -213,6 +226,34 @@ export default function Profile() {
             )}
           </CardContent>
         </Card>
+        <Card className="border-border bg-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg"><History className="h-5 w-5 text-primary" /> Historial de decisiones</CardTitle>
+            <CardDescription>Consulta únicamente las solicitudes de acceso que ya fueron aprobadas o rechazadas para tu cuenta.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingDecisionHistory ? (
+              <p className="text-sm text-muted-foreground">Cargando historial...</p>
+            ) : accessDecisionHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aún no tienes solicitudes de acceso resueltas.</p>
+            ) : (
+              <div className="divide-y divide-border rounded-lg border border-border">
+                {accessDecisionHistory.map((decision) => (
+                  <article key={decision.id} className="space-y-1.5 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold text-foreground">{decision.moduleName}</p>
+                      <span className={decision.status === "approved" ? "rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary" : "rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive"}>{decision.status === "approved" ? "Aprobada" : "Rechazada"}</span>
+                    </div>
+                    <p className="font-mono text-xs text-muted-foreground">{decision.targetPath}</p>
+                    {decision.decisionReason && <p className="text-sm text-muted-foreground">Motivo: {decision.decisionReason}</p>}
+                    <p className="text-xs text-muted-foreground">{decision.reviewedAt ? new Date(decision.reviewedAt).toLocaleString() : "Sin fecha de decisión"}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

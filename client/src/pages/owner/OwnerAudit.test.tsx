@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   refetchPending: vi.fn(),
   resolve: vi.fn(),
   pendingRequests: [] as Array<Record<string, unknown>>,
+  internalComments: [] as Array<Record<string, unknown>>,
 }));
 
 const logs = [
@@ -41,6 +42,7 @@ vi.mock("@/lib/trpc", () => ({
     finance: { auditLogs: { useQuery: () => ({ data: logs, isLoading: false, refetch: mocks.refetchLogs }) } },
     access: {
       getPending: { useQuery: () => ({ data: mocks.pendingRequests, isLoading: false, refetch: mocks.refetchPending }) },
+      getInternalComments: { useQuery: () => ({ data: mocks.internalComments, isLoading: false }) },
       resolve: { useMutation: () => ({ mutate: mocks.resolve, isPending: false }) },
     },
   },
@@ -95,6 +97,7 @@ describe("OwnerAudit exports", () => {
     mocks.buildAuditFilename.mockClear();
     mocks.resolve.mockReset();
     mocks.pendingRequests = [];
+    mocks.internalComments = [];
     vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:auditoria"), revokeObjectURL: vi.fn() });
   });
 
@@ -153,5 +156,26 @@ describe("OwnerAudit exports", () => {
     await user.type(screen.getByLabelText(/buscar solicitudes por solicitante/i), "Andrea");
     expect(screen.getByText("Andrea Staff")).toBeTruthy();
     expect(screen.queryByText("Camilo Staff")).toBeNull();
+  });
+
+  it("muestra comentarios internos y permite indicar un período de consulta", async () => {
+    mocks.internalComments = [{
+      id: 81,
+      moduleName: "Gestión de menú",
+      targetPath: "/manager/menu",
+      status: "approved",
+      internalComment: "Aprobado tras validar el entrenamiento del equipo.",
+      requesterName: "Andrea Staff",
+      venueName: "Bar La Noche",
+      reviewedAt: new Date("2026-08-20T15:30:00.000Z"),
+    }];
+    const user = userEvent.setup();
+    render(<OwnerAudit />);
+
+    expect(screen.getByText("Aprobado tras validar el entrenamiento del equipo.")).toBeTruthy();
+    await user.type(screen.getByLabelText("Desde"), "2026-08-01");
+    await user.type(screen.getByLabelText("Hasta"), "2026-08-31");
+    expect((screen.getByLabelText("Desde") as HTMLInputElement).value).toBe("2026-08-01");
+    expect((screen.getByLabelText("Hasta") as HTMLInputElement).value).toBe("2026-08-31");
   });
 });

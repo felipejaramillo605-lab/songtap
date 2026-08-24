@@ -59,6 +59,13 @@ export default function OwnerAudit() {
 
   const { data: logs = [], isLoading, refetch: refetchLogs } = trpc.finance.auditLogs.useQuery({ limit: 1000 }, { enabled: !!user && user.role === "owner" });
   const { data: pendingAccessRequests = [], isLoading: isLoadingAccessRequests, refetch: refetchPendingAccessRequests } = trpc.access.getPending.useQuery(undefined, { enabled: user?.role === "owner" });
+  const [commentStartDate, setCommentStartDate] = useState("");
+  const [commentEndDate, setCommentEndDate] = useState("");
+  const commentDateFilter = useMemo(() => ({
+    startDate: commentStartDate ? new Date(`${commentStartDate}T00:00:00`) : undefined,
+    endDate: commentEndDate ? new Date(`${commentEndDate}T23:59:59.999`) : undefined,
+  }), [commentStartDate, commentEndDate]);
+  const { data: internalAccessComments = [], isLoading: isLoadingInternalComments } = trpc.access.getInternalComments.useQuery(commentDateFilter, { enabled: user?.role === "owner" });
   const [companyFilter, setCompanyFilter] = useState("all");
   const [moduleFilter, setModuleFilter] = useState("all");
   const [userFilter, setUserFilter] = useState("all");
@@ -359,6 +366,52 @@ export default function OwnerAudit() {
                   })}
                 </div>
               </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card">
+          <CardHeader className="border-b border-border p-4 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base text-foreground"><FileSpreadsheet size={16} className="text-primary" /> Comentarios internos de accesos</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">Notas privadas del Owner asociadas a decisiones ya resueltas. No se muestran a los solicitantes.</p>
+              </div>
+              <span className="w-fit rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary" aria-live="polite">{internalAccessComments.length} resultado{internalAccessComments.length === 1 ? "" : "s"}</span>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="grid grid-cols-1 gap-3 border-b border-border bg-secondary/10 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <div className="space-y-2">
+                <label htmlFor="internal-comment-start-date" className="text-xs font-medium text-muted-foreground">Desde</label>
+                <Input id="internal-comment-start-date" type="date" value={commentStartDate} onChange={(event) => setCommentStartDate(event.target.value)} max={commentEndDate || undefined} className="border-border bg-input" />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="internal-comment-end-date" className="text-xs font-medium text-muted-foreground">Hasta</label>
+                <Input id="internal-comment-end-date" type="date" value={commentEndDate} onChange={(event) => setCommentEndDate(event.target.value)} min={commentStartDate || undefined} className="border-border bg-input" />
+              </div>
+              <Button type="button" variant="ghost" className="text-muted-foreground hover:bg-secondary hover:text-foreground" disabled={!commentStartDate && !commentEndDate} onClick={() => { setCommentStartDate(""); setCommentEndDate(""); }}><RotateCcw size={15} className="mr-2" /> Limpiar fechas</Button>
+            </div>
+            {isLoadingInternalComments ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">Cargando comentarios internos...</p>
+            ) : internalAccessComments.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">No hay comentarios internos en el período seleccionado.</p>
+            ) : (
+              <div className="divide-y divide-border" aria-label="Comentarios internos de solicitudes de acceso">
+                {internalAccessComments.map((comment) => (
+                  <article key={comment.id} className="space-y-2 p-4 sm:p-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{comment.moduleName}</p>
+                        <p className="font-mono text-xs text-muted-foreground">{comment.targetPath}</p>
+                      </div>
+                      <span className={comment.status === "approved" ? "w-fit rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary" : "w-fit rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive"}>{comment.status === "approved" ? "Aprobada" : "Rechazada"}</span>
+                    </div>
+                    <p className="text-sm text-foreground">{comment.internalComment}</p>
+                    <p className="text-xs text-muted-foreground">Solicitante: {comment.requesterName || comment.requesterEmail || "Usuario"} · {comment.venueName || "Sin local"} · {comment.reviewedAt ? new Date(comment.reviewedAt).toLocaleString("es-CO") : "Sin fecha"}</p>
+                  </article>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
