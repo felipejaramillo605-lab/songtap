@@ -31,6 +31,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import OnboardingCenter from "@/components/OnboardingCenter";
 
 interface NavItem {
   label: string;
@@ -240,7 +241,9 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-1">
+          <div className="space-y-1.5">
+            <OnboardingCenter role={role} compact />
+            <div className="flex items-center justify-between gap-1">
             <Button
               variant="ghost"
               size="sm"
@@ -260,6 +263,7 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
             >
               {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
             </Button>
+            </div>
           </div>
         </div>
       </aside>
@@ -318,6 +322,7 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
                 </div>
               </div>
             )}
+            <OnboardingCenter role={role} compact />
             <Button
               variant="ghost"
               className="w-full justify-start gap-2 text-muted-foreground hover:bg-destructive/10 hover:text-foreground"

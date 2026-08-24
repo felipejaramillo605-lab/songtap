@@ -27,6 +27,8 @@ import {
   ownerScheduledReports,
   userNotificationHistory,
   testModeIncidents,
+  supportTickets,
+  userOnboardingProgress,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
@@ -1677,4 +1679,84 @@ export async function generateOwnerManualReport(ownerId: number, requestId: stri
   const schedule = await getOwnerReportSchedule(ownerId);
   if (!schedule) throw new Error("Configura primero el reporte interno semanal antes de generarlo manualmente.");
   return persistOwnerReport({ schedule, source: "manual", reportKey: `manual:${requestId}`, now });
+}
+
+// ─── ONBOARDING & SUPPORT ───────────────────────────────────────────────────
+
+export type OnboardingRole = "owner" | "manager" | "staff";
+
+export async function getUserOnboardingProgress(userId: number, role: OnboardingRole) {
+  const db = await getDb();
+  if (!db) return null;
+  const [progress] = await db
+    .select()
+    .from(userOnboardingProgress)
+    .where(and(eq(userOnboardingProgress.userId, userId), eq(userOnboardingProgress.role, role)))
+    .limit(1);
+  return progress ?? null;
+}
+
+export async function markUserOnboardingOpened(userId: number, role: OnboardingRole) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  const now = new Date();
+  await db.insert(userOnboardingProgress).values({ userId, role, lastOpenedAt: now }).onDuplicateKeyUpdate({ set: { lastOpenedAt: now } });
+  return getUserOnboardingProgress(userId, role);
+}
+
+export async function completeUserOnboarding(userId: number, role: OnboardingRole) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  const now = new Date();
+  await db.insert(userOnboardingProgress).values({ userId, role, completedAt: now, lastOpenedAt: now }).onDuplicateKeyUpdate({ set: { completedAt: now, lastOpenedAt: now } });
+  return getUserOnboardingProgress(userId, role);
+}
+
+export async function resetUserOnboarding(userId: number, role: OnboardingRole) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  await db.delete(userOnboardingProgress).where(and(eq(userOnboardingProgress.userId, userId), eq(userOnboardingProgress.role, role)));
+}
+
+export async function createSupportTicket(data: {
+  reporterId: number;
+  venueId: number | null;
+  reporterRole: OnboardingRole;
+  route: string;
+  title: string;
+  description: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  const result = await db.insert(supportTickets).values(data);
+  const ticketId = Number(result[0].insertId);
+  if (data.reporterRole !== "owner") {
+    const owners = await db.select({ id: users.id }).from(users).where(eq(users.role, "owner"));
+    if (owners.length) {
+      await db.insert(ownerNotificationHistory).values(owners.map(owner => ({
+        ownerId: owner.id,
+        type: "support_ticket",
+        title: "Nueva incidencia reportada",
+        content: `${data.reporterRole === "manager" ? "Un Manager" : "Un integrante del Staff"} reportó “${data.title}” en ${data.route}.`,
+      })));
+    }
+  }
+  await createAuditLog({
+    venueId: data.venueId,
+    userId: data.reporterId,
+    userRole: data.reporterRole,
+    module: "Ayuda y onboarding",
+    action: "SUPPORT_TICKET_CREATED",
+    entity: "support_ticket",
+    entityId: ticketId,
+    details: JSON.stringify({ route: data.route, title: data.title }),
+  });
+  return ticketId;
+}
+
+export async function getSupportTicketsForUser(userId: number, role: OnboardingRole) {
+  const db = await getDb();
+  if (!db) return [];
+  if (role === "owner") return db.select().from(supportTickets).orderBy(desc(supportTickets.createdAt)).limit(25);
+  return db.select().from(supportTickets).where(eq(supportTickets.reporterId, userId)).orderBy(desc(supportTickets.createdAt)).limit(12);
 }

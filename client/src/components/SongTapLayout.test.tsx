@@ -15,10 +15,19 @@ vi.mock("@/_core/hooks/useAuth", () => ({
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
+    useUtils: () => ({ onboarding: { getProgress: { invalidate: vi.fn() }, listSupportTickets: { invalidate: vi.fn() } }, notifications: { getPendingCount: { invalidate: vi.fn() } } }),
     notifications: {
       getPendingCount: { useQuery: () => ({ data: 0 }) },
       getSettings: { useQuery: () => ({ data: null }) },
       getMyUnreadCount: { useQuery: () => ({ data: mocks.unreadAccessDecisions }) },
+    },
+    onboarding: {
+      getProgress: { useQuery: () => ({ data: { completedAt: new Date() }, isLoading: false }) },
+      listSupportTickets: { useQuery: () => ({ data: [] }) },
+      markOpened: { useMutation: () => ({ mutate: vi.fn() }) },
+      complete: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+      reset: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+      reportIssue: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
     },
   },
 }));

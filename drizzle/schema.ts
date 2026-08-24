@@ -488,3 +488,37 @@ export const ownerScheduledReports = mysqlTable(
 
 export type OwnerScheduledReport = typeof ownerScheduledReports.$inferSelect;
 export type InsertOwnerScheduledReport = typeof ownerScheduledReports.$inferInsert;
+
+// ─── USER ONBOARDING & SUPPORT ──────────────────────────────────────────────
+export const userOnboardingProgress = mysqlTable(
+  "user_onboarding_progress",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    role: mysqlEnum("role", ["owner", "manager", "staff"]).notNull(),
+    completedAt: timestamp("completedAt"),
+    lastOpenedAt: timestamp("lastOpenedAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userRoleUnique: uniqueIndex("user_onboarding_progress_user_role_unique").on(table.userId, table.role),
+  })
+);
+
+export type UserOnboardingProgress = typeof userOnboardingProgress.$inferSelect;
+
+export const supportTickets = mysqlTable("support_tickets", {
+  id: int("id").autoincrement().primaryKey(),
+  reporterId: int("reporterId").notNull(),
+  venueId: int("venueId"),
+  reporterRole: mysqlEnum("reporterRole", ["owner", "manager", "staff"]).notNull(),
+  route: varchar("route", { length: 255 }).notNull(),
+  title: varchar("title", { length: 180 }).notNull(),
+  description: text("description").notNull(),
+  status: mysqlEnum("status", ["open", "in_review", "resolved"]).default("open").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SupportTicket = typeof supportTickets.$inferSelect;

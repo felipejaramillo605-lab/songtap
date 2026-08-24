@@ -428,3 +428,8 @@
 - [x] Permitir descargar cada reporte generado en PDF y Excel
 - [x] Incluir comparación automática de métricas contra la semana anterior
 - [x] Validar generación manual, comparativos y descargas de reportes
+- [x] Diseñar recorridos de onboarding específicos para Owner, Manager y Staff
+- [x] Preparar recursos visuales y capturas de acciones clave para cada rol
+- [x] Implementar un centro de onboarding accesible, reabrible y adaptado a móvil
+- [x] Explicar errores frecuentes, autogestión y reporte de incidencias según el rol
+- [x] Validar los recorridos de onboarding con pruebas y revisión visual

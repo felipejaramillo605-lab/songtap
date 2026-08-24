@@ -28,11 +28,13 @@ import { activitiesRouter } from "./routers/activities";
 import { pqrsRouter } from "./routers/pqrs";
 import { accessRouter } from "./routers/access";
 import { testIncidentsRouter } from "./routers/testIncidents";
+import { onboardingRouter } from "./routers/onboarding";
 import { ownerReportsRouter } from "./routers/ownerReports";
 
 export const appRouter = router({
   system: systemRouter,
   testIncidents: testIncidentsRouter,
+  onboarding: onboardingRouter,
   ownerReports: ownerReportsRouter,
   auth: router({
     me: publicProcedure.query(({ ctx }) => {
