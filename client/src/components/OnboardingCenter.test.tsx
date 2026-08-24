@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn(), progress: null as any, progressResolved: true }));
+const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn(), progress: null as any, progressResolved: true, isPreviewMode: false }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -16,7 +16,7 @@ vi.mock("@/lib/trpc", () => ({
       markOpened: { useMutation: () => ({ mutate: mocks.markOpened }) },
       markAutoShown: { useMutation: () => ({ mutate: mocks.markAutoShown }) },
       setAutoSuppressed: { useMutation: () => ({ mutate: mocks.setAutoSuppressed, isPending: false }) },
-      complete: { useMutation: () => ({ mutate: mocks.complete, isPending: false }) },
+      complete: { useMutation: (options?: { onSuccess?: () => void }) => ({ mutate: () => { mocks.complete(); options?.onSuccess?.(); }, isPending: false }) },
       reset: { useMutation: () => ({ mutate: mocks.reset, isPending: false }) },
       reportIssue: { useMutation: () => ({ mutate: mocks.reportIssue, isPending: false }) },
       setHelpVote: { useMutation: () => ({ mutate: mocks.setHelpVote, isPending: false }) },
@@ -24,12 +24,13 @@ vi.mock("@/lib/trpc", () => ({
     },
   },
 }));
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ isPreviewMode: mocks.isPreviewMode }) }));
 vi.mock("wouter", () => ({ useLocation: () => ["/owner", mocks.navigate] }));
 
 import OnboardingCenter from "./OnboardingCenter";
 
 describe("OnboardingCenter", () => {
-  afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.progress = null; mocks.progressResolved = true; });
+  afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.progress = null; mocks.progressResolved = true; mocks.isPreviewMode = false; });
 
   it("abre el recorrido Owner pendiente y muestra una captura del botón principal", async () => {
     render(<OnboardingCenter role="owner" />);
@@ -74,6 +75,32 @@ describe("OnboardingCenter", () => {
     await screen.findByRole("dialog");
     await user.click(screen.getByRole("checkbox", { name: /no volver a mostrar automáticamente/i }));
     expect(mocks.setAutoSuppressed).toHaveBeenCalledWith({ suppressAutoOnboarding: true });
+  });
+
+  it("cierra y persiste la finalización al completar el último paso", async () => {
+    const user = userEvent.setup();
+    render(<OnboardingCenter role="staff" />);
+    await screen.findByRole("dialog");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Completar guía" }));
+    expect(mocks.complete).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("no intenta completar en modo de pruebas y cierra únicamente la vista de guía", async () => {
+    const user = userEvent.setup();
+    mocks.isPreviewMode = true;
+    render(<OnboardingCenter role="staff" />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Abrir guía" }));
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Cerrar guía de prueba" }));
+    expect(mocks.complete).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("permite enviar una incidencia contextual desde la ayuda", async () => {

@@ -460,3 +460,4 @@
 - [x] Exponer analíticas de onboarding exclusivas para el Owner
 - [x] Implementar un modal de Novedades independiente del onboarding
 - [x] Validar métricas, novedades y accesibilidad responsive
+- [x] Corregir el cierre y la persistencia del onboarding al completar la guía, incluido el modo de pruebas
