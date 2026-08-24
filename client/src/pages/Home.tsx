@@ -126,7 +126,7 @@ export default function Home() {
       <footer className="border-t border-border/50 px-6 py-8 text-center">
         <p className="text-sm text-muted-foreground">
           © 2025 SongTap by CS2 ·{" "}
-          <a href="#" className="text-primary hover:underline">
+          <a href="/privacy-policy" className="text-primary hover:underline">
             Política de Privacidad y Tratamiento de Datos
           </a>
         </p>

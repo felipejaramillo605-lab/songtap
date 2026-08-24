@@ -1,6 +1,7 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
+import { useEffect, type ReactNode } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { Toaster } from "sonner";
@@ -54,6 +55,35 @@ function ProfilePageWrapper() {
   );
 }
 
+type InternalRole = "owner" | "manager" | "staff" | "user";
+
+export function RoleGate({ allowedRoles, children }: { allowedRoles: InternalRole[]; children: ReactNode }) {
+  const { user, isAuthenticated, loading } = useAuth();
+  const [, navigate] = useLocation();
+  const isAllowed = Boolean(user && allowedRoles.includes(user.role as InternalRole));
+  const safeDestination = user?.mustChangePassword
+    ? "/change-password"
+    : user?.role === "owner" ? "/owner"
+      : user?.role === "manager" ? "/manager"
+        : user?.role === "staff" ? "/staff"
+          : "/";
+
+  useEffect(() => {
+    if (loading) return;
+    if (!isAuthenticated || !user) navigate("/login");
+    else if (!isAllowed) navigate(safeDestination);
+  }, [isAllowed, isAuthenticated, loading, navigate, safeDestination, user]);
+
+  if (loading) return <main className="min-h-screen bg-background" aria-busy="true" aria-label="Verificando acceso" />;
+  if (!isAuthenticated || !user || !isAllowed) return <main className="min-h-screen bg-background" aria-live="polite">Redirigiendo de forma segura…</main>;
+  return <>{children}</>;
+}
+
+const ownerOnly = (Component: () => ReactNode) => () => <RoleGate allowedRoles={["owner"]}><Component /></RoleGate>;
+const managerOnly = (Component: () => ReactNode) => () => <RoleGate allowedRoles={["manager"]}><Component /></RoleGate>;
+const staffOnly = (Component: () => ReactNode) => () => <RoleGate allowedRoles={["staff"]}><Component /></RoleGate>;
+const signedIn = (Component: () => ReactNode) => () => <RoleGate allowedRoles={["owner", "manager", "staff", "user"]}><Component /></RoleGate>;
+
 function Router() {
   const { user, isAuthenticated, loading } = useAuth();
   if (!loading && isAuthenticated && user?.mustChangePassword) return <ForcePasswordChange />;
@@ -71,34 +101,34 @@ function Router() {
       <Route path="/privacy-policy" component={PrivacyPolicy} />
 
       {/* Profile */}
-      <Route path="/profile" component={ProfilePageWrapper} />
+      <Route path="/profile" component={signedIn(ProfilePageWrapper)} />
 
       {/* Owner */}
-      <Route path="/owner" component={OwnerDashboard} />
-      <Route path="/owner/venues" component={OwnerVenues} />
-      <Route path="/owner/venue-requests" component={OwnerVenueRequests} />
-      <Route path="/owner/users" component={OwnerUsers} />
-      <Route path="/owner/audit" component={OwnerAudit} />
-      <Route path="/owner/notifications" component={OwnerNotificationsSettings} />
+      <Route path="/owner" component={ownerOnly(OwnerDashboard)} />
+      <Route path="/owner/venues" component={ownerOnly(OwnerVenues)} />
+      <Route path="/owner/venue-requests" component={ownerOnly(OwnerVenueRequests)} />
+      <Route path="/owner/users" component={ownerOnly(OwnerUsers)} />
+      <Route path="/owner/audit" component={ownerOnly(OwnerAudit)} />
+      <Route path="/owner/notifications" component={ownerOnly(OwnerNotificationsSettings)} />
 
       {/* Manager */}
-      <Route path="/manager" component={ManagerDashboard} />
-      <Route path="/manager/dashboard" component={ManagerDashboard} />
-      <Route path="/manager/menu" component={ManagerMenu} />
-      <Route path="/manager/tables" component={ManagerTables} />
-      <Route path="/manager/staff" component={ManagerStaff} />
-      <Route path="/manager/finance" component={ManagerFinance} />
-      <Route path="/manager/settings" component={ManagerSettings} />
-      <Route path="/manager/activities" component={ManagerActivities} />
-      <Route path="/manager/pqrs" component={ManagerPqrs} />
+      <Route path="/manager" component={managerOnly(ManagerDashboard)} />
+      <Route path="/manager/dashboard" component={managerOnly(ManagerDashboard)} />
+      <Route path="/manager/menu" component={managerOnly(ManagerMenu)} />
+      <Route path="/manager/tables" component={managerOnly(ManagerTables)} />
+      <Route path="/manager/staff" component={managerOnly(ManagerStaff)} />
+      <Route path="/manager/finance" component={managerOnly(ManagerFinance)} />
+      <Route path="/manager/settings" component={managerOnly(ManagerSettings)} />
+      <Route path="/manager/activities" component={managerOnly(ManagerActivities)} />
+      <Route path="/manager/pqrs" component={managerOnly(ManagerPqrs)} />
 
       {/* Staff */}
-      <Route path="/staff" component={StaffOrders} />
-      <Route path="/staff/orders" component={StaffOrders} />
-      <Route path="/staff/music" component={StaffMusic} />
-      <Route path="/staff/tables" component={StaffTables} />
-      <Route path="/staff/activities" component={StaffActivities} />
-      <Route path="/staff/pqrs" component={ManagerPqrs} />
+      <Route path="/staff" component={staffOnly(StaffOrders)} />
+      <Route path="/staff/orders" component={staffOnly(StaffOrders)} />
+      <Route path="/staff/music" component={staffOnly(StaffMusic)} />
+      <Route path="/staff/tables" component={staffOnly(StaffTables)} />
+      <Route path="/staff/activities" component={staffOnly(StaffActivities)} />
+      <Route path="/staff/pqrs" component={staffOnly(ManagerPqrs)} />
 
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

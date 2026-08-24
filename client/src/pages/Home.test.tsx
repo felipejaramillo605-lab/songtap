@@ -17,5 +17,6 @@ describe("Home", () => {
     render(<Home />);
     expect(screen.getByRole("link", { name: "Iniciar sesión" }).getAttribute("href")).toBe("/login");
     expect(screen.getByRole("link", { name: "Acceder al panel" }).getAttribute("href")).toBe("/login");
+    expect(screen.getByRole("link", { name: "Política de Privacidad y Tratamiento de Datos" }).getAttribute("href")).toBe("/privacy-policy");
   });
 });

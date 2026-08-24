@@ -384,3 +384,11 @@
 - [x] Mostrar el rol de la sesión activa de forma legible en la pantalla de Login
 - [x] Mostrar la organización asociada a la sesión activa, con un texto claro para cuentas Owner o sin organización
 - [x] Cubrir el resumen de sesión activa con rol y organización mediante pruebas de interfaz
+- [x] Mostrar la fecha y hora local de la última sesión en el resumen de Login
+- [x] Auditar los accesos público, OAuth, correo y contraseña, recuperación y cambio obligatorio de clave
+- [x] Auditar las rutas, módulos y controles principales de Owner, Manager, Staff y portal QR
+- [x] Corregir hallazgos funcionales verificables y ampliar las pruebas de regresión
+- [x] Documentar el resultado de la auditoría funcional de extremo a extremo
+- [x] Restringir visualmente las rutas internas al rol autenticado antes de renderizar cada panel
+- [x] Redirigir accesos no autenticados o con rol incorrecto a un destino seguro sin exponer módulos internos
+- [x] Corregir el enlace de política de privacidad de la página principal detectado sin destino válido
