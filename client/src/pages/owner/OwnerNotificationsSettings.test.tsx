@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   toastInfo: vi.fn(),
   history: [] as unknown[],
   unreadCount: 0,
+  configureReport: vi.fn(),
   isFetching: false,
   historyQueryOptions: undefined as { refetchInterval?: number; refetchIntervalInBackground?: boolean } | undefined,
   unreadCountQueryOptions: undefined as { refetchInterval?: number; refetchIntervalInBackground?: boolean } | undefined,
@@ -21,7 +22,10 @@ vi.mock("@/_core/hooks/useAuth", () => ({
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    useUtils: () => ({ notifications: { getSettings: { invalidate: vi.fn() }, getHistory: { invalidate: vi.fn() }, getUnreadCount: { invalidate: vi.fn() } } }),
+    useUtils: () => ({
+      notifications: { getSettings: { invalidate: vi.fn() }, getHistory: { invalidate: vi.fn() }, getUnreadCount: { invalidate: vi.fn() } },
+      ownerReports: { getSchedule: { invalidate: vi.fn() }, list: { invalidate: vi.fn() } },
+    }),
     notifications: {
       getSettings: { useQuery: () => ({ data: { enabled: true, emailNotifications: true, soundType: "chime" }, isLoading: false }) },
       getHistory: {
@@ -39,6 +43,11 @@ vi.mock("@/lib/trpc", () => ({
       updateSettings: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       markRead: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       markAllRead: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+    },
+    ownerReports: {
+      getSchedule: { useQuery: () => ({ data: null, isLoading: false }) },
+      list: { useQuery: () => ({ data: [], isLoading: false }) },
+      configure: { useMutation: () => ({ mutate: mocks.configureReport, isPending: false }) },
     },
   },
 }));
@@ -74,6 +83,7 @@ describe("OwnerNotificationsSettings refresh", () => {
     mocks.toastSuccess.mockReset();
     mocks.toastError.mockReset();
     mocks.toastInfo.mockReset();
+    mocks.configureReport.mockReset();
   });
 
   it("consulta el historial automáticamente, muestra el estado de actualización y avisa nuevas alertas", async () => {
@@ -99,6 +109,22 @@ describe("OwnerNotificationsSettings refresh", () => {
       expect(mocks.refetchHistory).toHaveBeenCalledTimes(1);
       expect(mocks.refetchUnreadCount).toHaveBeenCalledTimes(1);
       expect(mocks.toastSuccess).toHaveBeenCalledWith("Historial de notificaciones actualizado.");
+    });
+  });
+
+  it("muestra y guarda la configuración inicial del reporte interno semanal", () => {
+    render(<OwnerNotificationsSettings />);
+
+    expect(screen.getByRole("heading", { name: /reporte consolidado interno/i })).toBeTruthy();
+    expect(screen.getByText(/zona horaria: colombia/i)).toBeTruthy();
+    expect(screen.getByText(/permanece desactivada/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /guardar programación/i }));
+    expect(mocks.configureReport).toHaveBeenCalledWith({
+      weekday: 1,
+      hour: 8,
+      minute: 0,
+      isEnabled: false,
     });
   });
 

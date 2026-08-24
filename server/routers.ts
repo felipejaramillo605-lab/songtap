@@ -27,9 +27,13 @@ import { notificationsRouter } from "./routers/notifications";
 import { activitiesRouter } from "./routers/activities";
 import { pqrsRouter } from "./routers/pqrs";
 import { accessRouter } from "./routers/access";
+import { testIncidentsRouter } from "./routers/testIncidents";
+import { ownerReportsRouter } from "./routers/ownerReports";
 
 export const appRouter = router({
   system: systemRouter,
+  testIncidents: testIncidentsRouter,
+  ownerReports: ownerReportsRouter,
   auth: router({
     me: publicProcedure.query(({ ctx }) => {
       return ctx.user || null;

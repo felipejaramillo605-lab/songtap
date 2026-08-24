@@ -418,3 +418,8 @@
 - [x] Permitir exportar decisiones y auditoría en CSV y PDF desde Owner
 - [x] Crear un modo de pruebas Owner para previsualizar Manager y Staff sin cambiar permisos reales
 - [x] Cubrir con pruebas la seguridad de previsualización, la carga y las exportaciones
+- [x] Corregir el error de profundidad máxima al abrir módulos Manager en modo de pruebas
+- [x] Permitir capturar incidencias desde el modo de pruebas con contexto de rol, local y ruta
+- [x] Permitir configurar reportes consolidados periódicos dentro de SongTap para Owner
+- [x] Validar estabilidad, permisos, captura de incidencias y programación de reportes
+- [ ] Publicar SongTap y activar desde Owner el primer reporte interno programado

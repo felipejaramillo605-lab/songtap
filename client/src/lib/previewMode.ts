@@ -5,15 +5,25 @@ export type PreviewMode = { role: PreviewRole; venueId: number; venueName?: stri
 
 const previewStorageKey = "songtap-owner-preview-mode";
 const previewEvent = "songtap-owner-preview-change";
+let cachedRaw: string | null | undefined;
+let cachedPreviewMode: PreviewMode | null = null;
 
 export function getPreviewMode(): PreviewMode | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.sessionStorage.getItem(previewStorageKey);
-    if (!raw) return null;
+    if (raw === cachedRaw) return cachedPreviewMode;
+    cachedRaw = raw;
+    if (!raw) {
+      cachedPreviewMode = null;
+      return cachedPreviewMode;
+    }
     const parsed = JSON.parse(raw) as PreviewMode;
-    return (parsed.role === "manager" || parsed.role === "staff") && Number.isInteger(parsed.venueId) ? parsed : null;
+    cachedPreviewMode = (parsed.role === "manager" || parsed.role === "staff") && Number.isInteger(parsed.venueId) ? parsed : null;
+    return cachedPreviewMode;
   } catch {
+    cachedRaw = undefined;
+    cachedPreviewMode = null;
     return null;
   }
 }

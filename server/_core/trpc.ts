@@ -63,6 +63,18 @@ const requireUser = t.middleware(async opts => {
 export const temporaryPasswordProcedure = t.procedure.use(requireAuthenticatedUser);
 export const protectedProcedure = t.procedure.use(requireUser);
 
+export const previewOwnerProcedure = t.procedure.use(
+  t.middleware(async ({ ctx, next }) => {
+    const headers = ctx.req?.headers ?? {};
+    const previewRole = headers["x-songtap-preview-role"];
+    const previewVenue = Number(headers["x-songtap-preview-venue"]);
+    if (!ctx.user || ctx.user.role !== "owner" || headers["x-songtap-preview"] !== "1" || (previewRole !== "manager" && previewRole !== "staff") || !Number.isInteger(previewVenue) || previewVenue <= 0) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "La captura de incidencias solo está disponible durante una previsualización Owner válida." });
+    }
+    return next({ ctx });
+  })
+);
+
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;

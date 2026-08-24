@@ -423,3 +423,70 @@ export const userNotificationHistory = mysqlTable("user_notification_history", {
 
 export type UserNotificationHistory = typeof userNotificationHistory.$inferSelect;
 export type InsertUserNotificationHistory = typeof userNotificationHistory.$inferInsert;
+
+// ─── TEST MODE INCIDENTS (hallazgos capturados por Owner) ────────────────────
+export const testModeIncidents = mysqlTable("test_mode_incidents", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerId: int("ownerId").notNull(),
+  venueId: int("venueId").notNull(),
+  previewRole: mysqlEnum("previewRole", ["manager", "staff"]).notNull(),
+  route: varchar("route", { length: 255 }).notNull(),
+  title: varchar("title", { length: 180 }).notNull(),
+  description: text("description").notNull(),
+  status: mysqlEnum("status", ["open", "resolved"]).default("open").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  resolvedAt: timestamp("resolvedAt"),
+});
+
+export type TestModeIncident = typeof testModeIncidents.$inferSelect;
+
+// ─── OWNER SCHEDULED REPORTS (configuración y copias internas) ────────────────
+export const ownerReportSchedules = mysqlTable(
+  "owner_report_schedules",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    ownerId: int("ownerId").notNull(),
+    frequency: mysqlEnum("frequency", ["weekly"]).default("weekly").notNull(),
+    weekday: int("weekday").default(1).notNull(), // 1 = lunes, ISO-8601
+    hour: int("hour").default(8).notNull(), // Hora local de Colombia
+    minute: int("minute").default(0).notNull(),
+    timezone: varchar("timezone", { length: 64 }).default("America/Bogota").notNull(),
+    cronExpression: varchar("cronExpression", { length: 64 }).default("0 0 13 * * 1").notNull(),
+    scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 128 }),
+    isEnabled: boolean("isEnabled").default(false).notNull(),
+    lastGeneratedAt: timestamp("lastGeneratedAt"),
+    nextExecutionAt: timestamp("nextExecutionAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    ownerScheduleUnique: uniqueIndex("owner_report_schedules_owner_unique").on(table.ownerId),
+    taskUidUnique: uniqueIndex("owner_report_schedules_task_uid_unique").on(table.scheduleCronTaskUid),
+  })
+);
+
+export type OwnerReportSchedule = typeof ownerReportSchedules.$inferSelect;
+export type InsertOwnerReportSchedule = typeof ownerReportSchedules.$inferInsert;
+
+export const ownerScheduledReports = mysqlTable(
+  "owner_scheduled_reports",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    scheduleId: int("scheduleId").notNull(),
+    ownerId: int("ownerId").notNull(),
+    periodStart: timestamp("periodStart").notNull(),
+    periodEnd: timestamp("periodEnd").notNull(),
+    summaryJson: text("summaryJson").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    schedulePeriodUnique: uniqueIndex("owner_scheduled_reports_period_unique").on(
+      table.scheduleId,
+      table.periodStart,
+      table.periodEnd
+    ),
+  })
+);
+
+export type OwnerScheduledReport = typeof ownerScheduledReports.$inferSelect;
+export type InsertOwnerScheduledReport = typeof ownerScheduledReports.$inferInsert;

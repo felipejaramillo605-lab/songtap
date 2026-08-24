@@ -23,7 +23,10 @@ import {
   venues,
   venueNotificationSettings,
   ownerNotificationHistory,
+  ownerReportSchedules,
+  ownerScheduledReports,
   userNotificationHistory,
+  testModeIncidents,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
@@ -1388,4 +1391,223 @@ export async function markAllOwnerNotificationsRead(ownerId: number) {
     .update(ownerNotificationHistory)
     .set({ isRead: true, readAt: new Date() })
     .where(and(eq(ownerNotificationHistory.ownerId, ownerId), eq(ownerNotificationHistory.isRead, false)));
+}
+
+export async function createTestModeIncident(data: { ownerId: number; venueId: number; previewRole: "manager" | "staff"; route: string; title: string; description: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  const result = await db.insert(testModeIncidents).values({
+    ownerId: data.ownerId,
+    venueId: data.venueId,
+    previewRole: data.previewRole,
+    route: data.route,
+    title: data.title,
+    description: data.description,
+  });
+  return Number(result[0].insertId);
+}
+
+// ─── OWNER SCHEDULED REPORTS ──────────────────────────────────────────────────
+
+export type OwnerReportSummary = {
+  periodStart: string;
+  periodEnd: string;
+  venueCount: number;
+  activeVenueCount: number;
+  deliveredOrderCount: number;
+  totalRevenue: number;
+  averageTicket: number;
+  pqrsReceived: number;
+  venues: Array<{
+    venueId: number;
+    venueName: string;
+    revenue: number;
+    orderCount: number;
+    averageTicket: number;
+  }>;
+};
+
+export async function getOwnerReportSchedule(ownerId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [schedule] = await db
+    .select()
+    .from(ownerReportSchedules)
+    .where(eq(ownerReportSchedules.ownerId, ownerId))
+    .limit(1);
+  return schedule ?? null;
+}
+
+export async function getOwnerReportScheduleByTaskUid(taskUid: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const [schedule] = await db
+    .select()
+    .from(ownerReportSchedules)
+    .where(eq(ownerReportSchedules.scheduleCronTaskUid, taskUid))
+    .limit(1);
+  return schedule ?? null;
+}
+
+export async function saveOwnerReportSchedule(data: {
+  ownerId: number;
+  weekday: number;
+  hour: number;
+  minute: number;
+  cronExpression: string;
+  taskUid: string | null;
+  isEnabled: boolean;
+  nextExecutionAt?: Date | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  await db
+    .insert(ownerReportSchedules)
+    .values({
+      ownerId: data.ownerId,
+      weekday: data.weekday,
+      hour: data.hour,
+      minute: data.minute,
+      cronExpression: data.cronExpression,
+      scheduleCronTaskUid: data.taskUid,
+      isEnabled: data.isEnabled,
+      nextExecutionAt: data.nextExecutionAt ?? null,
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        weekday: data.weekday,
+        hour: data.hour,
+        minute: data.minute,
+        cronExpression: data.cronExpression,
+        scheduleCronTaskUid: data.taskUid,
+        isEnabled: data.isEnabled,
+        nextExecutionAt: data.nextExecutionAt ?? null,
+        updatedAt: new Date(),
+      },
+    });
+  const schedule = await getOwnerReportSchedule(data.ownerId);
+  if (!schedule) throw new Error("No fue posible guardar la programación del reporte");
+  return schedule;
+}
+
+export async function getOwnerScheduledReports(ownerId: number, limit = 12) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(ownerScheduledReports)
+    .where(eq(ownerScheduledReports.ownerId, ownerId))
+    .orderBy(desc(ownerScheduledReports.createdAt))
+    .limit(limit);
+}
+
+function colombiaPeriodEnd(now: Date): Date {
+  const colombiaOffsetMs = 5 * 60 * 60 * 1000;
+  const localClock = new Date(now.getTime() - colombiaOffsetMs);
+  localClock.setUTCHours(0, 0, 0, 0);
+  return new Date(localClock.getTime() + colombiaOffsetMs);
+}
+
+export async function generateOwnerScheduledReport(taskUid: string, now = new Date()) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  const schedule = await getOwnerReportScheduleByTaskUid(taskUid);
+  if (!schedule || !schedule.isEnabled) return { status: "ignored" as const };
+
+  const periodEnd = colombiaPeriodEnd(now);
+  const periodStart = new Date(periodEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const [existing] = await db
+    .select({ id: ownerScheduledReports.id })
+    .from(ownerScheduledReports)
+    .where(
+      and(
+        eq(ownerScheduledReports.scheduleId, schedule.id),
+        eq(ownerScheduledReports.periodStart, periodStart),
+        eq(ownerScheduledReports.periodEnd, periodEnd)
+      )
+    )
+    .limit(1);
+  if (existing) return { status: "duplicate" as const, reportId: existing.id };
+
+  const [venueStats, pqrsRows] = await Promise.all([
+    getOwnerVenueAnalytics(periodStart, periodEnd),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(pqrsTickets)
+      .where(and(gte(pqrsTickets.createdAt, periodStart), lte(pqrsTickets.createdAt, periodEnd))),
+  ]);
+
+  const venuesSummary = venueStats.map(venue => ({
+    venueId: venue.venueId,
+    venueName: venue.venueName,
+    revenue: Number(venue.revenue),
+    orderCount: Number(venue.orderCount),
+    averageTicket: Number(venue.averageTicket),
+  }));
+  const summary: OwnerReportSummary = {
+    periodStart: periodStart.toISOString(),
+    periodEnd: periodEnd.toISOString(),
+    venueCount: venuesSummary.length,
+    activeVenueCount: venueStats.filter(venue => venue.isActive).length,
+    deliveredOrderCount: venuesSummary.reduce((total, venue) => total + venue.orderCount, 0),
+    totalRevenue: venuesSummary.reduce((total, venue) => total + venue.revenue, 0),
+    averageTicket: 0,
+    pqrsReceived: Number(pqrsRows[0]?.count ?? 0),
+    venues: venuesSummary,
+  };
+  summary.averageTicket = summary.deliveredOrderCount > 0
+    ? summary.totalRevenue / summary.deliveredOrderCount
+    : 0;
+
+  let reportId: number;
+  try {
+    const result = await db.insert(ownerScheduledReports).values({
+      scheduleId: schedule.id,
+      ownerId: schedule.ownerId,
+      periodStart,
+      periodEnd,
+      summaryJson: JSON.stringify(summary),
+    });
+    reportId = Number(result[0].insertId);
+  } catch (error) {
+    if ((error as { code?: string }).code === "ER_DUP_ENTRY") {
+      const [duplicate] = await db
+        .select({ id: ownerScheduledReports.id })
+        .from(ownerScheduledReports)
+        .where(
+          and(
+            eq(ownerScheduledReports.scheduleId, schedule.id),
+            eq(ownerScheduledReports.periodStart, periodStart),
+            eq(ownerScheduledReports.periodEnd, periodEnd)
+          )
+        )
+        .limit(1);
+      return { status: "duplicate" as const, reportId: duplicate?.id };
+    }
+    throw error;
+  }
+
+  await Promise.all([
+    db
+      .update(ownerReportSchedules)
+      .set({ lastGeneratedAt: now, updatedAt: now })
+      .where(eq(ownerReportSchedules.id, schedule.id)),
+    db.insert(ownerNotificationHistory).values({
+      ownerId: schedule.ownerId,
+      type: "scheduled_report",
+      title: "Reporte consolidado semanal disponible",
+      content: `El reporte del ${periodStart.toLocaleDateString("es-CO")} al ${periodEnd.toLocaleDateString("es-CO")} está listo: ${summary.deliveredOrderCount} pedidos entregados y ${summary.pqrsReceived} PQRS recibidas.`,
+    }),
+    createAuditLog({
+      venueId: null,
+      userId: schedule.ownerId,
+      userRole: "owner",
+      module: "Reportes Owner",
+      action: "OWNER_SCHEDULED_REPORT_GENERATED",
+      entity: "owner_scheduled_report",
+      entityId: reportId,
+      details: JSON.stringify({ scheduleId: schedule.id, periodStart: summary.periodStart, periodEnd: summary.periodEnd }),
+    }),
+  ]);
+  return { status: "created" as const, reportId, summary };
 }

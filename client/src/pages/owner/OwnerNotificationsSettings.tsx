@@ -11,13 +11,25 @@ import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { filterNotificationHistory } from "@/lib/notificationFilters";
-import { Bell, Mail, Phone, Volume2, ShieldAlert, CheckCheck, Clock3, Inbox, CircleCheck, Search, RotateCcw, CalendarDays, RefreshCw } from "lucide-react";
+import { Bell, Mail, Phone, Volume2, ShieldAlert, CheckCheck, Clock3, Inbox, CircleCheck, Search, RotateCcw, CalendarDays, RefreshCw, FileText } from "lucide-react";
+
+const reportWeekdays = [
+  { value: "1", label: "Lunes" },
+  { value: "2", label: "Martes" },
+  { value: "3", label: "Miércoles" },
+  { value: "4", label: "Jueves" },
+  { value: "5", label: "Viernes" },
+  { value: "6", label: "Sábado" },
+  { value: "7", label: "Domingo" },
+];
 
 export default function OwnerNotificationsSettings() {
   const { user, isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   const { data: settings, isLoading } = trpc.notifications.getSettings.useQuery();
+  const { data: reportSchedule, isLoading: isLoadingReportSchedule } = trpc.ownerReports.getSchedule.useQuery();
+  const { data: scheduledReports = [], isLoading: isLoadingScheduledReports } = trpc.ownerReports.list.useQuery({ limit: 6 });
   const {
     data: history = [],
     isLoading: isLoadingHistory,
@@ -44,6 +56,9 @@ export default function OwnerNotificationsSettings() {
   const [notificationPhone, setNotificationPhone] = useState("");
   const [senderAccountEmail, setSenderAccountEmail] = useState("");
   const [soundType, setSoundType] = useState("chime");
+  const [reportWeekday, setReportWeekday] = useState("1");
+  const [reportTime, setReportTime] = useState("08:00");
+  const [reportsEnabled, setReportsEnabled] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -67,6 +82,13 @@ export default function OwnerNotificationsSettings() {
       setSoundType(settings.soundType || "chime");
     }
   }, [settings]);
+
+  useEffect(() => {
+    if (!reportSchedule) return;
+    setReportWeekday(String(reportSchedule.weekday));
+    setReportTime(`${String(reportSchedule.hour).padStart(2, "0")}:${String(reportSchedule.minute).padStart(2, "0")}`);
+    setReportsEnabled(reportSchedule.isEnabled);
+  }, [reportSchedule]);
 
   useEffect(() => {
     const latestUpdate = Math.max(historyUpdatedAt || 0, unreadCountUpdatedAt || 0);
@@ -95,6 +117,14 @@ export default function OwnerNotificationsSettings() {
       utils.notifications.getSettings.invalidate();
     },
     onError: (e) => toast.error(e.message),
+  });
+
+  const updateReportScheduleMutation = trpc.ownerReports.configure.useMutation({
+    onSuccess: async () => {
+      toast.success("Configuración del reporte interno actualizada.");
+      await Promise.all([utils.ownerReports.getSchedule.invalidate(), utils.ownerReports.list.invalidate()]);
+    },
+    onError: (error) => toast.error(error.message),
   });
 
   const markReadMutation = trpc.notifications.markRead.useMutation({
@@ -181,6 +211,16 @@ export default function OwnerNotificationsSettings() {
       notificationPhone,
       senderAccountEmail,
       soundType,
+    });
+  };
+
+  const saveReportSchedule = () => {
+    const [hourText, minuteText] = reportTime.split(":");
+    updateReportScheduleMutation.mutate({
+      weekday: Number(reportWeekday),
+      hour: Number(hourText),
+      minute: Number(minuteText),
+      isEnabled: reportsEnabled,
     });
   };
 
@@ -350,6 +390,80 @@ export default function OwnerNotificationsSettings() {
           </Button>
         </div>
       </form>
+
+      <section className="glass-card rounded-xl border border-border bg-card p-6" aria-labelledby="scheduled-report-title">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 id="scheduled-report-title" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+              <FileText className="h-5 w-5 text-primary" /> Reporte consolidado interno
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Genera un resumen semanal dentro de SongTap con ventas entregadas, locales, ticket promedio y PQRS. Se conserva aquí y crea una alerta cuando está disponible.
+            </p>
+          </div>
+          <div className="rounded-full border border-border bg-secondary/50 px-3 py-1 text-xs font-medium text-muted-foreground">
+            Zona horaria: Colombia (UTC−5)
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-4 border-y border-border py-5 sm:grid-cols-[minmax(0,1fr)_10rem_10rem] sm:items-end">
+          <div className="space-y-2">
+            <Label htmlFor="report-weekday" className="text-xs text-muted-foreground">Día de ejecución</Label>
+            <Select value={reportWeekday} onValueChange={setReportWeekday} disabled={isLoadingReportSchedule}>
+              <SelectTrigger id="report-weekday" className="border-border bg-input text-foreground"><SelectValue /></SelectTrigger>
+              <SelectContent className="border-border bg-card text-card-foreground">
+                {reportWeekdays.map(day => <SelectItem key={day.value} value={day.value}>{day.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="report-time" className="text-xs text-muted-foreground">Hora local</Label>
+            <Input id="report-time" type="time" value={reportTime} onChange={(event) => setReportTime(event.target.value)} className="border-border bg-input text-foreground" disabled={isLoadingReportSchedule} />
+          </div>
+          <div className="flex min-h-10 items-center justify-between gap-3 rounded-lg border border-border bg-secondary/20 px-3">
+            <Label htmlFor="enable-scheduled-report" className="text-xs font-medium text-foreground">Activar</Label>
+            <Switch id="enable-scheduled-report" checked={reportsEnabled} onCheckedChange={setReportsEnabled} disabled={isLoadingReportSchedule} />
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs text-muted-foreground" aria-live="polite">
+            {reportSchedule?.isEnabled
+              ? reportSchedule.nextExecutionAt
+                ? `Próxima ejecución: ${new Date(reportSchedule.nextExecutionAt).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })}.`
+                : "La programación está activa; la próxima ejecución se actualizará automáticamente."
+              : "La programación permanece desactivada hasta que la actives en producción."}
+          </div>
+          <Button type="button" onClick={saveReportSchedule} disabled={isLoadingReportSchedule || updateReportScheduleMutation.isPending} className="bg-[#1DB954] font-semibold text-black hover:bg-[#1ed760]">
+            {updateReportScheduleMutation.isPending ? "Guardando..." : "Guardar programación"}
+          </Button>
+        </div>
+
+        <div className="mt-5 rounded-lg border border-border bg-secondary/10 p-4">
+          <h3 className="text-sm font-semibold text-foreground">Últimos reportes generados</h3>
+          {isLoadingScheduledReports ? (
+            <p className="mt-2 text-sm text-muted-foreground">Cargando reportes internos...</p>
+          ) : scheduledReports.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">Aún no hay reportes programados generados. Al activarlo tras publicar, el primero aparecerá aquí.</p>
+          ) : (
+            <div className="mt-3 divide-y divide-border">
+              {scheduledReports.map(report => {
+                let summary: { totalRevenue?: number; deliveredOrderCount?: number; pqrsReceived?: number } = {};
+                try { summary = JSON.parse(report.summaryJson); } catch { /* Conserva el registro si un resumen histórico no es legible. */ }
+                return (
+                  <div key={report.id} className="flex flex-col gap-1 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-medium text-foreground">Periodo del {new Date(report.periodStart).toLocaleDateString("es-CO")} al {new Date(report.periodEnd).toLocaleDateString("es-CO")}</p>
+                      <p className="text-xs text-muted-foreground">{summary.deliveredOrderCount ?? 0} pedidos entregados · {summary.pqrsReceived ?? 0} PQRS</p>
+                    </div>
+                    <p className="font-semibold text-primary">${Number(summary.totalRevenue ?? 0).toLocaleString("es-CO", { maximumFractionDigits: 0 })}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
 
       <section className="glass-card rounded-xl border border-border bg-card overflow-hidden" aria-labelledby="notification-history-title">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-6 border-b border-border">
