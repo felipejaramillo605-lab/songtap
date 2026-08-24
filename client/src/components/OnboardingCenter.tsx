@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -102,6 +103,7 @@ export default function OnboardingCenter({ role, compact = false }: { role: Role
   const [isExpanded, setIsExpanded] = useState(false);
   const [guideMode, setGuideMode] = useState<GuideMode>("complete");
   const [activeStep, setActiveStep] = useState(0);
+  const [suppressAutoOnboarding, setSuppressAutoOnboarding] = useState(false);
   const [helpQuery, setHelpQuery] = useState("");
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [issueTitle, setIssueTitle] = useState("");
@@ -120,6 +122,7 @@ export default function OnboardingCenter({ role, compact = false }: { role: Role
   const utils = trpc.useUtils();
   const markOpened = trpc.onboarding.markOpened.useMutation();
   const markAutoShown = trpc.onboarding.markAutoShown.useMutation({ onSuccess: () => utils.onboarding.getProgress.invalidate() });
+  const setAutoSuppressed = trpc.onboarding.setAutoSuppressed.useMutation({ onSuccess: () => utils.onboarding.getProgress.invalidate(), onError: error => toast.error(error.message) });
   const complete = trpc.onboarding.complete.useMutation({ onSuccess: () => utils.onboarding.getProgress.invalidate() });
   const reset = trpc.onboarding.reset.useMutation({ onSuccess: () => { setActiveStep(0); setGuideMode("complete"); utils.onboarding.getProgress.invalidate(); toast.success("Onboarding reiniciado. Puedes recorrerlo de nuevo."); } });
   const reportIssue = trpc.onboarding.reportIssue.useMutation({ onSuccess: async () => { setIssueTitle(""); setIssueDescription(""); toast.success("Incidencia enviada. Recibirás seguimiento en esta ayuda."); await Promise.all([utils.onboarding.listSupportTickets.invalidate(), utils.notifications.getPendingCount.invalidate()]); }, onError: error => toast.error(error.message) });
@@ -134,10 +137,15 @@ export default function OnboardingCenter({ role, compact = false }: { role: Role
   }, [helpInteractions.favorites, helpQuery, onlyFavorites, role]);
 
   useEffect(() => {
-    if (!isLoading && !progress?.autoShownAt && !autoShowAttempted.current) { autoShowAttempted.current = true; setOpen(true); markAutoShown.mutate(); }
-  }, [isLoading, progress?.autoShownAt]);
+    if (progress) setSuppressAutoOnboarding(Boolean(progress.suppressAutoOnboarding));
+  }, [progress?.suppressAutoOnboarding]);
+
+  useEffect(() => {
+    if (!isLoading && !progress?.autoShownAt && !progress?.suppressAutoOnboarding && !autoShowAttempted.current) { autoShowAttempted.current = true; setOpen(true); markAutoShown.mutate(); }
+  }, [isLoading, progress?.autoShownAt, progress?.suppressAutoOnboarding]);
 
   const changeGuideMode = (mode: GuideMode) => { setGuideMode(mode); setActiveStep(0); };
+  const updateSuppression = (next: boolean) => { setSuppressAutoOnboarding(next); setAutoSuppressed.mutate({ suppressAutoOnboarding: next }); };
   const goToStep = (index: number) => setActiveStep(Math.max(0, Math.min(index, visibleSteps.length - 1)));
   const handleOpenChange = (next: boolean) => { setOpen(next); if (!next) { setIsMinimized(false); setIsExpanded(false); } if (next) markOpened.mutate(); };
   const openModule = () => { setOpen(false); navigate(current.href); };
@@ -158,6 +166,7 @@ export default function OnboardingCenter({ role, compact = false }: { role: Role
           <TabsContent value="tour" className="mt-5 space-y-5">
             <section className="rounded-xl border border-primary/25 bg-primary/5 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h3 className="font-semibold">Elige el nivel de detalle</h3><p className="mt-1 text-sm text-muted-foreground">La guía breve muestra los dos pasos esenciales; la completa explica toda la operación.</p></div><div className="grid grid-cols-2 gap-2"><Button type="button" size="sm" variant={guideMode === "brief" ? "default" : "outline"} onClick={() => changeGuideMode("brief")} aria-pressed={guideMode === "brief"}>Guía breve</Button><Button type="button" size="sm" variant={guideMode === "complete" ? "default" : "outline"} onClick={() => changeGuideMode("complete")} aria-pressed={guideMode === "complete"}>Guía completa</Button></div></div></section>
             <section aria-label="Progreso del onboarding" className="rounded-xl border border-border bg-card p-4"><div className="flex flex-wrap items-end justify-between gap-2"><div><p className="font-semibold">Progreso: {activeStep + 1} de {visibleSteps.length}</p><p className="text-sm text-muted-foreground">{remainingSteps === 0 ? "Este es el último paso." : `Te ${remainingSteps === 1 ? "falta" : "faltan"} ${remainingSteps} ${remainingSteps === 1 ? "paso" : "pasos"}.`}</p></div><Badge variant="outline">{progressPercent}% completado</Badge></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-secondary" role="progressbar" aria-label="Progreso de la guía" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}><div className="h-full rounded-full bg-primary transition-[width] duration-200" style={{ width: `${progressPercent}%` }} /></div></section>
+            <section className="flex items-start gap-3 rounded-xl border border-border bg-secondary/20 p-4"><Checkbox id="suppress-auto-onboarding" checked={suppressAutoOnboarding} onCheckedChange={checked => updateSuppression(checked === true)} disabled={setAutoSuppressed.isPending} /><div className="grid gap-1.5 leading-none"><Label htmlFor="suppress-auto-onboarding" className="cursor-pointer text-sm font-semibold">No volver a mostrar automáticamente esta información</Label><p className="text-xs leading-5 text-muted-foreground">La guía seguirá disponible desde Guía y ayuda. Al completar el recorrido, esta preferencia se activa automáticamente.</p></div></section>
             <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]"><ol className="grid gap-2 sm:grid-cols-2 lg:block lg:space-y-2" aria-label="Pasos del onboarding">{visibleSteps.map((step, index) => <li key={step.title}><button type="button" onClick={() => goToStep(index)} className={cn("flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors", index === activeStep ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary hover:text-foreground")}><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-current text-[11px]">{index + 1}</span><span className="line-clamp-2">{step.title}</span></button></li>)}</ol>
               <article className="rounded-xl border border-border bg-background p-4 sm:p-5"><Badge className="mb-2 bg-primary/15 text-primary hover:bg-primary/15">Paso {activeStep + 1} de {visibleSteps.length}</Badge><h3 className="flex items-center gap-2 text-lg font-bold"><Icon className="h-5 w-5 text-primary" />{current.title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{current.description}</p><div className="mt-5"><ActionPreview step={current} /></div><div className="mt-4 rounded-lg border border-primary/30 bg-primary/8 p-3 text-sm"><span className="font-semibold text-primary">Qué debes hacer: </span>{current.action}</div><div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100"><AlertTriangle className="mr-1 inline h-4 w-4 text-amber-400" /><span className="font-semibold">Si algo no sale como esperas: </span>{current.errorTip}</div><div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between"><Button type="button" variant="outline" onClick={() => goToStep(activeStep - 1)} disabled={activeStep === 0}><ArrowLeft className="mr-1 h-4 w-4" />Anterior</Button><div className="flex flex-col gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={openModule}>Abrir este módulo</Button>{activeStep === visibleSteps.length - 1 ? <Button type="button" onClick={() => complete.mutate()} disabled={complete.isPending}>{isCompleted ? "Guía completada" : "Completar guía"}<Check className="ml-1 h-4 w-4" /></Button> : <Button type="button" onClick={() => goToStep(activeStep + 1)}>Siguiente<ArrowRight className="ml-1 h-4 w-4" /></Button>}</div></div></article></div>
           </TabsContent>

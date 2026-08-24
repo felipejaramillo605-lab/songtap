@@ -8,6 +8,7 @@ import {
   getUserOnboardingProgress,
   markUserOnboardingOpened,
   markUserOnboardingAutoShown,
+  setUserOnboardingAutoSuppressed,
   resetUserOnboarding,
   getHelpArticleInteractions,
   setHelpArticleVote,
@@ -36,6 +37,13 @@ export const onboardingRouter = router({
     const role = requireSupportedRole(ctx.user.role);
     return markUserOnboardingAutoShown(ctx.user.id, role);
   }),
+
+  setAutoSuppressed: protectedProcedure
+    .input(z.object({ suppressAutoOnboarding: z.boolean() }))
+    .mutation(({ ctx, input }) => {
+      const role = requireSupportedRole(ctx.user.role);
+      return setUserOnboardingAutoSuppressed(ctx.user.id, role, input.suppressAutoOnboarding);
+    }),
 
   complete: protectedProcedure.mutation(({ ctx }) => {
     const role = requireSupportedRole(ctx.user.role);

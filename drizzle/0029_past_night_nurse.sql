@@ -1,0 +1,1 @@
+ALTER TABLE `user_onboarding_progress` ADD `suppressAutoOnboarding` boolean DEFAULT false NOT NULL;

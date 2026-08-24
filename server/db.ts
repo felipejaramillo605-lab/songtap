@@ -1714,11 +1714,19 @@ export async function markUserOnboardingAutoShown(userId: number, role: Onboardi
   return getUserOnboardingProgress(userId, role);
 }
 
+export async function setUserOnboardingAutoSuppressed(userId: number, role: OnboardingRole, suppressAutoOnboarding: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  const now = new Date();
+  await db.insert(userOnboardingProgress).values({ userId, role, suppressAutoOnboarding, lastOpenedAt: now }).onDuplicateKeyUpdate({ set: { suppressAutoOnboarding, lastOpenedAt: now } });
+  return getUserOnboardingProgress(userId, role);
+}
+
 export async function completeUserOnboarding(userId: number, role: OnboardingRole) {
   const db = await getDb();
   if (!db) throw new Error("Base de datos no disponible");
   const now = new Date();
-  await db.insert(userOnboardingProgress).values({ userId, role, completedAt: now, lastOpenedAt: now }).onDuplicateKeyUpdate({ set: { completedAt: now, lastOpenedAt: now } });
+  await db.insert(userOnboardingProgress).values({ userId, role, completedAt: now, suppressAutoOnboarding: true, lastOpenedAt: now }).onDuplicateKeyUpdate({ set: { completedAt: now, suppressAutoOnboarding: true, lastOpenedAt: now } });
   return getUserOnboardingProgress(userId, role);
 }
 

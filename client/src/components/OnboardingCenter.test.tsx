@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn() }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -15,6 +15,7 @@ vi.mock("@/lib/trpc", () => ({
       getHelpInteractions: { useQuery: () => ({ data: { votes: {}, favorites: [] } }) },
       markOpened: { useMutation: () => ({ mutate: mocks.markOpened }) },
       markAutoShown: { useMutation: () => ({ mutate: mocks.markAutoShown }) },
+      setAutoSuppressed: { useMutation: () => ({ mutate: mocks.setAutoSuppressed, isPending: false }) },
       complete: { useMutation: () => ({ mutate: mocks.complete, isPending: false }) },
       reset: { useMutation: () => ({ mutate: mocks.reset, isPending: false }) },
       reportIssue: { useMutation: () => ({ mutate: mocks.reportIssue, isPending: false }) },
@@ -51,6 +52,14 @@ describe("OnboardingCenter", () => {
     expect(screen.getByText("Este es el último paso.")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Guía completa" }));
     expect(screen.getByText("Progreso: 1 de 4")).toBeTruthy();
+  });
+
+  it("permite impedir nuevas aperturas automáticas desde el checkbox", async () => {
+    const user = userEvent.setup();
+    render(<OnboardingCenter role="owner" />);
+    await screen.findByRole("dialog");
+    await user.click(screen.getByRole("checkbox", { name: /no volver a mostrar automáticamente/i }));
+    expect(mocks.setAutoSuppressed).toHaveBeenCalledWith({ suppressAutoOnboarding: true });
   });
 
   it("permite enviar una incidencia contextual desde la ayuda", async () => {

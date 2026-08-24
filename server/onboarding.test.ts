@@ -4,6 +4,7 @@ const dbMocks = vi.hoisted(() => ({
   getUserOnboardingProgress: vi.fn(),
   markUserOnboardingOpened: vi.fn(),
   markUserOnboardingAutoShown: vi.fn(),
+  setUserOnboardingAutoSuppressed: vi.fn(),
   completeUserOnboarding: vi.fn(),
   resetUserOnboarding: vi.fn(),
   createSupportTicket: vi.fn(),
@@ -32,6 +33,12 @@ describe("onboarding router", () => {
     dbMocks.markUserOnboardingAutoShown.mockResolvedValueOnce({ id: 1, userId: 25, role: "manager", autoShownAt: new Date() });
     await expect(onboardingRouter.createCaller(context("manager")).markAutoShown()).resolves.toMatchObject({ userId: 25, role: "manager" });
     expect(dbMocks.markUserOnboardingAutoShown).toHaveBeenCalledWith(25, "manager");
+  });
+
+  it("persiste la preferencia de no reapertura solo para el usuario autenticado", async () => {
+    dbMocks.setUserOnboardingAutoSuppressed.mockResolvedValueOnce({ id: 1, userId: 25, role: "manager", suppressAutoOnboarding: true });
+    await expect(onboardingRouter.createCaller(context("manager")).setAutoSuppressed({ suppressAutoOnboarding: true })).resolves.toMatchObject({ userId: 25, suppressAutoOnboarding: true });
+    expect(dbMocks.setUserOnboardingAutoSuppressed).toHaveBeenCalledWith(25, "manager", true);
   });
 
   it("reporta una incidencia con ruta, rol y local derivados del contexto seguro", async () => {

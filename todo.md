@@ -449,3 +449,7 @@
 - [x] Permitir elegir entre recorrido breve y recorrido completo
 - [x] Añadir desde Ayuda una acción para reiniciar el onboarding manualmente
 - [x] Validar progreso, selección de modalidad, reinicio y accesibilidad responsive
+- [x] Persistir la preferencia de no volver a mostrar automáticamente el onboarding
+- [x] Añadir un checkbox claro para controlar la reapertura automática
+- [x] Impedir que el onboarding aparezca al navegar entre módulos tras revisarlo o desactivarlo
+- [x] Validar navegación entre módulos, preferencia y accesibilidad del control

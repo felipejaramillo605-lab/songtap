@@ -27,6 +27,7 @@ vi.mock("@/lib/trpc", () => ({
       getHelpInteractions: { useQuery: () => ({ data: { votes: {}, favorites: [] } }) },
       markOpened: { useMutation: () => ({ mutate: vi.fn() }) },
       markAutoShown: { useMutation: () => ({ mutate: vi.fn() }) },
+      setAutoSuppressed: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       complete: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       reset: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       reportIssue: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
