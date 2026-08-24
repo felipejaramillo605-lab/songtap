@@ -1,7 +1,7 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch, useLocation } from "wouter";
-import { useEffect, type ReactNode } from "react";
+import { Route, Switch } from "wouter";
+import { type ReactNode } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { Toaster } from "sonner";
@@ -17,6 +17,7 @@ import PrivacyPolicy from "./pages/client/PrivacyPolicy";
 // Auth
 import Login from "./pages/Login";
 import ForcePasswordChange from "./pages/ForcePasswordChange";
+import AccessDenied from "./pages/AccessDenied";
 
 // Profile Page
 import Profile from "./pages/Profile";
@@ -59,23 +60,10 @@ type InternalRole = "owner" | "manager" | "staff" | "user";
 
 export function RoleGate({ allowedRoles, children }: { allowedRoles: InternalRole[]; children: ReactNode }) {
   const { user, isAuthenticated, loading } = useAuth();
-  const [, navigate] = useLocation();
   const isAllowed = Boolean(user && allowedRoles.includes(user.role as InternalRole));
-  const safeDestination = user?.mustChangePassword
-    ? "/change-password"
-    : user?.role === "owner" ? "/owner"
-      : user?.role === "manager" ? "/manager"
-        : user?.role === "staff" ? "/staff"
-          : "/";
-
-  useEffect(() => {
-    if (loading) return;
-    if (!isAuthenticated || !user) navigate("/login");
-    else if (!isAllowed) navigate(safeDestination);
-  }, [isAllowed, isAuthenticated, loading, navigate, safeDestination, user]);
 
   if (loading) return <main className="min-h-screen bg-background" aria-busy="true" aria-label="Verificando acceso" />;
-  if (!isAuthenticated || !user || !isAllowed) return <main className="min-h-screen bg-background" aria-live="polite">Redirigiendo de forma segura…</main>;
+  if (!isAuthenticated || !user || !isAllowed) return <AccessDenied />;
   return <>{children}</>;
 }
 
@@ -94,6 +82,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
       <Route path="/change-password" component={ForcePasswordChange} />
+      <Route path="/access-denied" component={AccessDenied} />
 
       {/* Client QR Portal */}
       <Route path="/mesa/:qrToken" component={ClientPortal} />

@@ -392,3 +392,6 @@
 - [x] Restringir visualmente las rutas internas al rol autenticado antes de renderizar cada panel
 - [x] Redirigir accesos no autenticados o con rol incorrecto a un destino seguro sin exponer módulos internos
 - [x] Corregir el enlace de política de privacidad de la página principal detectado sin destino válido
+- [x] Crear una pantalla accesible de Acceso denegado con motivo y rol actual
+- [x] Ofrecer enlaces seguros al panel autorizado, al Login o al cambio de contraseña según corresponda
+- [x] Cubrir los escenarios sin sesión, rol incompatible y clave temporal pendiente con pruebas
