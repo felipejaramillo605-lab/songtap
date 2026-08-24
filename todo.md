@@ -422,4 +422,5 @@
 - [x] Permitir capturar incidencias desde el modo de pruebas con contexto de rol, local y ruta
 - [x] Permitir configurar reportes consolidados periódicos dentro de SongTap para Owner
 - [x] Validar estabilidad, permisos, captura de incidencias y programación de reportes
-- [ ] Publicar SongTap y activar desde Owner el primer reporte interno programado
+- [x] Publicar SongTap y activar desde Owner el primer reporte interno programado
+- [x] Activar el cron semanal del reporte interno y comprobar su próxima ejecución en producción
