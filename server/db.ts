@@ -1425,6 +1425,20 @@ export type OwnerReportSummary = {
     orderCount: number;
     averageTicket: number;
   }>;
+  comparison: {
+    periodStart: string;
+    periodEnd: string;
+    totalRevenue: OwnerReportMetricComparison;
+    deliveredOrderCount: OwnerReportMetricComparison;
+    averageTicket: OwnerReportMetricComparison;
+    pqrsReceived: OwnerReportMetricComparison;
+  };
+};
+
+export type OwnerReportMetricComparison = {
+  previousValue: number;
+  change: number;
+  percentChange: number | null;
 };
 
 export async function getOwnerReportSchedule(ownerId: number) {
@@ -1501,6 +1515,17 @@ export async function getOwnerScheduledReports(ownerId: number, limit = 12) {
     .limit(limit);
 }
 
+export async function getOwnerScheduledReport(ownerId: number, reportId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [report] = await db
+    .select()
+    .from(ownerScheduledReports)
+    .where(and(eq(ownerScheduledReports.id, reportId), eq(ownerScheduledReports.ownerId, ownerId)))
+    .limit(1);
+  return report ?? null;
+}
+
 function colombiaPeriodEnd(now: Date): Date {
   const colombiaOffsetMs = 5 * 60 * 60 * 1000;
   const localClock = new Date(now.getTime() - colombiaOffsetMs);
@@ -1508,27 +1533,20 @@ function colombiaPeriodEnd(now: Date): Date {
   return new Date(localClock.getTime() + colombiaOffsetMs);
 }
 
-export async function generateOwnerScheduledReport(taskUid: string, now = new Date()) {
+type OwnerReportSnapshot = Omit<OwnerReportSummary, "comparison">;
+type OwnerReportScheduleRecord = NonNullable<Awaited<ReturnType<typeof getOwnerReportSchedule>>>;
+
+function compareReportMetric(currentValue: number, previousValue: number): OwnerReportMetricComparison {
+  return {
+    previousValue,
+    change: currentValue - previousValue,
+    percentChange: previousValue === 0 ? null : ((currentValue - previousValue) / Math.abs(previousValue)) * 100,
+  };
+}
+
+async function buildOwnerReportSnapshot(periodStart: Date, periodEnd: Date): Promise<OwnerReportSnapshot> {
   const db = await getDb();
   if (!db) throw new Error("Base de datos no disponible");
-  const schedule = await getOwnerReportScheduleByTaskUid(taskUid);
-  if (!schedule || !schedule.isEnabled) return { status: "ignored" as const };
-
-  const periodEnd = colombiaPeriodEnd(now);
-  const periodStart = new Date(periodEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const [existing] = await db
-    .select({ id: ownerScheduledReports.id })
-    .from(ownerScheduledReports)
-    .where(
-      and(
-        eq(ownerScheduledReports.scheduleId, schedule.id),
-        eq(ownerScheduledReports.periodStart, periodStart),
-        eq(ownerScheduledReports.periodEnd, periodEnd)
-      )
-    )
-    .limit(1);
-  if (existing) return { status: "duplicate" as const, reportId: existing.id };
-
   const [venueStats, pqrsRows] = await Promise.all([
     getOwnerVenueAnalytics(periodStart, periodEnd),
     db
@@ -1536,34 +1554,73 @@ export async function generateOwnerScheduledReport(taskUid: string, now = new Da
       .from(pqrsTickets)
       .where(and(gte(pqrsTickets.createdAt, periodStart), lte(pqrsTickets.createdAt, periodEnd))),
   ]);
-
-  const venuesSummary = venueStats.map(venue => ({
+  const venues = venueStats.map(venue => ({
     venueId: venue.venueId,
     venueName: venue.venueName,
     revenue: Number(venue.revenue),
     orderCount: Number(venue.orderCount),
     averageTicket: Number(venue.averageTicket),
   }));
-  const summary: OwnerReportSummary = {
+  const deliveredOrderCount = venues.reduce((total, venue) => total + venue.orderCount, 0);
+  const totalRevenue = venues.reduce((total, venue) => total + venue.revenue, 0);
+  return {
     periodStart: periodStart.toISOString(),
     periodEnd: periodEnd.toISOString(),
-    venueCount: venuesSummary.length,
+    venueCount: venues.length,
     activeVenueCount: venueStats.filter(venue => venue.isActive).length,
-    deliveredOrderCount: venuesSummary.reduce((total, venue) => total + venue.orderCount, 0),
-    totalRevenue: venuesSummary.reduce((total, venue) => total + venue.revenue, 0),
-    averageTicket: 0,
+    deliveredOrderCount,
+    totalRevenue,
+    averageTicket: deliveredOrderCount > 0 ? totalRevenue / deliveredOrderCount : 0,
     pqrsReceived: Number(pqrsRows[0]?.count ?? 0),
-    venues: venuesSummary,
+    venues,
   };
-  summary.averageTicket = summary.deliveredOrderCount > 0
-    ? summary.totalRevenue / summary.deliveredOrderCount
-    : 0;
+}
 
+async function buildOwnerReportSummary(periodStart: Date, periodEnd: Date): Promise<OwnerReportSummary> {
+  const previousPeriodEnd = periodStart;
+  const previousPeriodStart = new Date(previousPeriodEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const [current, previous] = await Promise.all([
+    buildOwnerReportSnapshot(periodStart, periodEnd),
+    buildOwnerReportSnapshot(previousPeriodStart, previousPeriodEnd),
+  ]);
+  return {
+    ...current,
+    comparison: {
+      periodStart: previousPeriodStart.toISOString(),
+      periodEnd: previousPeriodEnd.toISOString(),
+      totalRevenue: compareReportMetric(current.totalRevenue, previous.totalRevenue),
+      deliveredOrderCount: compareReportMetric(current.deliveredOrderCount, previous.deliveredOrderCount),
+      averageTicket: compareReportMetric(current.averageTicket, previous.averageTicket),
+      pqrsReceived: compareReportMetric(current.pqrsReceived, previous.pqrsReceived),
+    },
+  };
+}
+
+async function persistOwnerReport(params: {
+  schedule: OwnerReportScheduleRecord;
+  source: "scheduled" | "manual";
+  reportKey: string;
+  now: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  const [existing] = await db
+    .select({ id: ownerScheduledReports.id })
+    .from(ownerScheduledReports)
+    .where(and(eq(ownerScheduledReports.scheduleId, params.schedule.id), eq(ownerScheduledReports.reportKey, params.reportKey)))
+    .limit(1);
+  if (existing) return { status: "duplicate" as const, reportId: existing.id };
+
+  const periodEnd = colombiaPeriodEnd(params.now);
+  const periodStart = new Date(periodEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const summary = await buildOwnerReportSummary(periodStart, periodEnd);
   let reportId: number;
   try {
     const result = await db.insert(ownerScheduledReports).values({
-      scheduleId: schedule.id,
-      ownerId: schedule.ownerId,
+      scheduleId: params.schedule.id,
+      ownerId: params.schedule.ownerId,
+      generationSource: params.source,
+      reportKey: params.reportKey,
       periodStart,
       periodEnd,
       summaryJson: JSON.stringify(summary),
@@ -1574,40 +1631,50 @@ export async function generateOwnerScheduledReport(taskUid: string, now = new Da
       const [duplicate] = await db
         .select({ id: ownerScheduledReports.id })
         .from(ownerScheduledReports)
-        .where(
-          and(
-            eq(ownerScheduledReports.scheduleId, schedule.id),
-            eq(ownerScheduledReports.periodStart, periodStart),
-            eq(ownerScheduledReports.periodEnd, periodEnd)
-          )
-        )
+        .where(and(eq(ownerScheduledReports.scheduleId, params.schedule.id), eq(ownerScheduledReports.reportKey, params.reportKey)))
         .limit(1);
       return { status: "duplicate" as const, reportId: duplicate?.id };
     }
     throw error;
   }
 
+  const sourceLabel = params.source === "scheduled" ? "programado" : "manual";
   await Promise.all([
-    db
-      .update(ownerReportSchedules)
-      .set({ lastGeneratedAt: now, updatedAt: now })
-      .where(eq(ownerReportSchedules.id, schedule.id)),
+    db.update(ownerReportSchedules).set({ lastGeneratedAt: params.now, updatedAt: params.now }).where(eq(ownerReportSchedules.id, params.schedule.id)),
     db.insert(ownerNotificationHistory).values({
-      ownerId: schedule.ownerId,
+      ownerId: params.schedule.ownerId,
       type: "scheduled_report",
       title: "Reporte consolidado semanal disponible",
-      content: `El reporte del ${periodStart.toLocaleDateString("es-CO")} al ${periodEnd.toLocaleDateString("es-CO")} está listo: ${summary.deliveredOrderCount} pedidos entregados y ${summary.pqrsReceived} PQRS recibidas.`,
+      content: `El reporte ${sourceLabel} del ${periodStart.toLocaleDateString("es-CO")} al ${periodEnd.toLocaleDateString("es-CO")} está listo: ${summary.deliveredOrderCount} pedidos entregados, ${summary.pqrsReceived} PQRS y $${Math.round(summary.totalRevenue).toLocaleString("es-CO")} en ingresos.`,
     }),
     createAuditLog({
       venueId: null,
-      userId: schedule.ownerId,
+      userId: params.schedule.ownerId,
       userRole: "owner",
       module: "Reportes Owner",
-      action: "OWNER_SCHEDULED_REPORT_GENERATED",
+      action: params.source === "scheduled" ? "OWNER_SCHEDULED_REPORT_GENERATED" : "OWNER_MANUAL_REPORT_GENERATED",
       entity: "owner_scheduled_report",
       entityId: reportId,
-      details: JSON.stringify({ scheduleId: schedule.id, periodStart: summary.periodStart, periodEnd: summary.periodEnd }),
+      details: JSON.stringify({ scheduleId: params.schedule.id, periodStart: summary.periodStart, periodEnd: summary.periodEnd, source: params.source }),
     }),
   ]);
   return { status: "created" as const, reportId, summary };
+}
+
+export async function generateOwnerScheduledReport(taskUid: string, now = new Date()) {
+  const schedule = await getOwnerReportScheduleByTaskUid(taskUid);
+  if (!schedule || !schedule.isEnabled) return { status: "ignored" as const };
+  const periodEnd = colombiaPeriodEnd(now);
+  return persistOwnerReport({
+    schedule,
+    source: "scheduled",
+    reportKey: `scheduled:${periodEnd.toISOString()}`,
+    now,
+  });
+}
+
+export async function generateOwnerManualReport(ownerId: number, requestId: string, now = new Date()) {
+  const schedule = await getOwnerReportSchedule(ownerId);
+  if (!schedule) throw new Error("Configura primero el reporte interno semanal antes de generarlo manualmente.");
+  return persistOwnerReport({ schedule, source: "manual", reportKey: `manual:${requestId}`, now });
 }

@@ -6,7 +6,9 @@ import { createHeartbeatJob, updateHeartbeatJob } from "../_core/heartbeat";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
   getOwnerReportSchedule,
+  getOwnerScheduledReport,
   getOwnerScheduledReports,
+  generateOwnerManualReport,
   saveOwnerReportSchedule,
 } from "../db";
 
@@ -51,6 +53,29 @@ export const ownerReportsRouter = router({
     .query(async ({ ctx, input }) => {
       await requireOwner(ctx.user);
       return getOwnerScheduledReports(ctx.user.id, input?.limit ?? 12);
+    }),
+
+  getById: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await requireOwner(ctx.user);
+      const report = await getOwnerScheduledReport(ctx.user.id, input.id);
+      if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Reporte no encontrado." });
+      return report;
+    }),
+
+  generateManual: protectedProcedure
+    .input(z.object({ requestId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await requireOwner(ctx.user);
+      try {
+        return await generateOwnerManualReport(ctx.user.id, input.requestId);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "No fue posible generar el reporte manual.",
+        });
+      }
     }),
 
   configure: protectedProcedure.input(reportScheduleInput).mutation(async ({ ctx, input }) => {

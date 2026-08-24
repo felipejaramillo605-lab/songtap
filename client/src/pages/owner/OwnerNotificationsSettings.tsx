@@ -11,7 +11,8 @@ import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { filterNotificationHistory } from "@/lib/notificationFilters";
-import { Bell, Mail, Phone, Volume2, ShieldAlert, CheckCheck, Clock3, Inbox, CircleCheck, Search, RotateCcw, CalendarDays, RefreshCw, FileText } from "lucide-react";
+import { downloadOwnerReportExcel, downloadOwnerReportPdf, parseOwnerReportSummary } from "@/lib/ownerReportExport";
+import { Bell, Mail, Phone, Volume2, ShieldAlert, CheckCheck, Clock3, Inbox, CircleCheck, Search, RotateCcw, CalendarDays, RefreshCw, FileText, Download, FileSpreadsheet } from "lucide-react";
 
 const reportWeekdays = [
   { value: "1", label: "Lunes" },
@@ -448,15 +449,22 @@ export default function OwnerNotificationsSettings() {
           ) : (
             <div className="mt-3 divide-y divide-border">
               {scheduledReports.map(report => {
-                let summary: { totalRevenue?: number; deliveredOrderCount?: number; pqrsReceived?: number } = {};
-                try { summary = JSON.parse(report.summaryJson); } catch { /* Conserva el registro si un resumen histórico no es legible. */ }
+                const summary = parseOwnerReportSummary(report.summaryJson);
+                const reportDate = new Date(report.createdAt);
                 return (
-                  <div key={report.id} className="flex flex-col gap-1 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <div key={report.id} className="flex flex-col gap-3 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-medium text-foreground">Periodo del {new Date(report.periodStart).toLocaleDateString("es-CO")} al {new Date(report.periodEnd).toLocaleDateString("es-CO")}</p>
-                      <p className="text-xs text-muted-foreground">{summary.deliveredOrderCount ?? 0} pedidos entregados · {summary.pqrsReceived ?? 0} PQRS</p>
+                      <p className="text-xs text-muted-foreground">{summary?.deliveredOrderCount ?? 0} pedidos entregados · {summary?.pqrsReceived ?? 0} PQRS · {report.generationSource === "manual" ? "Generación manual" : "Programado"}</p>
+                      {summary && <p className={`mt-1 text-xs ${summary.comparison.totalRevenue.change >= 0 ? "text-primary" : "text-destructive"}`}>Ingresos vs. semana anterior: {summary.comparison.totalRevenue.change >= 0 ? "+" : ""}${Math.round(summary.comparison.totalRevenue.change).toLocaleString("es-CO")} {summary.comparison.totalRevenue.percentChange === null ? "(sin base comparable)" : `(${summary.comparison.totalRevenue.percentChange >= 0 ? "+" : ""}${summary.comparison.totalRevenue.percentChange.toFixed(1)}%)`}</p>}
                     </div>
-                    <p className="font-semibold text-primary">${Number(summary.totalRevenue ?? 0).toLocaleString("es-CO", { maximumFractionDigits: 0 })}</p>
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      <p className="mr-1 font-semibold text-primary">${Number(summary?.totalRevenue ?? 0).toLocaleString("es-CO", { maximumFractionDigits: 0 })}</p>
+                      {summary ? <>
+                        <Button type="button" size="sm" variant="outline" className="border-border text-foreground" onClick={() => downloadOwnerReportPdf(report.id, summary, reportDate)} aria-label={`Descargar reporte ${report.id} en PDF`}><Download className="mr-1.5 h-3.5 w-3.5" />PDF</Button>
+                        <Button type="button" size="sm" variant="outline" className="border-border text-foreground" onClick={() => downloadOwnerReportExcel(report.id, summary, reportDate)} aria-label={`Descargar reporte ${report.id} en Excel`}><FileSpreadsheet className="mr-1.5 h-3.5 w-3.5" />Excel</Button>
+                      </> : <span className="text-xs text-muted-foreground">Reporte histórico sin formato descargable</span>}
+                    </div>
                   </div>
                 );
               })}

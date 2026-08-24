@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { buildPqrsFilename, createPqrsCsv, createPqrsWorkbook, toPqrsExportRows } from "@/lib/pqrsExport";
 import { getPreviousPqrsPeriod } from "@/lib/pqrsPeriod";
 import { getSlaRisk } from "@/lib/pqrsSlaRisk";
-import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet, ShieldCheck, TriangleAlert, FilePlus2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { getLoginUrl } from "@/const";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { writeFileXLSX } from "xlsx";
+import { toast } from "sonner";
 
 function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -80,6 +81,13 @@ export default function OwnerDashboard() {
     { enabled: isAuthenticated && user?.role === "owner" && pqrsDateRange.isValid && comparisonPqrsDateRange.isValid }
   );
   const utils = trpc.useUtils();
+  const generateManualReport = trpc.ownerReports.generateManual.useMutation({
+    onSuccess: async (result) => {
+      toast.success(result.status === "duplicate" ? "El reporte ya fue generado para esta solicitud." : "Reporte interno generado y añadido al historial.");
+      await Promise.all([utils.ownerReports.list.invalidate(), utils.notifications.getHistory.invalidate(), utils.notifications.getUnreadCount.invalidate()]);
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const { data: slaTargets } = trpc.pqrs.slaTargets.useQuery(undefined, { enabled: isAuthenticated && user?.role === "owner" });
   const upsertSlaTarget = trpc.pqrs.upsertSlaTarget.useMutation({
     onSuccess: async (_result, variables) => {
@@ -164,13 +172,27 @@ export default function OwnerDashboard() {
     upsertSlaTarget.mutate({ venueId: slaVenueId, type: slaType, targetMinutes: slaTargetMinutes });
   };
 
+  const createManualOwnerReport = () => {
+    if (!globalThis.crypto?.randomUUID) {
+      toast.error("Este navegador no permite crear un identificador seguro para el reporte.");
+      return;
+    }
+    generateManualReport.mutate({ requestId: globalThis.crypto.randomUUID() });
+  };
+
   return (
     <SongTapLayout role="owner" title="Panel Owner">
       <div className="space-y-6 animate-slide-up">
         <FavoriteModules role="owner" />
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">Bienvenido, {user?.name}</h2>
-          <p className="text-muted-foreground mt-1">Vista global de la plataforma SongTap</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Bienvenido, {user?.name}</h2>
+            <p className="text-muted-foreground mt-1">Vista global de la plataforma SongTap</p>
+          </div>
+          <Button type="button" className="bg-[#1DB954] font-semibold text-black hover:bg-[#1ed760]" onClick={createManualOwnerReport} disabled={generateManualReport.isPending}>
+            <FilePlus2 className="mr-2 h-4 w-4" />
+            {generateManualReport.isPending ? "Generando reporte..." : "Generar reporte ahora"}
+          </Button>
         </div>
 
         {/* Stats */}

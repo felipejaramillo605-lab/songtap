@@ -474,17 +474,15 @@ export const ownerScheduledReports = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     scheduleId: int("scheduleId").notNull(),
     ownerId: int("ownerId").notNull(),
+    generationSource: mysqlEnum("generationSource", ["scheduled", "manual"]).default("scheduled").notNull(),
+    reportKey: varchar("reportKey", { length: 128 }).notNull(),
     periodStart: timestamp("periodStart").notNull(),
     periodEnd: timestamp("periodEnd").notNull(),
     summaryJson: text("summaryJson").notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => ({
-    schedulePeriodUnique: uniqueIndex("owner_scheduled_reports_period_unique").on(
-      table.scheduleId,
-      table.periodStart,
-      table.periodEnd
-    ),
+    reportKeyUnique: uniqueIndex("owner_scheduled_reports_key_unique").on(table.scheduleId, table.reportKey),
   })
 );
 

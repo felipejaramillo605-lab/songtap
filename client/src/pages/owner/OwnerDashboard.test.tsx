@@ -3,14 +3,14 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], pqrsInputs: [] as any[], writeFileXLSX: vi.fn(), upsertSlaTarget: vi.fn(), invalidateSlaTargets: vi.fn(), invalidateOwnerAnalytics: vi.fn(), simulateSlaDrop: false, currentPqrsDateTo: 0 }));
+const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], pqrsInputs: [] as any[], writeFileXLSX: vi.fn(), upsertSlaTarget: vi.fn(), generateManualReport: vi.fn(), invalidateSlaTargets: vi.fn(), invalidateOwnerAnalytics: vi.fn(), simulateSlaDrop: false, currentPqrsDateTo: 0 }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: 1, name: "Felipe", role: "owner" }, isAuthenticated: true, loading: false }),
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    useUtils: () => ({ pqrs: { slaTargets: { invalidate: mocks.invalidateSlaTargets }, ownerAnalytics: { invalidate: mocks.invalidateOwnerAnalytics } }, users: { favoriteModules: { invalidate: vi.fn() } } }),
+    useUtils: () => ({ pqrs: { slaTargets: { invalidate: mocks.invalidateSlaTargets }, ownerAnalytics: { invalidate: mocks.invalidateOwnerAnalytics } }, users: { favoriteModules: { invalidate: vi.fn() } }, ownerReports: { list: { invalidate: vi.fn() } }, notifications: { getHistory: { invalidate: vi.fn() }, getUnreadCount: { invalidate: vi.fn() } } }),
     venues: { list: { useQuery: () => ({ data: [{ id: 7, name: "Bar Central", address: "Calle 1", isActive: true, musicMode: "manual" }] }) } },
     users: { list: { useQuery: () => ({ data: [{ id: 1, role: "owner" }, { id: 2, role: "manager" }, { id: 3, role: "staff" }] }) }, favoriteModules: { useQuery: () => ({ data: [], isLoading: false }) }, setFavoriteModule: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) } },
     finance: {
@@ -24,6 +24,9 @@ vi.mock("@/lib/trpc", () => ({
       slaTargets: { useQuery: () => ({ data: [{ venueId: 7, type: "complaint", targetMinutes: 240 }] }) },
       upsertSlaTarget: { useMutation: (options?: { onSuccess?: (result: { success: boolean }, variables: { venueId: number; type: string; targetMinutes: number }) => void }) => ({ mutate: (input: { venueId: number; type: string; targetMinutes: number }) => { mocks.upsertSlaTarget(input); options?.onSuccess?.({ success: true }, input); }, isPending: false, isSuccess: true, error: null }) },
     },
+    ownerReports: {
+      generateManual: { useMutation: () => ({ mutate: mocks.generateManualReport, isPending: false }) },
+    },
   },
 }));
 vi.mock("@/components/SongTapLayout", () => ({ default: ({ children }: { children: React.ReactNode }) => <main>{children}</main> }));
@@ -36,13 +39,15 @@ vi.mock("xlsx", async () => ({ ...(await vi.importActual<typeof import("xlsx")>(
 import OwnerDashboard from "./OwnerDashboard";
 
 describe("OwnerDashboard analytics", () => {
-  beforeEach(() => { mocks.analyticsInputs = []; mocks.pqrsInputs = []; mocks.writeFileXLSX.mockReset(); mocks.upsertSlaTarget.mockReset(); mocks.invalidateSlaTargets.mockReset(); mocks.invalidateOwnerAnalytics.mockReset(); mocks.simulateSlaDrop = false; mocks.currentPqrsDateTo = 0; });
+  beforeEach(() => { mocks.analyticsInputs = []; mocks.pqrsInputs = []; mocks.writeFileXLSX.mockReset(); mocks.upsertSlaTarget.mockReset(); mocks.generateManualReport.mockReset(); mocks.invalidateSlaTargets.mockReset(); mocks.invalidateOwnerAnalytics.mockReset(); mocks.simulateSlaDrop = false; mocks.currentPqrsDateTo = 0; });
   afterEach(() => cleanup());
 
   it("muestra métricas y ranking interlocal, filtra sucursales y exporta PQRS", async () => {
     render(<OwnerDashboard />);
 
     expect(screen.getByText("Analítica interlocal")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /generar reporte ahora/i }));
+    expect(mocks.generateManualReport).toHaveBeenCalledWith({ requestId: expect.any(String) });
     expect(screen.getAllByText("Bar Central").length).toBeGreaterThan(0);
     expect(screen.getByText("Ingresos del periodo")).toBeTruthy();
     expect(screen.getByRole("img", { name: "Gráfico de barras de ingresos diarios interlocales" })).toBeTruthy();

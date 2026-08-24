@@ -2,13 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 
 const dbMocks = vi.hoisted(() => ({
   getOwnerReportSchedule: vi.fn(),
+  getOwnerScheduledReport: vi.fn(),
   getOwnerScheduledReports: vi.fn(),
+  generateOwnerManualReport: vi.fn(),
   saveOwnerReportSchedule: vi.fn(),
 }));
 
 vi.mock("./db", () => ({
   getOwnerReportSchedule: dbMocks.getOwnerReportSchedule,
+  getOwnerScheduledReport: dbMocks.getOwnerScheduledReport,
   getOwnerScheduledReports: dbMocks.getOwnerScheduledReports,
+  generateOwnerManualReport: dbMocks.generateOwnerManualReport,
   saveOwnerReportSchedule: dbMocks.saveOwnerReportSchedule,
 }));
 
@@ -48,5 +52,19 @@ describe("owner reports router", () => {
 
   it("rechaza el acceso de roles distintos al Owner", async () => {
     await expect(ownerReportsRouter.createCaller(context("manager")).getSchedule()).rejects.toThrow("Solo el Owner puede configurar reportes internos");
+  });
+
+  it("genera un reporte manual bajo la identidad del Owner", async () => {
+    dbMocks.generateOwnerManualReport.mockResolvedValueOnce({ status: "created", reportId: 18, summary: { totalRevenue: 250000 } });
+    const requestId = "c92d1738-936a-4b98-9aa8-9e102e147f8c";
+
+    await expect(ownerReportsRouter.createCaller(context()).generateManual({ requestId })).resolves.toMatchObject({ status: "created", reportId: 18 });
+    expect(dbMocks.generateOwnerManualReport).toHaveBeenCalledWith(1, requestId);
+  });
+
+  it("no expone un reporte de otro Owner", async () => {
+    dbMocks.getOwnerScheduledReport.mockResolvedValueOnce(null);
+    await expect(ownerReportsRouter.createCaller(context()).getById({ id: 99 })).rejects.toThrow("Reporte no encontrado");
+    expect(dbMocks.getOwnerScheduledReport).toHaveBeenCalledWith(1, 99);
   });
 });

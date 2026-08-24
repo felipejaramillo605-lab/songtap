@@ -424,3 +424,7 @@
 - [x] Validar estabilidad, permisos, captura de incidencias y programación de reportes
 - [x] Publicar SongTap y activar desde Owner el primer reporte interno programado
 - [x] Activar el cron semanal del reporte interno y comprobar su próxima ejecución en producción
+- [x] Permitir generar manualmente un reporte interno desde el panel Owner
+- [x] Permitir descargar cada reporte generado en PDF y Excel
+- [x] Incluir comparación automática de métricas contra la semana anterior
+- [x] Validar generación manual, comparativos y descargas de reportes
