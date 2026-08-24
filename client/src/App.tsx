@@ -1,6 +1,6 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import { type ReactNode } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -60,10 +60,11 @@ type InternalRole = "owner" | "manager" | "staff" | "user";
 
 export function RoleGate({ allowedRoles, children }: { allowedRoles: InternalRole[]; children: ReactNode }) {
   const { user, isAuthenticated, loading } = useAuth();
+  const [currentPath] = useLocation();
   const isAllowed = Boolean(user && allowedRoles.includes(user.role as InternalRole));
 
   if (loading) return <main className="min-h-screen bg-background" aria-busy="true" aria-label="Verificando acceso" />;
-  if (!isAuthenticated || !user || !isAllowed) return <AccessDenied />;
+  if (!isAuthenticated || !user || !isAllowed) return <AccessDenied requestedPath={currentPath} />;
   return <>{children}</>;
 }
 
@@ -82,7 +83,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
       <Route path="/change-password" component={ForcePasswordChange} />
-      <Route path="/access-denied" component={AccessDenied} />
+      <Route path="/access-denied" component={() => <AccessDenied />} />
 
       {/* Client QR Portal */}
       <Route path="/mesa/:qrToken" component={ClientPortal} />

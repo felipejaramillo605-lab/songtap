@@ -26,6 +26,7 @@ import { uploadRouter } from "./routers/upload";
 import { notificationsRouter } from "./routers/notifications";
 import { activitiesRouter } from "./routers/activities";
 import { pqrsRouter } from "./routers/pqrs";
+import { accessRouter } from "./routers/access";
 
 export const appRouter = router({
   system: systemRouter,
@@ -145,6 +146,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   activities: activitiesRouter,
   pqrs: pqrsRouter,
+  access: accessRouter,
 });
 
 export type AppRouter = typeof appRouter;

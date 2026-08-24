@@ -395,3 +395,7 @@
 - [x] Crear una pantalla accesible de Acceso denegado con motivo y rol actual
 - [x] Ofrecer enlaces seguros al panel autorizado, al Login o al cambio de contraseña según corresponda
 - [x] Cubrir los escenarios sin sesión, rol incompatible y clave temporal pendiente con pruebas
+- [x] Mostrar el módulo o ruta solicitada en la pantalla de Acceso denegado sin revelar contenido interno
+- [x] Permitir a una cuenta autenticada solicitar acceso al Owner con control de duplicados
+- [x] Registrar y exponer en Auditoría los intentos y las solicitudes de acceso denegado
+- [x] Cubrir con pruebas los permisos, la deduplicación, el registro de auditoría y las salidas de la interfaz

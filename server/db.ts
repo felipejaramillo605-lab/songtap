@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
+  accessRequests,
   appauseVotes,
   auditLogs,
   InsertUser,
@@ -715,6 +716,93 @@ export async function getAuditLogs(venueId?: number, limit = 100) {
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(auditLogs.createdAt))
     .limit(limit);
+}
+
+type AccessAuditPayload = {
+  userId: number;
+  userRole: "owner" | "manager" | "staff" | "user";
+  venueId: number | null;
+  targetPath: string;
+  moduleName: string;
+};
+
+function hasAuditTarget(details: string | null, targetPath: string) {
+  if (!details) return false;
+  try {
+    const parsed = JSON.parse(details) as { targetPath?: string };
+    return parsed.targetPath === targetPath;
+  } catch {
+    return false;
+  }
+}
+
+async function hasRecentAccessAudit(userId: number, action: "ACCESS_DENIED" | "ACCESS_REQUESTED", targetPath: string, since: Date) {
+  const db = await getDb();
+  if (!db) return false;
+  const events = await db
+    .select({ details: auditLogs.details })
+    .from(auditLogs)
+    .where(and(eq(auditLogs.userId, userId), eq(auditLogs.action, action), gte(auditLogs.createdAt, since)))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(20);
+  return events.some((event) => hasAuditTarget(event.details, targetPath));
+}
+
+export async function recordDeniedAccess(data: AccessAuditPayload & { reason: "role" | "password_change" }) {
+  const recentlyRecorded = await hasRecentAccessAudit(data.userId, "ACCESS_DENIED", data.targetPath, new Date(Date.now() - 5 * 60 * 1000));
+  if (recentlyRecorded) return false;
+  await createAuditLog({
+    venueId: data.venueId,
+    userId: data.userId,
+    userRole: data.userRole,
+    module: "Control de acceso",
+    action: "ACCESS_DENIED",
+    entity: "protected_route",
+    details: JSON.stringify({ targetPath: data.targetPath, moduleName: data.moduleName, reason: data.reason }),
+  });
+  return true;
+}
+
+export async function createAccessRequest(data: AccessAuditPayload & { userName: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  try {
+    await db.insert(accessRequests).values({
+      userId: data.userId,
+      venueId: data.venueId,
+      requesterRole: data.userRole,
+      targetPath: data.targetPath,
+      moduleName: data.moduleName,
+      status: "pending",
+    });
+  } catch (error) {
+    if ((error as { code?: string }).code === "ER_DUP_ENTRY") return { created: false };
+    throw error;
+  }
+
+  await createAuditLog({
+    venueId: data.venueId,
+    userId: data.userId,
+    userRole: data.userRole,
+    module: "Control de acceso",
+    action: "ACCESS_REQUESTED",
+    entity: "protected_route",
+    details: JSON.stringify({ targetPath: data.targetPath, moduleName: data.moduleName, status: "pending_review" }),
+  });
+
+  const owners = await db.select({ id: users.id }).from(users).where(eq(users.role, "owner"));
+  const title = `Solicitud de acceso · ${data.moduleName}`;
+  const content = `${data.userName} (${data.userRole}) solicitó acceso a ${data.moduleName} (${data.targetPath}). Revisa el evento en Auditoría.`;
+  for (const owner of owners) {
+    await db.insert(ownerNotificationHistory).values({
+      ownerId: owner.id,
+      type: "access_request",
+      title,
+      content,
+    });
+  }
+  return { created: true };
 }
 
 

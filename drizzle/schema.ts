@@ -219,6 +219,28 @@ export const auditLogs = mysqlTable("audit_logs", {
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
 
+// ─── ACCESS REQUESTS (solicitudes de módulos protegidos) ───────────────────────
+export const accessRequests = mysqlTable(
+  "access_requests",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    venueId: int("venueId"),
+    requesterRole: varchar("requesterRole", { length: 32 }).notNull(),
+    targetPath: varchar("targetPath", { length: 128 }).notNull(),
+    moduleName: varchar("moduleName", { length: 128 }).notNull(),
+    status: mysqlEnum("status", ["pending", "reviewed", "approved", "rejected"]).default("pending").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    pendingRequestUnique: uniqueIndex("access_requests_user_target_status_uq").on(table.userId, table.targetPath, table.status),
+  })
+);
+
+export type AccessRequest = typeof accessRequests.$inferSelect;
+export type InsertAccessRequest = typeof accessRequests.$inferInsert;
+
 // ─── STAFF ACTIVITIES ──────────────────────────────────────────────────────────
 export const staffActivities = mysqlTable("staff_activities", {
   id: int("id").autoincrement().primaryKey(),

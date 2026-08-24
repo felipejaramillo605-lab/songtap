@@ -134,6 +134,13 @@
       "when": 1786807043334,
       "tag": "0018_eager_blue_shield",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1787598906040,
+      "tag": "0019_broken_beast",
+      "breakpoints": true
     }
   ]
 }
