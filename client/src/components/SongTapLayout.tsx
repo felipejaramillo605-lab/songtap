@@ -88,6 +88,11 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
     enabled: role === "owner",
   });
 
+  const { data: unreadAccessDecisionCount = 0 } = trpc.notifications.getMyUnreadCount.useQuery(undefined, {
+    enabled: role !== "owner",
+    refetchInterval: 10000,
+  });
+
   const prevPendingRef = useRef(pendingCount);
 
   useEffect(() => {
@@ -342,6 +347,13 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
               <Link href="/owner/venue-requests">
                 <span className="inline-flex max-w-36 items-center gap-1.5 truncate rounded-full border border-primary/30 bg-primary/20 px-2.5 py-1 text-[11px] font-semibold text-primary animate-pulse sm:max-w-none sm:px-3 sm:text-xs">
                   <Bell size={13} className="shrink-0" /> <span className="truncate">{pendingCount} {pendingCount === 1 ? "solicitud" : "solicitudes"} pendientes</span>
+                </span>
+              </Link>
+            )}
+            {role !== "owner" && unreadAccessDecisionCount > 0 && (
+              <Link href="/profile">
+                <span className="inline-flex max-w-36 items-center gap-1.5 truncate rounded-full border border-primary/30 bg-primary/20 px-2.5 py-1 text-[11px] font-semibold text-primary sm:max-w-none sm:px-3 sm:text-xs">
+                  <Bell size={13} className="shrink-0" /> <span className="truncate">{unreadAccessDecisionCount} decisión{unreadAccessDecisionCount === 1 ? "" : "es"} de acceso</span>
                 </span>
               </Link>
             )}

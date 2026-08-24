@@ -230,6 +230,9 @@ export const accessRequests = mysqlTable(
     targetPath: varchar("targetPath", { length: 128 }).notNull(),
     moduleName: varchar("moduleName", { length: 128 }).notNull(),
     status: mysqlEnum("status", ["pending", "reviewed", "approved", "rejected"]).default("pending").notNull(),
+    reviewedByOwnerId: int("reviewedByOwnerId"),
+    decisionReason: text("decisionReason"),
+    reviewedAt: timestamp("reviewedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -401,3 +404,19 @@ export const ownerNotificationHistory = mysqlTable("owner_notification_history",
 
 export type OwnerNotificationHistory = typeof ownerNotificationHistory.$inferSelect;
 export type InsertOwnerNotificationHistory = typeof ownerNotificationHistory.$inferInsert;
+
+// ─── USER NOTIFICATION HISTORY (decisiones y avisos personales) ───────────────
+export const userNotificationHistory = mysqlTable("user_notification_history", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  type: varchar("type", { length: 64 }).default("system").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  relatedAccessRequestId: int("relatedAccessRequestId"),
+  isRead: boolean("isRead").default(false).notNull(),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type UserNotificationHistory = typeof userNotificationHistory.$inferSelect;
+export type InsertUserNotificationHistory = typeof userNotificationHistory.$inferInsert;

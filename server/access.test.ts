@@ -3,11 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 const dbMocks = vi.hoisted(() => ({
   recordDeniedAccess: vi.fn(),
   createAccessRequest: vi.fn(),
+  getPendingAccessRequests: vi.fn(),
+  resolveAccessRequest: vi.fn(),
+  createAuditLog: vi.fn(),
 }));
 
 vi.mock("./db", () => ({
   recordDeniedAccess: dbMocks.recordDeniedAccess,
   createAccessRequest: dbMocks.createAccessRequest,
+  getPendingAccessRequests: dbMocks.getPendingAccessRequests,
+  resolveAccessRequest: dbMocks.resolveAccessRequest,
+  createAuditLog: dbMocks.createAuditLog,
 }));
 
 import { accessRouter } from "./routers/access";
@@ -71,5 +77,20 @@ describe("access router", () => {
 
   it("mantiene el bloqueo de solicitudes hasta completar el cambio de contraseña temporal", async () => {
     await expect(accessRouter.createCaller(ctx("staff", { mustChangePassword: true })).request({ path: "/owner" })).rejects.toThrow("Cambia tu contraseña temporal");
+  });
+
+  it("permite al Owner aprobar una solicitud válida y deja trazabilidad", async () => {
+    const request = { id: 44, userId: 71235, venueId: 30001, requesterRole: "staff", targetPath: "/manager/menu", moduleName: "Gestión de menú" };
+    dbMocks.getPendingAccessRequests.mockResolvedValueOnce([request]);
+    dbMocks.resolveAccessRequest.mockResolvedValueOnce({ request, requester: { id: 71235 }, grantedRole: "manager" });
+
+    await expect(accessRouter.createCaller(ctx("owner", {})).resolve({ requestId: 44, decision: "approved" })).resolves.toEqual({ success: true, decision: "approved" });
+    expect(dbMocks.resolveAccessRequest).toHaveBeenCalledWith(expect.objectContaining({ requestId: 44, ownerId: 71234, decision: "approved", grantedRole: "manager" }));
+    expect(dbMocks.createAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: "ACCESS_APPROVED", entityId: 44 }));
+  });
+
+  it("exige motivo para rechazar y bloquea a quien no sea Owner", async () => {
+    await expect(accessRouter.createCaller(ctx("owner")).resolve({ requestId: 44, decision: "rejected" })).rejects.toThrow("Indica el motivo");
+    await expect(accessRouter.createCaller(ctx("manager")).resolve({ requestId: 44, decision: "approved" })).rejects.toThrow("required permission");
   });
 });

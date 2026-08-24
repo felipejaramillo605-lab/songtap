@@ -18,6 +18,7 @@ vi.mock("@/lib/trpc", () => ({
     notifications: {
       getPendingCount: { useQuery: () => ({ data: 0 }) },
       getSettings: { useQuery: () => ({ data: null }) },
+      getMyUnreadCount: { useQuery: () => ({ data: 0 }) },
     },
   },
 }));

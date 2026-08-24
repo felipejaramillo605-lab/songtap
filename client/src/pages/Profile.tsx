@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { User, Lock, Phone, CreditCard, Home, Mail, FileText, ShieldCheck, Upload, CheckCircle2, Scissors } from "lucide-react";
+import { Bell, User, Lock, Phone, CreditCard, Home, Mail, FileText, ShieldCheck, Upload, CheckCircle2, Scissors } from "lucide-react";
 import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
 import { ProfilePhotoCropper } from "@/components/ProfilePhotoCropper";
 
@@ -35,6 +35,10 @@ export default function Profile() {
   const [rawImageSrc, setRawImageSrc] = useState("");
 
   const uploadMutation = trpc.upload.uploadFile.useMutation();
+  const { data: accessNotifications = [], isLoading: isLoadingAccessNotifications, refetch: refetchAccessNotifications } = trpc.notifications.getMyHistory.useQuery(undefined, { enabled: Boolean(user && user.role !== "owner") });
+  const { data: unreadAccessNotifications = 0, refetch: refetchUnreadAccessNotifications } = trpc.notifications.getMyUnreadCount.useQuery(undefined, { enabled: Boolean(user && user.role !== "owner") });
+  const markAccessNotificationRead = trpc.notifications.markMyRead.useMutation({ onSuccess: () => { void refetchAccessNotifications(); void refetchUnreadAccessNotifications(); } });
+  const markAllAccessNotificationsRead = trpc.notifications.markAllMyRead.useMutation({ onSuccess: () => { void refetchAccessNotifications(); void refetchUnreadAccessNotifications(); } });
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -175,6 +179,41 @@ export default function Profile() {
           Gestiona tu información personal, documentos, credenciales de acceso y preferencias regionales en SongTap.
         </p>
       </div>
+
+      {user.role !== "owner" && (
+        <Card className="border-primary/25 bg-card">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg"><Bell className="h-5 w-5 text-primary" /> Decisiones de acceso</CardTitle>
+              <CardDescription className="mt-1">Aquí recibes la respuesta del Owner a las solicitudes de módulos protegidos.</CardDescription>
+            </div>
+            {unreadAccessNotifications > 0 && <span className="rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary">{unreadAccessNotifications} nueva{unreadAccessNotifications === 1 ? "" : "s"}</span>}
+          </CardHeader>
+          <CardContent>
+            {isLoadingAccessNotifications ? (
+              <p className="text-sm text-muted-foreground">Cargando decisiones...</p>
+            ) : accessNotifications.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No tienes decisiones de acceso pendientes de leer.</p>
+            ) : (
+              <div className="space-y-3">
+                {unreadAccessNotifications > 0 && <Button type="button" size="sm" variant="outline" className="border-border" disabled={markAllAccessNotificationsRead.isPending} onClick={() => markAllAccessNotificationsRead.mutate()}>Marcar todas como leídas</Button>}
+                {accessNotifications.map((notification) => (
+                  <article key={notification.id} className={`rounded-lg border p-3 ${notification.isRead ? "border-border bg-secondary/10" : "border-primary/35 bg-primary/5"}`}>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-semibold text-foreground">{notification.title}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{notification.content}</p>
+                        <p className="mt-2 text-xs text-muted-foreground">{new Date(notification.createdAt).toLocaleString()}</p>
+                      </div>
+                      {!notification.isRead && <Button type="button" size="sm" variant="ghost" className="text-primary" disabled={markAccessNotificationRead.isPending} onClick={() => markAccessNotificationRead.mutate({ id: notification.id })}>Marcar leída</Button>}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Tarjeta resumen de rol y estado */}

@@ -6,11 +6,14 @@ import SongTapLayout from "@/components/SongTapLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { getLoginUrl } from "@/const";
 import { filterAuditLogs } from "@/lib/auditFilters";
 import { buildAuditFilename, createAuditCsv, createAuditWorkbook, toAuditExportRows } from "@/lib/auditExport";
-import { Activity, Building2, CalendarDays, Clock3, Download, FileSpreadsheet, Filter, RotateCcw, Shield, UserRound } from "lucide-react";
+import { Activity, Building2, CalendarDays, CheckCircle2, Clock3, Download, FileSpreadsheet, Filter, RotateCcw, Shield, UserRound, XCircle } from "lucide-react";
 import { writeFileXLSX } from "xlsx";
+import { toast } from "sonner";
 
 const actionColors: Record<string, string> = {
   CREATE_VENUE: "text-green-400",
@@ -53,10 +56,27 @@ export default function OwnerAudit() {
     if (!loading && isAuthenticated && user?.role !== "owner") navigate("/");
   }, [loading, isAuthenticated, user?.role, navigate]);
 
-  const { data: logs = [], isLoading } = trpc.finance.auditLogs.useQuery({ limit: 1000 }, { enabled: !!user && user.role === "owner" });
+  const { data: logs = [], isLoading, refetch: refetchLogs } = trpc.finance.auditLogs.useQuery({ limit: 1000 }, { enabled: !!user && user.role === "owner" });
+  const { data: pendingAccessRequests = [], isLoading: isLoadingAccessRequests, refetch: refetchPendingAccessRequests } = trpc.access.getPending.useQuery(undefined, { enabled: user?.role === "owner" });
   const [companyFilter, setCompanyFilter] = useState("all");
   const [moduleFilter, setModuleFilter] = useState("all");
   const [userFilter, setUserFilter] = useState("all");
+  const [pendingAccessOnly, setPendingAccessOnly] = useState(false);
+  const [selectedAccessRequest, setSelectedAccessRequest] = useState<(typeof pendingAccessRequests)[number] | null>(null);
+  const [decision, setDecision] = useState<"approved" | "rejected" | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+
+  const resolveAccessMutation = trpc.access.resolve.useMutation({
+    onSuccess: (_, variables) => {
+      toast.success(variables.decision === "approved" ? "Acceso aprobado y usuario notificado." : "Solicitud rechazada y usuario notificado.");
+      setSelectedAccessRequest(null);
+      setDecision(null);
+      setRejectionReason("");
+      void refetchPendingAccessRequests();
+      void refetchLogs();
+    },
+    onError: (error) => toast.error(error.message || "No fue posible resolver la solicitud."),
+  });
 
   const filterOptions = useMemo(() => {
     const companies = new Map<string, string>();
@@ -86,6 +106,25 @@ export default function OwnerAudit() {
     setCompanyFilter("all");
     setModuleFilter("all");
     setUserFilter("all");
+  };
+
+  const openDecision = (request: (typeof pendingAccessRequests)[number], nextDecision: "approved" | "rejected") => {
+    setSelectedAccessRequest(request);
+    setDecision(nextDecision);
+    setRejectionReason("");
+  };
+
+  const confirmDecision = () => {
+    if (!selectedAccessRequest || !decision) return;
+    if (decision === "rejected" && !rejectionReason.trim()) {
+      toast.error("Indica el motivo del rechazo para informar al solicitante.");
+      return;
+    }
+    resolveAccessMutation.mutate({
+      requestId: selectedAccessRequest.id,
+      decision,
+      reason: decision === "rejected" ? rejectionReason.trim() : undefined,
+    });
   };
 
   const exportFilters = { company: companyFilter, module: moduleFilter, user: userFilter };
@@ -125,7 +164,10 @@ export default function OwnerAudit() {
                 Eventos recientes
                 <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary">{filteredLogs.length} / {logs.length}</span>
               </CardTitle>
-              <div className="flex flex-wrap gap-2" aria-label="Exportar log de auditoría filtrado">
+              <div className="flex flex-wrap gap-2" aria-label="Acciones del log de auditoría">
+                <Button type="button" size="sm" variant={pendingAccessOnly ? "default" : "outline"} className={pendingAccessOnly ? "bg-primary text-primary-foreground" : "border-border"} onClick={() => setPendingAccessOnly((value) => !value)} aria-pressed={pendingAccessOnly}>
+                  <Clock3 size={14} className="mr-1.5" /> {pendingAccessOnly ? "Ver todos" : `Accesos pendientes (${pendingAccessRequests.length})`}
+                </Button>
                 <Button type="button" size="sm" variant="outline" className="border-border" disabled={filteredLogs.length === 0} onClick={downloadCsv}>
                   <Download size={14} className="mr-1.5" /> CSV
                 </Button>
@@ -135,7 +177,7 @@ export default function OwnerAudit() {
               </div>
             </div>
           </CardHeader>
-          {!isLoading && logs.length > 0 && (
+          {!pendingAccessOnly && !isLoading && logs.length > 0 && (
             <div className="grid grid-cols-1 gap-3 border-b border-border bg-secondary/10 p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end" aria-label="Filtros del log de auditoría">
               <div className="space-y-2">
                 <label htmlFor="audit-company-filter" className="text-xs font-medium text-muted-foreground">Compañía</label>
@@ -182,7 +224,41 @@ export default function OwnerAudit() {
             </div>
           )}
           <CardContent className="p-0">
-            {isLoading ? (
+            {pendingAccessOnly ? (
+              isLoadingAccessRequests ? (
+                <p className="py-12 text-center text-sm text-muted-foreground">Cargando solicitudes de acceso...</p>
+              ) : pendingAccessRequests.length === 0 ? (
+                <div className="py-12 text-center">
+                  <CheckCircle2 className="mx-auto h-8 w-8 text-primary" aria-hidden="true" />
+                  <p className="mt-3 text-sm font-medium text-foreground">No hay solicitudes de acceso pendientes</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Las solicitudes nuevas aparecerán aquí para su revisión.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border" aria-label="Solicitudes de acceso pendientes">
+                  {pendingAccessRequests.map((request) => (
+                    <article key={request.id} className="space-y-4 p-4 sm:p-5">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Solicitud pendiente</p>
+                          <h3 className="mt-1 text-base font-semibold text-foreground">{request.moduleName}</h3>
+                          <p className="mt-1 font-mono text-xs text-muted-foreground">{request.targetPath}</p>
+                        </div>
+                        <span className="w-fit rounded-full bg-yellow-500/15 px-2.5 py-1 text-xs font-semibold text-yellow-300">Pendiente</span>
+                      </div>
+                      <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+                        <p><span className="font-medium text-foreground">Solicita:</span> {request.requesterName || request.requesterEmail || "Usuario"}</p>
+                        <p><span className="font-medium text-foreground">Rol actual:</span> {request.requesterRole}</p>
+                        <p><span className="font-medium text-foreground">Local:</span> {request.venueName || "Sin local"}</p>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button type="button" size="sm" className="gap-1.5 bg-primary text-primary-foreground" disabled={resolveAccessMutation.isPending} onClick={() => openDecision(request, "approved")}><CheckCircle2 size={15} /> Aprobar acceso</Button>
+                        <Button type="button" size="sm" variant="outline" className="gap-1.5 border-destructive/50 text-destructive hover:bg-destructive/10" disabled={resolveAccessMutation.isPending} onClick={() => openDecision(request, "rejected")}><XCircle size={15} /> Rechazar</Button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )
+            ) : isLoading ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Cargando eventos de auditoría...</p>
             ) : logs.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">No hay eventos registrados.</p>
@@ -258,6 +334,27 @@ export default function OwnerAudit() {
             )}
           </CardContent>
         </Card>
+
+        <Dialog open={Boolean(selectedAccessRequest && decision)} onOpenChange={(open) => { if (!open) { setSelectedAccessRequest(null); setDecision(null); setRejectionReason(""); } }}>
+          <DialogContent className="border-border bg-card text-card-foreground">
+            <DialogHeader>
+              <DialogTitle>{decision === "approved" ? "Aprobar solicitud de acceso" : "Rechazar solicitud de acceso"}</DialogTitle>
+              <DialogDescription>{selectedAccessRequest?.requesterName || selectedAccessRequest?.requesterEmail || "El usuario"} solicitó acceso a <strong>{selectedAccessRequest?.moduleName}</strong>.</DialogDescription>
+            </DialogHeader>
+            {decision === "approved" ? (
+              <p className="rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-muted-foreground">La aprobación actualizará el rol de esta cuenta y le enviará una notificación en su perfil.</p>
+            ) : (
+              <div className="space-y-2">
+                <label htmlFor="access-rejection-reason" className="text-sm font-medium text-foreground">Motivo del rechazo</label>
+                <Textarea id="access-rejection-reason" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder="Explica brevemente la decisión para el solicitante." className="min-h-24 border-border bg-input" />
+              </div>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => { setSelectedAccessRequest(null); setDecision(null); }}>Cancelar</Button>
+              <Button type="button" className={decision === "approved" ? "bg-primary text-primary-foreground" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"} disabled={resolveAccessMutation.isPending || (decision === "rejected" && !rejectionReason.trim())} onClick={confirmDecision}>{resolveAccessMutation.isPending ? "Guardando..." : decision === "approved" ? "Confirmar aprobación" : "Confirmar rechazo"}</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </SongTapLayout>
   );

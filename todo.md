@@ -399,3 +399,7 @@
 - [x] Permitir a una cuenta autenticada solicitar acceso al Owner con control de duplicados
 - [x] Registrar y exponer en Auditoría los intentos y las solicitudes de acceso denegado
 - [x] Cubrir con pruebas los permisos, la deduplicación, el registro de auditoría y las salidas de la interfaz
+- [x] Permitir al Owner aprobar o rechazar solicitudes de acceso desde Auditoría con trazabilidad de decisión
+- [x] Añadir un filtro rápido de solicitudes de acceso pendientes en Auditoría
+- [x] Notificar al solicitante las decisiones de acceso y permitirle consultarlas desde su sesión
+- [x] Auditar y validar los módulos, acciones y recorridos críticos de Owner

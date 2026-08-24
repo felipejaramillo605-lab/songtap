@@ -1,10 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { getProtectedRouteMetadata } from "../../shared/accessRegistry";
-import { createAccessRequest, recordDeniedAccess } from "../db";
-import { temporaryPasswordProcedure, router } from "../_core/trpc";
+import { getProtectedRouteMetadata, type SongTapRole } from "../../shared/accessRegistry";
+import { createAccessRequest, getPendingAccessRequests, recordDeniedAccess, resolveAccessRequest, createAuditLog } from "../db";
+import { adminProcedure, temporaryPasswordProcedure, router } from "../_core/trpc";
 
 const protectedPathInput = z.string().min(1).max(128);
+const roleRank: Record<SongTapRole, number> = { user: 0, staff: 1, manager: 2, owner: 3 };
 
 function resolveTarget(path: string) {
   const target = getProtectedRouteMetadata(path);
@@ -43,6 +44,10 @@ export const accessRouter = router({
       if (ctx.user.mustChangePassword) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Cambia tu contraseña temporal antes de solicitar accesos." });
       }
+      const grantedRole = target.allowedRoles[0];
+      if (!grantedRole || grantedRole === "owner" || roleRank[grantedRole] <= roleRank[ctx.user.role]) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Este módulo no admite solicitudes de elevación de acceso." });
+      }
 
       const result = await createAccessRequest({
         userId: ctx.user.id,
@@ -54,5 +59,43 @@ export const accessRouter = router({
       });
 
       return { success: true, created: result.created };
+    }),
+
+  getPending: adminProcedure.query(async () => getPendingAccessRequests()),
+
+  resolve: adminProcedure
+    .input(z.object({ requestId: z.number().int().positive(), decision: z.enum(["approved", "rejected"]), reason: z.string().trim().max(500).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.decision === "rejected" && !input.reason) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Indica el motivo del rechazo." });
+      }
+      const pending = await getPendingAccessRequests();
+      const request = pending.find((item) => item.id === input.requestId);
+      if (!request) throw new TRPCError({ code: "NOT_FOUND", message: "La solicitud pendiente no fue encontrada." });
+
+      const target = resolveTarget(request.targetPath);
+      const grantedRole = target.allowedRoles[0];
+      if (input.decision === "approved" && (!grantedRole || grantedRole === "owner" || !request.venueId || roleRank[grantedRole] <= roleRank[request.requesterRole as SongTapRole])) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Esta solicitud no puede otorgar una elevación de acceso válida." });
+      }
+
+      const result = await resolveAccessRequest({
+        requestId: input.requestId,
+        ownerId: ctx.user.id,
+        decision: input.decision,
+        reason: input.reason,
+        grantedRole: input.decision === "approved" ? grantedRole as "manager" | "staff" : undefined,
+      });
+      await createAuditLog({
+        venueId: result.request.venueId,
+        userId: ctx.user.id,
+        userRole: ctx.user.role,
+        module: "Control de acceso",
+        action: input.decision === "approved" ? "ACCESS_APPROVED" : "ACCESS_REJECTED",
+        entity: "access_request",
+        entityId: input.requestId,
+        details: JSON.stringify({ targetPath: result.request.targetPath, moduleName: result.request.moduleName, requesterId: result.request.userId, grantedRole: result.grantedRole, reason: input.reason?.trim() || null }),
+      });
+      return { success: true, decision: input.decision };
     }),
 });

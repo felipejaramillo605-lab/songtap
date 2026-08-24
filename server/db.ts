@@ -23,6 +23,7 @@ import {
   venues,
   venueNotificationSettings,
   ownerNotificationHistory,
+  userNotificationHistory,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
@@ -803,6 +804,124 @@ export async function createAccessRequest(data: AccessAuditPayload & { userName:
     });
   }
   return { created: true };
+}
+
+export async function getPendingAccessRequests() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: accessRequests.id,
+      userId: accessRequests.userId,
+      venueId: accessRequests.venueId,
+      requesterRole: accessRequests.requesterRole,
+      targetPath: accessRequests.targetPath,
+      moduleName: accessRequests.moduleName,
+      status: accessRequests.status,
+      createdAt: accessRequests.createdAt,
+      requesterName: users.name,
+      requesterEmail: users.email,
+      venueName: venues.name,
+    })
+    .from(accessRequests)
+    .leftJoin(users, eq(accessRequests.userId, users.id))
+    .leftJoin(venues, eq(accessRequests.venueId, venues.id))
+    .where(eq(accessRequests.status, "pending"))
+    .orderBy(desc(accessRequests.createdAt));
+}
+
+type AccessRequestDecision = {
+  requestId: number;
+  ownerId: number;
+  decision: "approved" | "rejected";
+  reason?: string;
+  grantedRole?: "manager" | "staff";
+};
+
+export async function resolveAccessRequest(data: AccessRequestDecision) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  return db.transaction(async (tx) => {
+    const [request] = await tx.select().from(accessRequests).where(eq(accessRequests.id, data.requestId)).limit(1);
+    if (!request) throw new Error("Solicitud de acceso no encontrada");
+    if (request.status !== "pending") throw new Error("La solicitud ya fue resuelta");
+
+    const [requester] = await tx.select().from(users).where(eq(users.id, request.userId)).limit(1);
+    if (!requester) throw new Error("La cuenta solicitante ya no existe");
+
+    if (data.decision === "approved") {
+      if (!data.grantedRole || !request.venueId) {
+        throw new Error("La solicitud no cuenta con un local válido para asignar el acceso");
+      }
+      await tx.update(users).set({ role: data.grantedRole, venueId: request.venueId }).where(eq(users.id, request.userId));
+    }
+
+    const updateResult = await tx
+      .update(accessRequests)
+      .set({
+        status: data.decision,
+        reviewedByOwnerId: data.ownerId,
+        decisionReason: data.reason?.trim() || null,
+        reviewedAt: new Date(),
+      })
+      .where(and(eq(accessRequests.id, data.requestId), eq(accessRequests.status, "pending")));
+    if (!(updateResult[0] as { affectedRows?: number }).affectedRows) throw new Error("La solicitud ya fue resuelta");
+
+    const approved = data.decision === "approved";
+    const title = approved ? `Acceso aprobado · ${request.moduleName}` : `Acceso rechazado · ${request.moduleName}`;
+    const content = approved
+      ? `El Owner aprobó tu solicitud para ${request.moduleName}. Tu rol fue actualizado a ${data.grantedRole}.`
+      : `El Owner rechazó tu solicitud para ${request.moduleName}.${data.reason?.trim() ? ` Motivo: ${data.reason.trim()}` : ""}`;
+    await tx.insert(userNotificationHistory).values({
+      userId: request.userId,
+      type: approved ? "access_approved" : "access_rejected",
+      title,
+      content,
+      relatedAccessRequestId: request.id,
+    });
+
+    return { request, requester, grantedRole: data.grantedRole };
+  });
+}
+
+export async function getUserNotificationHistory(userId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(userNotificationHistory)
+    .where(eq(userNotificationHistory.userId, userId))
+    .orderBy(desc(userNotificationHistory.createdAt))
+    .limit(limit);
+}
+
+export async function getUnreadUserNotificationCount(userId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(userNotificationHistory)
+    .where(and(eq(userNotificationHistory.userId, userId), eq(userNotificationHistory.isRead, false)));
+  return Number(rows[0]?.count ?? 0);
+}
+
+export async function markUserNotificationRead(userId: number, notificationId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db
+    .update(userNotificationHistory)
+    .set({ isRead: true, readAt: new Date() })
+    .where(and(eq(userNotificationHistory.id, notificationId), eq(userNotificationHistory.userId, userId)));
+}
+
+export async function markAllUserNotificationsRead(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db
+    .update(userNotificationHistory)
+    .set({ isRead: true, readAt: new Date() })
+    .where(and(eq(userNotificationHistory.userId, userId), eq(userNotificationHistory.isRead, false)));
 }
 
 

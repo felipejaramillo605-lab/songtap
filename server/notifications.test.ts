@@ -53,4 +53,31 @@ describe("notifications history", () => {
     await expect(caller.notifications.getHistory({ limit: 10 })).rejects.toThrow("FORBIDDEN");
     await expect(caller.notifications.markAllRead()).rejects.toThrow("FORBIDDEN");
   });
+
+  it("permite a un Staff consultar únicamente su historial personal de decisiones", async () => {
+    const caller = appRouter.createCaller({
+      user: {
+        id: 999999,
+        openId: "staff-personal-notifications-test",
+        name: "Staff Test",
+        email: "staff@example.com",
+        loginMethod: "password",
+        role: "staff",
+        venueId: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastSignedIn: new Date(),
+      },
+      req: baseRequest,
+      res: baseResponse,
+    } as any);
+
+    const [history, unreadCount] = await Promise.all([
+      caller.notifications.getMyHistory({ limit: 10 }),
+      caller.notifications.getMyUnreadCount(),
+    ]);
+
+    expect(Array.isArray(history)).toBe(true);
+    expect(typeof unreadCount).toBe("number");
+  });
 });

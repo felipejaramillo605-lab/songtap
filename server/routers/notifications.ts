@@ -8,6 +8,10 @@ import {
   getUnreadOwnerNotificationCount,
   markOwnerNotificationRead,
   markAllOwnerNotificationsRead,
+  getUserNotificationHistory,
+  getUnreadUserNotificationCount,
+  markUserNotificationRead,
+  markAllUserNotificationsRead,
 } from "../db";
 import { TRPCError } from "@trpc/server";
 
@@ -76,6 +80,24 @@ export const notificationsRouter = router({
       throw new TRPCError({ code: "FORBIDDEN" });
     }
     await markAllOwnerNotificationsRead(ctx.user.id);
+      return { success: true };
+    }),
+
+  getMyHistory: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).optional() }).optional())
+    .query(async ({ ctx, input }) => getUserNotificationHistory(ctx.user.id, input?.limit ?? 50)),
+
+  getMyUnreadCount: protectedProcedure.query(async ({ ctx }) => getUnreadUserNotificationCount(ctx.user.id)),
+
+  markMyRead: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      await markUserNotificationRead(ctx.user.id, input.id);
+      return { success: true };
+    }),
+
+  markAllMyRead: protectedProcedure.mutation(async ({ ctx }) => {
+    await markAllUserNotificationsRead(ctx.user.id);
     return { success: true };
   }),
 });
