@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn() }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -14,6 +14,7 @@ vi.mock("@/lib/trpc", () => ({
       listSupportTickets: { useQuery: () => ({ data: [] }) },
       getHelpInteractions: { useQuery: () => ({ data: { votes: {}, favorites: [] } }) },
       markOpened: { useMutation: () => ({ mutate: mocks.markOpened }) },
+      markAutoShown: { useMutation: () => ({ mutate: mocks.markAutoShown }) },
       complete: { useMutation: () => ({ mutate: mocks.complete, isPending: false }) },
       reset: { useMutation: () => ({ mutate: mocks.reset, isPending: false }) },
       reportIssue: { useMutation: () => ({ mutate: mocks.reportIssue, isPending: false }) },

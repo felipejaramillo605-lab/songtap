@@ -7,6 +7,7 @@ import {
   getSupportTicketsForUser,
   getUserOnboardingProgress,
   markUserOnboardingOpened,
+  markUserOnboardingAutoShown,
   resetUserOnboarding,
   getHelpArticleInteractions,
   setHelpArticleVote,
@@ -29,6 +30,11 @@ export const onboardingRouter = router({
   markOpened: protectedProcedure.mutation(({ ctx }) => {
     const role = requireSupportedRole(ctx.user.role);
     return markUserOnboardingOpened(ctx.user.id, role);
+  }),
+
+  markAutoShown: protectedProcedure.mutation(({ ctx }) => {
+    const role = requireSupportedRole(ctx.user.role);
+    return markUserOnboardingAutoShown(ctx.user.id, role);
   }),
 
   complete: protectedProcedure.mutation(({ ctx }) => {

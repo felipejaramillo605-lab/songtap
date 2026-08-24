@@ -1706,6 +1706,14 @@ export async function markUserOnboardingOpened(userId: number, role: OnboardingR
   return getUserOnboardingProgress(userId, role);
 }
 
+export async function markUserOnboardingAutoShown(userId: number, role: OnboardingRole) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  const now = new Date();
+  await db.insert(userOnboardingProgress).values({ userId, role, autoShownAt: now, lastOpenedAt: now }).onDuplicateKeyUpdate({ set: { autoShownAt: now, lastOpenedAt: now } });
+  return getUserOnboardingProgress(userId, role);
+}
+
 export async function completeUserOnboarding(userId: number, role: OnboardingRole) {
   const db = await getDb();
   if (!db) throw new Error("Base de datos no disponible");
@@ -1717,7 +1725,8 @@ export async function completeUserOnboarding(userId: number, role: OnboardingRol
 export async function resetUserOnboarding(userId: number, role: OnboardingRole) {
   const db = await getDb();
   if (!db) throw new Error("Base de datos no disponible");
-  await db.delete(userOnboardingProgress).where(and(eq(userOnboardingProgress.userId, userId), eq(userOnboardingProgress.role, role)));
+  const now = new Date();
+  await db.insert(userOnboardingProgress).values({ userId, role, autoShownAt: now, completedAt: null, lastOpenedAt: now }).onDuplicateKeyUpdate({ set: { completedAt: null, lastOpenedAt: now } });
 }
 
 export async function createSupportTicket(data: {

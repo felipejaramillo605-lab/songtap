@@ -197,6 +197,13 @@
       "when": 1787611270005,
       "tag": "0027_broad_madame_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1787611646986,
+      "tag": "0028_free_electro",
+      "breakpoints": true
     }
   ]
 }

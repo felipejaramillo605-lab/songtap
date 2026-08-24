@@ -496,6 +496,7 @@ export const userOnboardingProgress = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     userId: int("userId").notNull(),
     role: mysqlEnum("role", ["owner", "manager", "staff"]).notNull(),
+    autoShownAt: timestamp("autoShownAt"),
     completedAt: timestamp("completedAt"),
     lastOpenedAt: timestamp("lastOpenedAt").defaultNow().notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

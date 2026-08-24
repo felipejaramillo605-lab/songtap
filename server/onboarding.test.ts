@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const dbMocks = vi.hoisted(() => ({
   getUserOnboardingProgress: vi.fn(),
   markUserOnboardingOpened: vi.fn(),
+  markUserOnboardingAutoShown: vi.fn(),
   completeUserOnboarding: vi.fn(),
   resetUserOnboarding: vi.fn(),
   createSupportTicket: vi.fn(),
@@ -25,6 +26,12 @@ describe("onboarding router", () => {
     dbMocks.completeUserOnboarding.mockResolvedValueOnce({ id: 1, userId: 25, role: "manager", completedAt: new Date() });
     await expect(onboardingRouter.createCaller(context("manager")).complete()).resolves.toMatchObject({ userId: 25, role: "manager" });
     expect(dbMocks.completeUserOnboarding).toHaveBeenCalledWith(25, "manager");
+  });
+
+  it("marca la apertura automática usando el usuario y rol autenticados", async () => {
+    dbMocks.markUserOnboardingAutoShown.mockResolvedValueOnce({ id: 1, userId: 25, role: "manager", autoShownAt: new Date() });
+    await expect(onboardingRouter.createCaller(context("manager")).markAutoShown()).resolves.toMatchObject({ userId: 25, role: "manager" });
+    expect(dbMocks.markUserOnboardingAutoShown).toHaveBeenCalledWith(25, "manager");
   });
 
   it("reporta una incidencia con ruta, rol y local derivados del contexto seguro", async () => {

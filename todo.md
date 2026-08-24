@@ -441,3 +441,7 @@
 - [x] Permitir guardar y consultar soluciones favoritas desde el centro de ayuda
 - [x] Mostrar controles accesibles de voto y favoritos en cada artículo de ayuda
 - [x] Validar aislamiento, votos, favoritos y accesibilidad de la ayuda
+- [x] Mostrar el onboarding automático una sola vez exclusivamente a usuarios nuevos
+- [x] Corregir el layout responsive para que el contenido del onboarding no se corte
+- [x] Reemplazar iconos ambiguos por controles claros de minimizar, ampliar y cerrar
+- [x] Validar en escritorio y móvil el comportamiento de primera apertura y controles
