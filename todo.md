@@ -445,3 +445,7 @@
 - [x] Corregir el layout responsive para que el contenido del onboarding no se corte
 - [x] Reemplazar iconos ambiguos por controles claros de minimizar, ampliar y cerrar
 - [x] Validar en escritorio y móvil el comportamiento de primera apertura y controles
+- [x] Mostrar progreso visual y pasos restantes durante el onboarding
+- [x] Permitir elegir entre recorrido breve y recorrido completo
+- [x] Añadir desde Ayuda una acción para reiniciar el onboarding manualmente
+- [x] Validar progreso, selección de modalidad, reinicio y accesibilidad responsive

@@ -36,6 +36,21 @@ describe("OnboardingCenter", () => {
     expect(screen.getByRole("heading", { name: "Tu guía SongTap" })).toBeTruthy();
     expect(screen.getByRole("img", { name: /captura del dashboard owner/i })).toBeTruthy();
     expect(screen.getAllByText("Generar reporte ahora", { exact: false }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Progreso: 1 de 4")).toBeTruthy();
+  });
+
+  it("permite alternar entre guía breve y completa con progreso y pasos restantes", async () => {
+    const user = userEvent.setup();
+    render(<OnboardingCenter role="manager" />);
+    await screen.findByRole("dialog");
+    await user.click(screen.getByRole("button", { name: "Guía breve" }));
+    expect(screen.getByText("Progreso: 1 de 2")).toBeTruthy();
+    expect(screen.getByText("Te falta 1 paso.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    expect(screen.getByText("Progreso: 2 de 2")).toBeTruthy();
+    expect(screen.getByText("Este es el último paso.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Guía completa" }));
+    expect(screen.getByText("Progreso: 1 de 4")).toBeTruthy();
   });
 
   it("permite enviar una incidencia contextual desde la ayuda", async () => {
@@ -89,5 +104,14 @@ describe("OnboardingCenter", () => {
     expect(mocks.setHelpVote).toHaveBeenCalledWith({ articleKey: "access-denied", vote: "up" });
     await user.click(screen.getByRole("button", { name: "Guardar Veo Acceso denegado en favoritos" }));
     expect(mocks.toggleHelpFavorite).toHaveBeenCalledWith({ articleKey: "access-denied" });
+  });
+
+  it("ofrece reiniciar el onboarding desde Ayuda", async () => {
+    const user = userEvent.setup();
+    render(<OnboardingCenter role="staff" />);
+    await screen.findByRole("dialog");
+    await user.click(screen.getByRole("tab", { name: "Ayuda y errores" }));
+    await user.click(screen.getByRole("button", { name: "Reiniciar onboarding" }));
+    expect(mocks.reset).toHaveBeenCalledTimes(1);
   });
 });
