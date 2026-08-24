@@ -433,3 +433,7 @@
 - [x] Implementar un centro de onboarding accesible, reabrible y adaptado a móvil
 - [x] Explicar errores frecuentes, autogestión y reporte de incidencias según el rol
 - [x] Validar los recorridos de onboarding con pruebas y revisión visual
+- [x] Añadir búsqueda de soluciones y errores frecuentes al centro de ayuda
+- [x] Incorporar recursos animados breves a los pasos de onboarding
+- [x] Mejorar la ventana de onboarding con controles de minimizar, ampliar y cerrar
+- [x] Validar búsqueda, recursos interactivos y controles responsive del onboarding

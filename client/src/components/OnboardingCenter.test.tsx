@@ -47,4 +47,31 @@ describe("OnboardingCenter", () => {
     fireEvent.click(screen.getByRole("button", { name: "Enviar incidencia" }));
     await waitFor(() => expect(mocks.reportIssue).toHaveBeenCalledWith({ route: "/owner", title: "No carga la cola", description: "La vista de música permanece cargando después de actualizar la página." }));
   });
+
+  it("filtra soluciones de ayuda y muestra un resultado vacío cuando no encuentra coincidencias", async () => {
+    const user = userEvent.setup();
+    render(<OnboardingCenter role="owner" />);
+    await screen.findByRole("dialog");
+    await user.click(screen.getByRole("tab", { name: "Ayuda y errores" }));
+    const search = await screen.findByRole("textbox", { name: "Buscar soluciones de ayuda" });
+    await user.type(search, "reporte");
+    expect(screen.getByText("No recibo un reporte o notificación")).toBeTruthy();
+    await user.clear(search);
+    await user.type(search, "palabra inexistente");
+    expect(screen.getByText("No encontramos una solución exacta.")).toBeTruthy();
+  });
+
+  it("permite minimizar, restaurar, ampliar y cerrar claramente la guía", async () => {
+    const user = userEvent.setup();
+    render(<OnboardingCenter role="manager" />);
+    await screen.findByRole("dialog");
+    await user.click(screen.getByRole("button", { name: "Minimizar guía" }));
+    expect(screen.getByText("Guía SongTap minimizada")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /restaurar/i }));
+    expect(screen.getByRole("button", { name: "Ampliar guía" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Ampliar guía" }));
+    expect(screen.getByRole("button", { name: "Reducir guía" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Cerrar guía" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
 });
