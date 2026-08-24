@@ -403,3 +403,7 @@
 - [x] Añadir un filtro rápido de solicitudes de acceso pendientes en Auditoría
 - [x] Notificar al solicitante las decisiones de acceso y permitirle consultarlas desde su sesión
 - [x] Auditar y validar los módulos, acciones y recorridos críticos de Owner
+- [x] Añadir búsqueda de solicitudes pendientes por nombre o correo del solicitante
+- [x] Permitir comentarios internos del Owner al resolver solicitudes sin exponerlos al solicitante
+- [x] Mostrar un badge persistente de decisiones de acceso no leídas en la navegación del usuario
+- [x] Cubrir con pruebas la búsqueda, la privacidad de comentarios y los badges de notificación

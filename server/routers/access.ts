@@ -64,7 +64,7 @@ export const accessRouter = router({
   getPending: adminProcedure.query(async () => getPendingAccessRequests()),
 
   resolve: adminProcedure
-    .input(z.object({ requestId: z.number().int().positive(), decision: z.enum(["approved", "rejected"]), reason: z.string().trim().max(500).optional() }))
+    .input(z.object({ requestId: z.number().int().positive(), decision: z.enum(["approved", "rejected"]), reason: z.string().trim().max(500).optional(), internalComment: z.string().trim().max(1000).optional() }))
     .mutation(async ({ ctx, input }) => {
       if (input.decision === "rejected" && !input.reason) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Indica el motivo del rechazo." });
@@ -84,6 +84,7 @@ export const accessRouter = router({
         ownerId: ctx.user.id,
         decision: input.decision,
         reason: input.reason,
+        internalComment: input.internalComment,
         grantedRole: input.decision === "approved" ? grantedRole as "manager" | "staff" : undefined,
       });
       await createAuditLog({
@@ -94,7 +95,7 @@ export const accessRouter = router({
         action: input.decision === "approved" ? "ACCESS_APPROVED" : "ACCESS_REJECTED",
         entity: "access_request",
         entityId: input.requestId,
-        details: JSON.stringify({ targetPath: result.request.targetPath, moduleName: result.request.moduleName, requesterId: result.request.userId, grantedRole: result.grantedRole, reason: input.reason?.trim() || null }),
+        details: JSON.stringify({ targetPath: result.request.targetPath, moduleName: result.request.moduleName, requesterId: result.request.userId, grantedRole: result.grantedRole, reason: input.reason?.trim() || null, internalComment: input.internalComment?.trim() || null }),
       });
       return { success: true, decision: input.decision };
     }),

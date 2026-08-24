@@ -66,6 +66,11 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
   DialogHeader: ({ children }: { children: React.ReactNode }) => <header>{children}</header>,
   DialogTitle: ({ children }: { children: React.ReactNode }) => <h3>{children}</h3>,
+  useDialogComposition: () => ({
+    justEndedComposing: () => false,
+    setComposing: () => undefined,
+    markCompositionEnd: () => undefined,
+  }),
 }));
 vi.mock("@/components/ui/textarea", () => ({ Textarea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} /> }));
 vi.mock("@/const", () => ({ getLoginUrl: () => "/login" }));
@@ -131,7 +136,22 @@ describe("OwnerAudit exports", () => {
     await user.click(screen.getByRole("button", { name: /accesos pendientes/i }));
     await user.click(screen.getByRole("button", { name: /aprobar acceso/i }));
     expect(screen.getByText("Aprobar solicitud de acceso")).toBeTruthy();
+    await user.type(screen.getByLabelText(/comentario interno/i), "Validado por operación nocturna");
     await user.click(screen.getByRole("button", { name: /confirmar aprobación/i }));
-    expect(mocks.resolve).toHaveBeenCalledWith({ requestId: 44, decision: "approved", reason: undefined });
+    expect(mocks.resolve).toHaveBeenCalledWith({ requestId: 44, decision: "approved", reason: undefined, internalComment: "Validado por operación nocturna" });
+  });
+
+  it("filtra solicitudes pendientes por nombre o correo del solicitante", async () => {
+    mocks.pendingRequests = [
+      { id: 44, moduleName: "Gestión de menú", targetPath: "/manager/menu", requesterName: "Andrea Staff", requesterEmail: "andrea@songtap.test", requesterRole: "staff", venueName: "Bar La Noche" },
+      { id: 45, moduleName: "Finanzas", targetPath: "/manager/finance", requesterName: "Camilo Staff", requesterEmail: "camilo@songtap.test", requesterRole: "staff", venueName: "FORTISVVV" },
+    ];
+    const user = userEvent.setup();
+    render(<OwnerAudit />);
+
+    await user.click(screen.getByRole("button", { name: /accesos pendientes/i }));
+    await user.type(screen.getByLabelText(/buscar solicitudes por solicitante/i), "Andrea");
+    expect(screen.getByText("Andrea Staff")).toBeTruthy();
+    expect(screen.queryByText("Camilo Staff")).toBeNull();
   });
 });

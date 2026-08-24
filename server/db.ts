@@ -835,6 +835,7 @@ type AccessRequestDecision = {
   ownerId: number;
   decision: "approved" | "rejected";
   reason?: string;
+  internalComment?: string;
   grantedRole?: "manager" | "staff";
 };
 
@@ -863,6 +864,7 @@ export async function resolveAccessRequest(data: AccessRequestDecision) {
         status: data.decision,
         reviewedByOwnerId: data.ownerId,
         decisionReason: data.reason?.trim() || null,
+        internalComment: data.internalComment?.trim() || null,
         reviewedAt: new Date(),
       })
       .where(and(eq(accessRequests.id, data.requestId), eq(accessRequests.status, "pending")));

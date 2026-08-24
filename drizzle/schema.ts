@@ -232,6 +232,7 @@ export const accessRequests = mysqlTable(
     status: mysqlEnum("status", ["pending", "reviewed", "approved", "rejected"]).default("pending").notNull(),
     reviewedByOwnerId: int("reviewedByOwnerId"),
     decisionReason: text("decisionReason"),
+    internalComment: text("internalComment"),
     reviewedAt: timestamp("reviewedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

@@ -137,7 +137,11 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
   ];
 
   const roleNavMap = { owner: ownerNav, manager: managerNav, staff: staffNav };
-  const navItems = roleNavMap[role];
+  const navItems = role === "owner"
+    ? ownerNav
+    : roleNavMap[role].map((item) => item.href === "/profile" && unreadAccessDecisionCount > 0
+      ? { ...item, badge: unreadAccessDecisionCount }
+      : item);
   const dashboardHref = { owner: "/owner", manager: "/manager", staff: "/staff" }[role];
   const showBackButton = location !== dashboardHref;
   const panelLabel = { owner: "Panel Owner", manager: "Panel Manager", staff: "Panel Staff" }[role];
@@ -198,7 +202,7 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                  "relative flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                   isActive
                     ? "bg-primary text-primary-foreground shadow-sm neon-glow"
                     : "text-muted-foreground hover:bg-secondary hover:text-foreground",
@@ -210,8 +214,8 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
                   <span className="flex-shrink-0">{item.icon}</span>
                   {!collapsed && <span className="truncate">{item.label}</span>}
                 </div>
-                {!collapsed && item.badge !== undefined && (
-                  <span className="bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce">
+                {item.badge !== undefined && (
+                  <span className={cn("bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce", collapsed && "absolute right-1 top-1 min-w-4 text-center") }>
                     {item.badge}
                   </span>
                 )}

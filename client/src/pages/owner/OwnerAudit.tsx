@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getLoginUrl } from "@/const";
 import { filterAuditLogs } from "@/lib/auditFilters";
 import { buildAuditFilename, createAuditCsv, createAuditWorkbook, toAuditExportRows } from "@/lib/auditExport";
-import { Activity, Building2, CalendarDays, CheckCircle2, Clock3, Download, FileSpreadsheet, Filter, RotateCcw, Shield, UserRound, XCircle } from "lucide-react";
+import { Activity, Building2, CalendarDays, CheckCircle2, Clock3, Download, FileSpreadsheet, Filter, RotateCcw, Search, Shield, UserRound, XCircle } from "lucide-react";
 import { writeFileXLSX } from "xlsx";
 import { toast } from "sonner";
 
@@ -65,6 +66,8 @@ export default function OwnerAudit() {
   const [selectedAccessRequest, setSelectedAccessRequest] = useState<(typeof pendingAccessRequests)[number] | null>(null);
   const [decision, setDecision] = useState<"approved" | "rejected" | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [internalComment, setInternalComment] = useState("");
+  const [requesterSearch, setRequesterSearch] = useState("");
 
   const resolveAccessMutation = trpc.access.resolve.useMutation({
     onSuccess: (_, variables) => {
@@ -72,6 +75,7 @@ export default function OwnerAudit() {
       setSelectedAccessRequest(null);
       setDecision(null);
       setRejectionReason("");
+      setInternalComment("");
       void refetchPendingAccessRequests();
       void refetchLogs();
     },
@@ -112,7 +116,16 @@ export default function OwnerAudit() {
     setSelectedAccessRequest(request);
     setDecision(nextDecision);
     setRejectionReason("");
+    setInternalComment("");
   };
+
+  const filteredPendingAccessRequests = useMemo(() => {
+    const search = requesterSearch.trim().toLocaleLowerCase("es-CO");
+    if (!search) return pendingAccessRequests;
+    return pendingAccessRequests.filter((request) => [request.requesterName, request.requesterEmail, request.moduleName, request.targetPath]
+      .filter(Boolean)
+      .some((value) => String(value).toLocaleLowerCase("es-CO").includes(search)));
+  }, [pendingAccessRequests, requesterSearch]);
 
   const confirmDecision = () => {
     if (!selectedAccessRequest || !decision) return;
@@ -124,6 +137,7 @@ export default function OwnerAudit() {
       requestId: selectedAccessRequest.id,
       decision,
       reason: decision === "rejected" ? rejectionReason.trim() : undefined,
+      internalComment: internalComment.trim() || undefined,
     });
   };
 
@@ -234,8 +248,20 @@ export default function OwnerAudit() {
                   <p className="mt-1 text-xs text-muted-foreground">Las solicitudes nuevas aparecerán aquí para su revisión.</p>
                 </div>
               ) : (
-                <div className="divide-y divide-border" aria-label="Solicitudes de acceso pendientes">
-                  {pendingAccessRequests.map((request) => (
+                <div>
+                  <div className="border-b border-border bg-secondary/10 p-4">
+                    <label htmlFor="access-request-search" className="sr-only">Buscar solicitudes por solicitante</label>
+                    <div className="relative max-w-xl">
+                      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                      <Input id="access-request-search" value={requesterSearch} onChange={(event) => setRequesterSearch(event.target.value)} placeholder="Buscar por nombre, correo, módulo o ruta" className="border-border bg-input pl-9" />
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">{filteredPendingAccessRequests.length} de {pendingAccessRequests.length} solicitudes pendientes.</p>
+                  </div>
+                  {filteredPendingAccessRequests.length === 0 ? (
+                    <div className="py-10 text-center text-sm text-muted-foreground">No hay solicitudes que coincidan con la búsqueda.</div>
+                  ) : (
+                    <div className="divide-y divide-border" aria-label="Solicitudes de acceso pendientes">
+                      {filteredPendingAccessRequests.map((request) => (
                     <article key={request.id} className="space-y-4 p-4 sm:p-5">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
@@ -255,7 +281,9 @@ export default function OwnerAudit() {
                         <Button type="button" size="sm" variant="outline" className="gap-1.5 border-destructive/50 text-destructive hover:bg-destructive/10" disabled={resolveAccessMutation.isPending} onClick={() => openDecision(request, "rejected")}><XCircle size={15} /> Rechazar</Button>
                       </div>
                     </article>
-                  ))}
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             ) : isLoading ? (
@@ -335,7 +363,7 @@ export default function OwnerAudit() {
           </CardContent>
         </Card>
 
-        <Dialog open={Boolean(selectedAccessRequest && decision)} onOpenChange={(open) => { if (!open) { setSelectedAccessRequest(null); setDecision(null); setRejectionReason(""); } }}>
+        <Dialog open={Boolean(selectedAccessRequest && decision)} onOpenChange={(open) => { if (!open) { setSelectedAccessRequest(null); setDecision(null); setRejectionReason(""); setInternalComment(""); } }}>
           <DialogContent className="border-border bg-card text-card-foreground">
             <DialogHeader>
               <DialogTitle>{decision === "approved" ? "Aprobar solicitud de acceso" : "Rechazar solicitud de acceso"}</DialogTitle>
@@ -349,8 +377,12 @@ export default function OwnerAudit() {
                 <Textarea id="access-rejection-reason" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder="Explica brevemente la decisión para el solicitante." className="min-h-24 border-border bg-input" />
               </div>
             )}
+            <div className="space-y-2 border-t border-border pt-4">
+              <label htmlFor="access-internal-comment" className="text-sm font-medium text-foreground">Comentario interno del Owner <span className="font-normal text-muted-foreground">(opcional)</span></label>
+              <Textarea id="access-internal-comment" value={internalComment} onChange={(event) => setInternalComment(event.target.value)} placeholder="Visible únicamente para el Owner en la auditoría; no se enviará al solicitante." className="min-h-20 border-border bg-input" />
+            </div>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => { setSelectedAccessRequest(null); setDecision(null); }}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={() => { setSelectedAccessRequest(null); setDecision(null); setInternalComment(""); }}>Cancelar</Button>
               <Button type="button" className={decision === "approved" ? "bg-primary text-primary-foreground" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"} disabled={resolveAccessMutation.isPending || (decision === "rejected" && !rejectionReason.trim())} onClick={confirmDecision}>{resolveAccessMutation.isPending ? "Guardando..." : decision === "approved" ? "Confirmar aprobación" : "Confirmar rechazo"}</Button>
             </div>
           </DialogContent>

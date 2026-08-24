@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const mocks = vi.hoisted(() => ({ logout: vi.fn(), navigate: vi.fn(), location: "/manager" }));
+const mocks = vi.hoisted(() => ({ logout: vi.fn(), navigate: vi.fn(), location: "/manager", unreadAccessDecisions: 0 }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({
@@ -18,7 +18,7 @@ vi.mock("@/lib/trpc", () => ({
     notifications: {
       getPendingCount: { useQuery: () => ({ data: 0 }) },
       getSettings: { useQuery: () => ({ data: null }) },
-      getMyUnreadCount: { useQuery: () => ({ data: 0 }) },
+      getMyUnreadCount: { useQuery: () => ({ data: mocks.unreadAccessDecisions }) },
     },
   },
 }));
@@ -38,7 +38,7 @@ vi.mock("@/components/ui/sheet", () => ({
 import SongTapLayout from "./SongTapLayout";
 
 describe("SongTapLayout", () => {
-  beforeEach(() => { mocks.logout.mockReset(); mocks.navigate.mockReset(); mocks.location = "/manager"; });
+  beforeEach(() => { mocks.logout.mockReset(); mocks.navigate.mockReset(); mocks.location = "/manager"; mocks.unreadAccessDecisions = 0; });
   afterEach(() => cleanup());
 
   it("ejecuta logout al pulsar el botón visible Salir", async () => {
@@ -69,5 +69,13 @@ describe("SongTapLayout", () => {
     expect(breadcrumbs).toBeTruthy();
     expect(screen.getByRole("link", { name: "Panel Manager" }).getAttribute("href")).toBe("/manager");
     expect(within(breadcrumbs).getByText("Menú")).toBeTruthy();
+  });
+
+  it("muestra un badge de decisiones no leídas junto a Mi Perfil", () => {
+    mocks.unreadAccessDecisions = 3;
+    render(<SongTapLayout role="manager"><div>Contenido protegido</div></SongTapLayout>);
+
+    expect(screen.getAllByText("3", { exact: true }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: /mi perfil/i }).some((link) => link.getAttribute("href") === "/profile")).toBe(true);
   });
 });
