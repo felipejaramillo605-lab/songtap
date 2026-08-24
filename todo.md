@@ -453,3 +453,6 @@
 - [x] Añadir un checkbox claro para controlar la reapertura automática
 - [x] Impedir que el onboarding aparezca al navegar entre módulos tras revisarlo o desactivarlo
 - [x] Validar navegación entre módulos, preferencia y accesibilidad del control
+- [x] Reproducir y corregir la reapertura del onboarding tras completar la guía
+- [x] Verificar persistencia de finalización y preferencia al cambiar entre módulos
+- [x] Añadir una prueba de regresión de navegación posterior a completar el onboarding

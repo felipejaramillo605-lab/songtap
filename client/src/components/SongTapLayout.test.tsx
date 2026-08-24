@@ -22,7 +22,7 @@ vi.mock("@/lib/trpc", () => ({
       getMyUnreadCount: { useQuery: () => ({ data: mocks.unreadAccessDecisions }) },
     },
     onboarding: {
-      getProgress: { useQuery: () => ({ data: { completedAt: new Date(), autoShownAt: new Date() }, isLoading: false }) },
+      getProgress: { useQuery: () => ({ data: { completedAt: new Date(), autoShownAt: new Date(), suppressAutoOnboarding: true }, isSuccess: true }) },
       listSupportTickets: { useQuery: () => ({ data: [] }) },
       getHelpInteractions: { useQuery: () => ({ data: { votes: {}, favorites: [] } }) },
       markOpened: { useMutation: () => ({ mutate: vi.fn() }) },

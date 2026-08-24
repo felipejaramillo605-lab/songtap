@@ -116,7 +116,7 @@ export default function OnboardingCenter({ role, compact = false }: { role: Role
   const Icon = current.icon;
   const progressPercent = Math.round(((activeStep + 1) / visibleSteps.length) * 100);
   const remainingSteps = Math.max(visibleSteps.length - activeStep - 1, 0);
-  const { data: progress, isLoading } = trpc.onboarding.getProgress.useQuery();
+  const { data: progress, isSuccess: hasResolvedProgress } = trpc.onboarding.getProgress.useQuery();
   const { data: tickets = [] } = trpc.onboarding.listSupportTickets.useQuery(undefined, { enabled: open });
   const { data: helpInteractions = { votes: {}, favorites: [] } } = trpc.onboarding.getHelpInteractions.useQuery(undefined, { enabled: open });
   const utils = trpc.useUtils();
@@ -141,8 +141,12 @@ export default function OnboardingCenter({ role, compact = false }: { role: Role
   }, [progress?.suppressAutoOnboarding]);
 
   useEffect(() => {
-    if (!isLoading && !progress?.autoShownAt && !progress?.suppressAutoOnboarding && !autoShowAttempted.current) { autoShowAttempted.current = true; setOpen(true); markAutoShown.mutate(); }
-  }, [isLoading, progress?.autoShownAt, progress?.suppressAutoOnboarding]);
+    if (hasResolvedProgress && progress === null && !autoShowAttempted.current) {
+      autoShowAttempted.current = true;
+      setOpen(true);
+      markAutoShown.mutate();
+    }
+  }, [hasResolvedProgress, progress]);
 
   const changeGuideMode = (mode: GuideMode) => { setGuideMode(mode); setActiveStep(0); };
   const updateSuppression = (next: boolean) => { setSuppressAutoOnboarding(next); setAutoSuppressed.mutate({ suppressAutoOnboarding: next }); };

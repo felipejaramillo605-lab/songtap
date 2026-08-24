@@ -4,13 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn(), progress: null as any, progressResolved: true }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     useUtils: () => ({ onboarding: { getProgress: { invalidate: vi.fn() }, listSupportTickets: { invalidate: vi.fn() }, getHelpInteractions: { invalidate: vi.fn() } }, notifications: { getPendingCount: { invalidate: vi.fn() } } }),
     onboarding: {
-      getProgress: { useQuery: () => ({ data: null, isLoading: false }) },
+      getProgress: { useQuery: () => ({ data: mocks.progress, isSuccess: mocks.progressResolved }) },
       listSupportTickets: { useQuery: () => ({ data: [] }) },
       getHelpInteractions: { useQuery: () => ({ data: { votes: {}, favorites: [] } }) },
       markOpened: { useMutation: () => ({ mutate: mocks.markOpened }) },
@@ -29,7 +29,7 @@ vi.mock("wouter", () => ({ useLocation: () => ["/owner", mocks.navigate] }));
 import OnboardingCenter from "./OnboardingCenter";
 
 describe("OnboardingCenter", () => {
-  afterEach(() => { cleanup(); vi.clearAllMocks(); });
+  afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.progress = null; mocks.progressResolved = true; });
 
   it("abre el recorrido Owner pendiente y muestra una captura del botón principal", async () => {
     render(<OnboardingCenter role="owner" />);
@@ -38,6 +38,20 @@ describe("OnboardingCenter", () => {
     expect(screen.getByRole("img", { name: /captura del dashboard owner/i })).toBeTruthy();
     expect(screen.getAllByText("Generar reporte ahora", { exact: false }).length).toBeGreaterThan(0);
     expect(screen.getByText("Progreso: 1 de 4")).toBeTruthy();
+  });
+
+  it("no abre la guía cuando la consulta aún no ha resuelto el progreso", () => {
+    mocks.progressResolved = false;
+    render(<OnboardingCenter role="owner" />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mocks.markAutoShown).not.toHaveBeenCalled();
+  });
+
+  it("no reabre la guía después de que el progreso ya fue creado o completado", () => {
+    mocks.progress = { id: 1, userId: 25, role: "manager", autoShownAt: new Date(), completedAt: new Date(), suppressAutoOnboarding: true };
+    render(<OnboardingCenter role="manager" />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mocks.markAutoShown).not.toHaveBeenCalled();
   });
 
   it("permite alternar entre guía breve y completa con progreso y pasos restantes", async () => {
