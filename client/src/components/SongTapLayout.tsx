@@ -24,6 +24,7 @@ import {
   Bell,
   Menu,
   ArrowLeft,
+  Package,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
@@ -54,6 +55,7 @@ const managerNav: NavItem[] = [
   { label: "Personal", href: "/manager/staff", icon: <Users size={18} /> },
   { label: "Actividades", href: "/manager/activities", icon: <ClipboardCheck size={18} /> },
   { label: "PQRS", href: "/manager/pqrs", icon: <MessageSquareText size={18} /> },
+  { label: "Inventario", href: "/manager/inventory", icon: <Package size={18} /> },
   { label: "Finanzas", href: "/manager/finance", icon: <DollarSign size={18} /> },
   { label: "Configuración", href: "/manager/settings", icon: <Cog size={18} /> },
   { label: "Mi Perfil", href: "/profile", icon: <User size={18} /> },

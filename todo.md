@@ -487,3 +487,9 @@
 - [x] Crear un local de prueba aislado con tres cuentas de roles distintos
 - [x] Crear y validar el Owner adicional creativestrategicsolutions2@gmail.com
 - [x] Verificar asignaciones, roles y credenciales temporales de las cuentas de prueba
+- [x] Definir objetivos, alcance y reglas de negocio del módulo de inventarios
+- [x] Crear esquema multi-local de insumos, unidades base, recetas, movimientos y mínimos
+- [x] Descontar inventario transaccionalmente al entregar pedidos y evitar duplicados o existencias negativas
+- [x] Implementar alertas de bajo inventario y trazabilidad de ajustes
+- [x] Crear interfaz Manager para insumos, conversiones, recetas, movimientos y alertas
+- [x] Cubrir inventarios con pruebas de conversiones, recetas, pedidos, roles y aislamiento por local

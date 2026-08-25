@@ -31,6 +31,11 @@ import {
   userOnboardingProgress,
   helpArticleFeedback,
   helpArticleFavorites,
+  inventoryAlerts,
+  inventoryItems,
+  inventoryMovements,
+  inventoryRecipeLines,
+  inventoryRecipes,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
@@ -470,33 +475,42 @@ export async function updateOrderStatus(
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  
-  // Obtener el estado anterior
-  const [currentOrder] = await db.select().from(orders).where(and(eq(orders.id, id), eq(orders.venueId, venueId))).limit(1);
-  if (!currentOrder) return false;
-  const previousStatus = currentOrder?.status;
-  
-  const update: Record<string, unknown> = { status };
-  if (handledByUserId) update.handledByUserId = handledByUserId;
-  if (status === "delivered") update.completedAt = new Date();
-  if (status === "cancelled") {
-    update.cancelledAt = new Date();
-    if (cancelReason) update.cancelReason = cancelReason;
-  }
-  await db.update(orders).set(update).where(and(eq(orders.id, id), eq(orders.venueId, venueId)));
-  
-  // Crear log de cambio de estado
-  if (handledByUserId && previousStatus !== status) {
-    await createOrderStatusHistory({
-      orderId: id,
-      previousStatus: previousStatus as any,
-      newStatus: status,
-      changedByUserId: handledByUserId,
-      changedByUserName: changedByUserName,
-      reason: cancelReason,
-    });
-  }
-  return true;
+  return db.transaction(async (tx) => {
+    const [currentOrder] = await tx.select().from(orders).where(and(eq(orders.id, id), eq(orders.venueId, venueId))).limit(1);
+    if (!currentOrder) return false;
+    const previousStatus = currentOrder.status;
+    if (previousStatus === "delivered" && status !== "delivered") {
+      throw new Error("PEDIDO_ENTREGADO_FINAL");
+    }
+
+    if (status === "delivered" && previousStatus !== "delivered") {
+      // Importación diferida para que los helpers de inventario puedan reutilizar getDb
+      // sin crear una dependencia circular al cargar este módulo.
+      const { applyInventoryForDeliveredOrder } = await import("./inventoryDb");
+      await applyInventoryForDeliveredOrder(tx, { orderId: id, venueId, performedByUserId: handledByUserId });
+    }
+
+    const update: Record<string, unknown> = { status };
+    if (handledByUserId) update.handledByUserId = handledByUserId;
+    if (status === "delivered") update.completedAt = new Date();
+    if (status === "cancelled") {
+      update.cancelledAt = new Date();
+      if (cancelReason) update.cancelReason = cancelReason;
+    }
+    await tx.update(orders).set(update).where(and(eq(orders.id, id), eq(orders.venueId, venueId)));
+
+    if (handledByUserId && previousStatus !== status) {
+      await tx.insert(orderStatusHistory).values({
+        orderId: id,
+        previousStatus: previousStatus as any,
+        newStatus: status,
+        changedByUserId: handledByUserId,
+        changedByUserName,
+        reason: cancelReason,
+      });
+    }
+    return true;
+  });
 }
 
 export async function createOrderStatusHistory(data: typeof orderStatusHistory.$inferInsert) {

@@ -1,6 +1,7 @@
 import {
   boolean,
   decimal,
+  index,
   int,
   mysqlEnum,
   mysqlTable,
@@ -183,6 +184,123 @@ export const orderItems = mysqlTable("order_items", {
 
 export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertOrderItem = typeof orderItems.$inferInsert;
+
+// ─── INVENTORY ────────────────────────────────────────────────────────────────
+// Todas las existencias se normalizan en una unidad base por dimensión:
+// unidad (conteo), ml (volumen) o g (masa). Esto hace exactas las recetas y
+// permite capturar cajas, litros y onzas sin mezclar medidas incompatibles.
+export const inventoryItems = mysqlTable(
+  "inventory_items",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    sku: varchar("sku", { length: 96 }),
+    dimension: mysqlEnum("dimension", ["count", "volume", "mass"]).notNull(),
+    baseUnit: mysqlEnum("baseUnit", ["unit", "ml", "g"]).notNull(),
+    currentStockBase: decimal("currentStockBase", { precision: 14, scale: 4 }).default("0").notNull(),
+    reorderPointBase: decimal("reorderPointBase", { precision: 14, scale: 4 }).default("0").notNull(),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    venueIndex: index("inventory_items_venue_idx").on(table.venueId),
+    venueSkuUnique: uniqueIndex("inventory_items_venue_sku_uq").on(table.venueId, table.sku),
+  })
+);
+
+export type InventoryItem = typeof inventoryItems.$inferSelect;
+export type InsertInventoryItem = typeof inventoryItems.$inferInsert;
+
+export const inventoryRecipes = mysqlTable(
+  "inventory_recipes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    menuItemId: int("menuItemId").notNull(),
+    name: varchar("name", { length: 160 }),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    venueIndex: index("inventory_recipes_venue_idx").on(table.venueId),
+    menuItemUnique: uniqueIndex("inventory_recipes_menu_item_uq").on(table.menuItemId),
+  })
+);
+
+export type InventoryRecipe = typeof inventoryRecipes.$inferSelect;
+export type InsertInventoryRecipe = typeof inventoryRecipes.$inferInsert;
+
+export const inventoryRecipeLines = mysqlTable(
+  "inventory_recipe_lines",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    recipeId: int("recipeId").notNull(),
+    inventoryItemId: int("inventoryItemId").notNull(),
+    quantityBase: decimal("quantityBase", { precision: 14, scale: 4 }).notNull(),
+    displayQuantity: decimal("displayQuantity", { precision: 14, scale: 4 }).notNull(),
+    displayUnit: varchar("displayUnit", { length: 24 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    recipeIndex: index("inventory_recipe_lines_recipe_idx").on(table.recipeId),
+    recipeItemUnique: uniqueIndex("inventory_recipe_lines_recipe_item_uq").on(table.recipeId, table.inventoryItemId),
+  })
+);
+
+export type InventoryRecipeLine = typeof inventoryRecipeLines.$inferSelect;
+export type InsertInventoryRecipeLine = typeof inventoryRecipeLines.$inferInsert;
+
+export const inventoryMovements = mysqlTable(
+  "inventory_movements",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    inventoryItemId: int("inventoryItemId").notNull(),
+    movementType: mysqlEnum("movementType", ["initial", "restock", "adjustment", "order_delivery", "order_reversal"]).notNull(),
+    quantityBase: decimal("quantityBase", { precision: 14, scale: 4 }).notNull(),
+    stockAfterBase: decimal("stockAfterBase", { precision: 14, scale: 4 }).notNull(),
+    sourceQuantity: decimal("sourceQuantity", { precision: 14, scale: 4 }),
+    sourceUnit: varchar("sourceUnit", { length: 24 }),
+    packBaseQuantity: decimal("packBaseQuantity", { precision: 14, scale: 4 }),
+    orderId: int("orderId"),
+    performedByUserId: int("performedByUserId"),
+    note: text("note"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({
+    venueIndex: index("inventory_movements_venue_idx").on(table.venueId, table.createdAt),
+    itemIndex: index("inventory_movements_item_idx").on(table.inventoryItemId, table.createdAt),
+    orderItemTypeUnique: uniqueIndex("inventory_movements_order_item_type_uq").on(table.orderId, table.inventoryItemId, table.movementType),
+  })
+);
+
+export type InventoryMovement = typeof inventoryMovements.$inferSelect;
+export type InsertInventoryMovement = typeof inventoryMovements.$inferInsert;
+
+export const inventoryAlerts = mysqlTable(
+  "inventory_alerts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    inventoryItemId: int("inventoryItemId").notNull(),
+    status: mysqlEnum("status", ["active", "resolved"]).default("active").notNull(),
+    triggeredStockBase: decimal("triggeredStockBase", { precision: 14, scale: 4 }).notNull(),
+    resolvedAt: timestamp("resolvedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    venueStatusIndex: index("inventory_alerts_venue_status_idx").on(table.venueId, table.status),
+    itemIndex: index("inventory_alerts_item_idx").on(table.inventoryItemId),
+  })
+);
+
+export type InventoryAlert = typeof inventoryAlerts.$inferSelect;
+export type InsertInventoryAlert = typeof inventoryAlerts.$inferInsert;
 
 // ─── MUSIC REQUESTS ───────────────────────────────────────────────────────────
 export const musicRequests = mysqlTable("music_requests", {

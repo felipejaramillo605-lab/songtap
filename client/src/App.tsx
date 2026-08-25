@@ -42,6 +42,7 @@ import ManagerFinance from "./pages/manager/ManagerFinance";
 import ManagerSettings from "./pages/manager/ManagerSettings";
 import ManagerActivities from "./pages/manager/ManagerActivities";
 import ManagerPqrs from "./pages/manager/ManagerPqrs";
+import ManagerInventory from "./pages/manager/ManagerInventory";
 
 // Staff pages
 import StaffOrders from "./pages/staff/StaffOrders";
@@ -96,6 +97,7 @@ const ManagerFinanceRoute = managerOnly(ManagerFinance);
 const ManagerSettingsRoute = managerOnly(ManagerSettings);
 const ManagerActivitiesRoute = managerOnly(ManagerActivities);
 const ManagerPqrsRoute = managerOnly(ManagerPqrs);
+const ManagerInventoryRoute = managerOnly(ManagerInventory);
 const StaffOrdersRoute = staffOnly(StaffOrders);
 const StaffMusicRoute = staffOnly(StaffMusic);
 const StaffTablesRoute = staffOnly(StaffTables);
@@ -142,6 +144,7 @@ function Router() {
       <Route path="/manager/settings" component={ManagerSettingsRoute} />
       <Route path="/manager/activities" component={ManagerActivitiesRoute} />
       <Route path="/manager/pqrs" component={ManagerPqrsRoute} />
+      <Route path="/manager/inventory" component={ManagerInventoryRoute} />
 
       {/* Staff */}
       <Route path="/staff" component={StaffOrdersRoute} />

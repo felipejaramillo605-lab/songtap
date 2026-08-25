@@ -15,6 +15,7 @@ import {
 import { getDb } from "../db";
 import { menuItems } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { InventoryStockError } from "../inventoryDb";
 
 export const ordersRouter = router({
   // Cliente: crear pedido desde el portal QR
@@ -169,7 +170,18 @@ export const ordersRouter = router({
       if (!order || order.venueId !== input.venueId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Pedido no encontrado en este local" });
       }
-      const updated = await updateOrderStatus(input.orderId, input.venueId, input.status, ctx.user.id, input.cancelReason, ctx.user.name || undefined);
+      let updated: boolean;
+      try {
+        updated = await updateOrderStatus(input.orderId, input.venueId, input.status, ctx.user.id, input.cancelReason, ctx.user.name || undefined);
+      } catch (error) {
+        if (error instanceof InventoryStockError) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message, cause: error.shortages });
+        }
+        if (error instanceof Error && error.message === "PEDIDO_ENTREGADO_FINAL") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Un pedido entregado no puede cambiarse a otro estado; registra un ajuste de inventario si es necesario." });
+        }
+        throw error;
+      }
       if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Pedido no encontrado en este local" });
       await createAuditLog({
         venueId: input.venueId,
