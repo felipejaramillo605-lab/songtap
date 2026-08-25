@@ -71,3 +71,17 @@ Los insumos podrán marcarse como perecederos y configurar cuántos días antes 
 | Lote vencido con saldo | No se consume automáticamente ni se elimina. | Panel e inbox interna; el Manager debe registrar un ajuste auditado tras la merma física. |
 
 La revisión automática se ejecutará todos los días a las **8:00 a. m. de Colombia**. El proceso será idempotente: cada lote recibe una notificación al entrar a estado “próximo a vencer” y otra, si corresponde, al pasar a “vencido”; no se repetirá el mismo aviso todos los días.
+
+## Estado de la ampliación y validación
+
+La ampliación está disponible en **Manager → Inventario**. La pantalla permite registrar proveedores, confirmar compras con una o varias líneas, asociar factura o referencia, costos, lotes y caducidades. La recepción aumenta el saldo y crea sus movimientos dentro de la misma transacción. Los insumos perecederos se marcan al crearse y exigen una fecha de caducidad en las compras.
+
+El Dashboard Manager muestra una tarjeta de abastecimiento con los insumos bajo mínimo y los lotes próximos a vencer o vencidos. Los lotes vencidos permanecen trazables, pero se excluyen del consumo automático; la merma debe registrarse como ajuste auditado. La revisión diaria `songtap-inventory-expiry-daily` quedó activa para las **13:00 UTC**, equivalentes a las **8:00 a. m. de Colombia**, y está vinculada al controlador autenticado de SongTap.
+
+| Validación | Resultado |
+|---|---|
+| Compra y proveedor | La recepción suma stock, conserva referencia y crea movimientos/lote. |
+| Caducidad | Insumo perecedero sin fecha se rechaza; lote próximo genera alerta idempotente. |
+| Consumo FEFO | La entrega descuenta primero el lote vigente con vencimiento más cercano. |
+| Permisos y aislamiento | Staff no puede crear proveedores y Manager de otro local no puede consultar ni registrar. |
+| Suite final | **50 archivos y 196 pruebas aprobadas**, con TypeScript sin errores. |

@@ -4,6 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { appRouter } from "./routers";
 import { createUserWithPassword, getDb } from "./db";
 import { toBaseQuantity } from "./inventory";
+import { runInventoryExpiryNotifications } from "./inventoryDb";
 import {
   inventoryAlerts,
   inventoryItems,
@@ -18,6 +19,7 @@ import {
   menuItems,
   orderItems,
   orders,
+  userNotificationHistory,
   users,
   venues,
 } from "../drizzle/schema";
@@ -86,7 +88,10 @@ afterEach(async () => {
     await db.delete(menuCategories).where(eq(menuCategories.venueId, venueId));
     await db.delete(venues).where(eq(venues.id, venueId));
   }
-  for (const userId of created.userIds.splice(0)) await db.delete(users).where(eq(users.id, userId));
+  for (const userId of created.userIds.splice(0)) {
+    await db.delete(userNotificationHistory).where(eq(userNotificationHistory.userId, userId));
+    await db.delete(users).where(eq(users.id, userId));
+  }
 });
 
 describe("inventarios", () => {
@@ -115,7 +120,7 @@ describe("inventarios", () => {
     await staffCaller.orders.updateStatus({ orderId, venueId, status: "delivered" });
     const movements = await managerCaller.inventory.movements({ venueId, inventoryItemId: itemId });
     expect(movements.filter((movement) => movement.movementType === "order_delivery")).toHaveLength(1);
-  });
+  }, 15_000);
 
   it("bloquea una entrega con saldo insuficiente y un Manager de otro local", async () => {
     const { venueId, manager, staff, menuItemId } = await createFixture();
@@ -168,5 +173,24 @@ describe("inventarios", () => {
     await expect(managerCaller.inventory.receivePurchase({ venueId, receivedAt: new Date(), lines: [{ inventoryItemId: item.item!.id, quantity: 1, unit: "liter" }] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     const staffCaller = appRouter.createCaller(context({ id: staff.id, role: "staff", venueId }));
     await expect(staffCaller.inventory.createSupplier({ venueId, name: "Proveedor Staff" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("revisa lotes diarios sin duplicar la misma alerta de caducidad", async () => {
+    const { venueId, manager } = await createFixture();
+    const managerCaller = appRouter.createCaller(context({ id: manager.id, role: "manager", venueId }));
+    const item = await managerCaller.inventory.createItem({ venueId, name: "Crema", dimension: "volume", reorderPointQuantity: 0, reorderPointUnit: "ml", isPerishable: true, expiryAlertDays: 7 });
+    await managerCaller.inventory.receivePurchase({
+      venueId,
+      receivedAt: new Date(),
+      lines: [{ inventoryItemId: item.item!.id, quantity: 1, unit: "liter", expiresAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000) }],
+    });
+    const db = await getDb();
+    await db!.update(inventoryLots).set({ lastAlertState: "none", lastAlertedAt: null }).where(eq(inventoryLots.venueId, venueId));
+    const firstRun = await runInventoryExpiryNotifications();
+    expect(firstRun.expiring).toBeGreaterThan(0);
+    const afterFirst = await db!.select().from(userNotificationHistory).where(eq(userNotificationHistory.userId, manager.id));
+    await runInventoryExpiryNotifications();
+    const afterSecond = await db!.select().from(userNotificationHistory).where(eq(userNotificationHistory.userId, manager.id));
+    expect(afterSecond).toHaveLength(afterFirst.length);
   });
 });

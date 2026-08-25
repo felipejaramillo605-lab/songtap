@@ -493,10 +493,10 @@
 - [x] Implementar alertas de bajo inventario y trazabilidad de ajustes
 - [x] Crear interfaz Manager para insumos, conversiones, recetas, movimientos y alertas
 - [x] Cubrir inventarios con pruebas de conversiones, recetas, pedidos, roles y aislamiento por local
-- [ ] Definir reglas de compras, proveedores, lotes perecederos y alertas de caducidad
-- [ ] Crear esquema multi-local de proveedores, compras, líneas y lotes de inventario
-- [ ] Registrar compras transaccionalmente y actualizar el stock de insumos
-- [ ] Generar alertas de insumos bajos y lotes próximos a vencer para Managers del local
-- [ ] Añadir panel visual de alertas al Dashboard Manager y gestión de compras/caducidades en Inventario
-- [ ] Validar compras, vencimientos, notificaciones, permisos y aislamiento por local
-- [ ] Programar la revisión diaria de lotes a las 8:00 a. m. de Colombia y verificar su ejecución
+- [x] Definir reglas de compras, proveedores, lotes perecederos y alertas de caducidad
+- [x] Crear esquema multi-local de proveedores, compras, líneas y lotes de inventario
+- [x] Registrar compras transaccionalmente y actualizar el stock de insumos
+- [x] Generar alertas de insumos bajos y lotes próximos a vencer para Managers del local
+- [x] Añadir panel visual de alertas al Dashboard Manager y gestión de compras/caducidades en Inventario
+- [x] Validar compras, vencimientos, notificaciones, permisos y aislamiento por local
+- [x] Programar la revisión diaria de lotes a las 8:00 a. m. de Colombia y verificar su ejecución

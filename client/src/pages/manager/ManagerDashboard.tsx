@@ -4,7 +4,7 @@ import SongTapLayout from "@/components/SongTapLayout";
 import FavoriteModules from "@/components/FavoriteModules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, TrendingUp, ShoppingBag, TrendingDown, BarChart3, Clock, Zap } from "lucide-react";
+import { AlertTriangle, CalendarClock, DollarSign, TrendingUp, ShoppingBag, TrendingDown, BarChart3, Clock, Zap } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
@@ -52,11 +52,21 @@ export default function ManagerDashboard() {
     { venueId: venueId! },
     { enabled: !!venueId, refetchInterval: 10000 }
   );
+  const { data: inventory } = trpc.inventory.dashboard.useQuery(
+    { venueId: venueId! },
+    { enabled: !!venueId, refetchInterval: 60_000 }
+  );
+  const { data: expiryAlerts } = trpc.inventory.expiryAlerts.useQuery(
+    { venueId: venueId! },
+    { enabled: !!venueId, refetchInterval: 60_000 }
+  );
 
   if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
 
   const pending = orders?.filter((o) => o.status === "pending").length ?? 0;
   const preparing = orders?.filter((o) => o.status === "preparing").length ?? 0;
+  const lowStockItems = inventory?.items.filter((item) => item.isLowStock) ?? [];
+  const expiredLots = expiryAlerts?.filter((lot) => lot.state === "expired") ?? [];
 
   const stats = [
     { 
@@ -165,6 +175,22 @@ export default function ManagerDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {venueId && (lowStockItems.length > 0 || (expiryAlerts?.length ?? 0) > 0) && (
+          <Card className="border border-amber-500/30 bg-amber-500/5 shadow-premium">
+            <CardHeader className="flex-row items-start justify-between gap-4 pb-3">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base text-amber-600 dark:text-amber-400"><AlertTriangle className="h-5 w-5" /> Abastecimiento requiere atención</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">Revisa mínimos, compras recibidas y lotes antes de afectar la operación del local.</p>
+              </div>
+              <button type="button" onClick={() => navigate("/manager/inventory")} className="shrink-0 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary transition hover:bg-primary/20">Ver inventario</button>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-amber-500/20 bg-background/40 p-3"><p className="flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-4 w-4 text-amber-500" /> Mínimos alcanzados: {lowStockItems.length}</p><p className="mt-1 text-xs text-muted-foreground">{lowStockItems.length ? lowStockItems.slice(0, 3).map((item) => item.name).join(", ") : "No hay insumos bajo mínimo."}</p></div>
+              <div className={`rounded-lg border p-3 ${expiredLots.length ? "border-rose-500/30 bg-rose-500/5" : "border-amber-500/20 bg-background/40"}`}><p className="flex items-center gap-2 text-sm font-semibold"><CalendarClock className={`h-4 w-4 ${expiredLots.length ? "text-rose-500" : "text-amber-500"}`} /> Lotes por caducar: {expiryAlerts?.length ?? 0}</p><p className="mt-1 text-xs text-muted-foreground">{expiredLots.length ? `${expiredLots.length} lote(s) vencido(s): ${expiredLots.slice(0, 2).map((lot) => lot.item.name).join(", ")}` : "No hay lotes vencidos; revisa los próximos a vencer."}</p></div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Charts Section with Tabs */}
         <div className="space-y-4">
