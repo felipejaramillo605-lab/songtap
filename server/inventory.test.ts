@@ -7,9 +7,13 @@ import { toBaseQuantity } from "./inventory";
 import {
   inventoryAlerts,
   inventoryItems,
+  inventoryLots,
   inventoryMovements,
+  inventoryPurchaseLines,
+  inventoryPurchases,
   inventoryRecipeLines,
   inventoryRecipes,
+  inventorySuppliers,
   menuCategories,
   menuItems,
   orderItems,
@@ -67,6 +71,11 @@ afterEach(async () => {
     const itemIds = items.map((item) => item.id);
     const recipes = await db.select({ id: inventoryRecipes.id }).from(inventoryRecipes).where(eq(inventoryRecipes.venueId, venueId));
     if (recipes.length) await db.delete(inventoryRecipeLines).where(inArray(inventoryRecipeLines.recipeId, recipes.map((recipe) => recipe.id)));
+    const purchases = await db.select({ id: inventoryPurchases.id }).from(inventoryPurchases).where(eq(inventoryPurchases.venueId, venueId));
+    if (itemIds.length) await db.delete(inventoryLots).where(eq(inventoryLots.venueId, venueId));
+    if (purchases.length) await db.delete(inventoryPurchaseLines).where(inArray(inventoryPurchaseLines.purchaseId, purchases.map((purchase) => purchase.id)));
+    await db.delete(inventoryPurchases).where(eq(inventoryPurchases.venueId, venueId));
+    await db.delete(inventorySuppliers).where(eq(inventorySuppliers.venueId, venueId));
     if (itemIds.length) {
       await db.delete(inventoryAlerts).where(eq(inventoryAlerts.venueId, venueId));
       await db.delete(inventoryMovements).where(eq(inventoryMovements.venueId, venueId));
@@ -120,5 +129,44 @@ describe("inventarios", () => {
 
     const otherManager = appRouter.createCaller(context({ id: manager.id + 500000, role: "manager", venueId: venueId + 1 }));
     await expect(otherManager.inventory.dashboard({ venueId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("recibe una compra de proveedor, crea un lote y consume primero el lote vigente", async () => {
+    const { venueId, manager, staff, menuItemId } = await createFixture();
+    const managerCaller = appRouter.createCaller(context({ id: manager.id, role: "manager", venueId }));
+    const item = await managerCaller.inventory.createItem({ venueId, name: "Pulpa de mango", dimension: "volume", reorderPointQuantity: 100, reorderPointUnit: "ml", isPerishable: true, expiryAlertDays: 7 });
+    const supplier = await managerCaller.inventory.createSupplier({ venueId, name: "Frutas del Valle", contactName: "Andrea" });
+    const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const purchase = await managerCaller.inventory.receivePurchase({
+      venueId,
+      supplierId: supplier.supplier!.id,
+      reference: "FAC-100",
+      receivedAt: new Date(),
+      lines: [{ inventoryItemId: item.item!.id, quantity: 2, unit: "liter", unitCost: 12000, lotCode: "MNG-03", expiresAt }],
+    });
+    expect(purchase.purchaseId).toBeGreaterThan(0);
+    expect(purchase.expiringLots).toContain("Pulpa de mango");
+    const alerts = await managerCaller.inventory.expiryAlerts({ venueId });
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].state).toBe("expiring");
+
+    await managerCaller.inventory.saveRecipe({ venueId, menuItemId, lines: [{ inventoryItemId: item.item!.id, quantity: 4, unit: "fl_oz" }] });
+    const orderId = await createPendingOrder(venueId, menuItemId, 1);
+    const staffCaller = appRouter.createCaller(context({ id: staff.id, role: "staff", venueId }));
+    await staffCaller.orders.updateStatus({ orderId, venueId, status: "delivered" });
+    const db = await getDb();
+    const [lot] = await db!.select().from(inventoryLots).where(eq(inventoryLots.venueId, venueId)).limit(1);
+    expect(Number(lot.remainingQuantityBase)).toBe(1881.706);
+    const purchases = await managerCaller.inventory.purchases({ venueId });
+    expect(purchases[0].supplier?.name).toBe("Frutas del Valle");
+  });
+
+  it("exige vencimiento en compras de insumos perecederos y restringe compras a Manager", async () => {
+    const { venueId, manager, staff } = await createFixture();
+    const managerCaller = appRouter.createCaller(context({ id: manager.id, role: "manager", venueId }));
+    const item = await managerCaller.inventory.createItem({ venueId, name: "Leche", dimension: "volume", reorderPointQuantity: 0, reorderPointUnit: "ml", isPerishable: true });
+    await expect(managerCaller.inventory.receivePurchase({ venueId, receivedAt: new Date(), lines: [{ inventoryItemId: item.item!.id, quantity: 1, unit: "liter" }] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    const staffCaller = appRouter.createCaller(context({ id: staff.id, role: "staff", venueId }));
+    await expect(staffCaller.inventory.createSupplier({ venueId, name: "Proveedor Staff" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

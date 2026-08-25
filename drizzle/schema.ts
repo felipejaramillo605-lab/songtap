@@ -200,6 +200,8 @@ export const inventoryItems = mysqlTable(
     baseUnit: mysqlEnum("baseUnit", ["unit", "ml", "g"]).notNull(),
     currentStockBase: decimal("currentStockBase", { precision: 14, scale: 4 }).default("0").notNull(),
     reorderPointBase: decimal("reorderPointBase", { precision: 14, scale: 4 }).default("0").notNull(),
+    isPerishable: boolean("isPerishable").default(false).notNull(),
+    expiryAlertDays: int("expiryAlertDays").default(7).notNull(),
     isActive: boolean("isActive").default(true).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -301,6 +303,118 @@ export const inventoryAlerts = mysqlTable(
 
 export type InventoryAlert = typeof inventoryAlerts.$inferSelect;
 export type InsertInventoryAlert = typeof inventoryAlerts.$inferInsert;
+
+export const inventorySuppliers = mysqlTable(
+  "inventory_suppliers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    contactName: varchar("contactName", { length: 160 }),
+    email: varchar("email", { length: 320 }),
+    phone: varchar("phone", { length: 64 }),
+    address: text("address"),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    venueIndex: index("inventory_suppliers_venue_idx").on(table.venueId, table.name),
+  })
+);
+
+export type InventorySupplier = typeof inventorySuppliers.$inferSelect;
+export type InsertInventorySupplier = typeof inventorySuppliers.$inferInsert;
+
+export const inventoryPurchases = mysqlTable(
+  "inventory_purchases",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    supplierId: int("supplierId"),
+    reference: varchar("reference", { length: 128 }),
+    receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+    totalCost: decimal("totalCost", { precision: 12, scale: 2 }).default("0").notNull(),
+    notes: text("notes"),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({
+    venueIndex: index("inventory_purchases_venue_idx").on(table.venueId, table.receivedAt),
+    supplierIndex: index("inventory_purchases_supplier_idx").on(table.supplierId),
+  })
+);
+
+export type InventoryPurchase = typeof inventoryPurchases.$inferSelect;
+export type InsertInventoryPurchase = typeof inventoryPurchases.$inferInsert;
+
+export const inventoryPurchaseLines = mysqlTable(
+  "inventory_purchase_lines",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    purchaseId: int("purchaseId").notNull(),
+    inventoryItemId: int("inventoryItemId").notNull(),
+    quantityBase: decimal("quantityBase", { precision: 14, scale: 4 }).notNull(),
+    sourceQuantity: decimal("sourceQuantity", { precision: 14, scale: 4 }).notNull(),
+    sourceUnit: varchar("sourceUnit", { length: 24 }).notNull(),
+    packBaseQuantity: decimal("packBaseQuantity", { precision: 14, scale: 4 }),
+    unitCost: decimal("unitCost", { precision: 12, scale: 4 }),
+    lotCode: varchar("lotCode", { length: 128 }),
+    expiresAt: timestamp("expiresAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({
+    purchaseIndex: index("inventory_purchase_lines_purchase_idx").on(table.purchaseId),
+    itemIndex: index("inventory_purchase_lines_item_idx").on(table.inventoryItemId),
+  })
+);
+
+export type InventoryPurchaseLine = typeof inventoryPurchaseLines.$inferSelect;
+export type InsertInventoryPurchaseLine = typeof inventoryPurchaseLines.$inferInsert;
+
+export const inventoryLots = mysqlTable(
+  "inventory_lots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    inventoryItemId: int("inventoryItemId").notNull(),
+    purchaseLineId: int("purchaseLineId"),
+    lotCode: varchar("lotCode", { length: 128 }),
+    initialQuantityBase: decimal("initialQuantityBase", { precision: 14, scale: 4 }).notNull(),
+    remainingQuantityBase: decimal("remainingQuantityBase", { precision: 14, scale: 4 }).notNull(),
+    expiresAt: timestamp("expiresAt").notNull(),
+    lastAlertState: mysqlEnum("lastAlertState", ["none", "expiring", "expired"]).default("none").notNull(),
+    lastAlertedAt: timestamp("lastAlertedAt"),
+    receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    venueExpiryIndex: index("inventory_lots_venue_expiry_idx").on(table.venueId, table.expiresAt),
+    itemExpiryIndex: index("inventory_lots_item_expiry_idx").on(table.inventoryItemId, table.expiresAt),
+  })
+);
+
+export type InventoryLot = typeof inventoryLots.$inferSelect;
+export type InsertInventoryLot = typeof inventoryLots.$inferInsert;
+
+export const inventoryAutomationSettings = mysqlTable(
+  "inventory_automation_settings",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
+    expiryAlertDays: int("expiryAlertDays").default(7).notNull(),
+    isEnabled: boolean("isEnabled").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    taskIndex: index("inventory_automation_task_idx").on(table.scheduleCronTaskUid),
+  })
+);
+
+export type InventoryAutomationSettings = typeof inventoryAutomationSettings.$inferSelect;
+export type InsertInventoryAutomationSettings = typeof inventoryAutomationSettings.$inferInsert;
 
 // ─── MUSIC REQUESTS ───────────────────────────────────────────────────────────
 export const musicRequests = mysqlTable("music_requests", {

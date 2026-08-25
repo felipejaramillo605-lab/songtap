@@ -56,3 +56,18 @@ La implementación se considerará lista cuando un Manager pueda registrar un in
 La primera versión quedó disponible en **Manager → Inventario**. Incluye creación de insumos, existencias iniciales, entradas, ajustes, fórmulas, historial de movimientos y alertas visibles. Las alertas internas se generan para los Managers del mismo local cuando el saldo iguala o cae por debajo del mínimo, y se resuelven al reponerlo.
 
 La validación automatizada cubrió la conversión de litro, onza líquida y caja, el descuento de una fórmula de 4 oz por pedido, la idempotencia ante una segunda entrega, el bloqueo por saldo insuficiente y el aislamiento de un Manager de otro local. La suite completa finalizó con **50 archivos y 193 pruebas aprobadas**, además de TypeScript sin errores.
+
+## Ampliación: compras, proveedores y caducidad
+
+Las compras se registrarán como una **recepción confirmada**: una cabecera identifica proveedor, factura o referencia y fecha; cada línea identifica el insumo, cantidad, unidad de compra, costo opcional y fecha de caducidad si aplica. La recepción, los movimientos de entrada y la actualización del stock sucederán dentro de una misma transacción. Una compra fallida no podrá aumentar existencias parcialmente.
+
+Los insumos podrán marcarse como perecederos y configurar cuántos días antes de la caducidad desean recibir alerta; el valor inicial será **7 días**. Cada línea perecedera recibida genera un lote con saldo restante y fecha de vencimiento. Al entregar un pedido, SongTap consumirá primero los lotes vigentes con vencimiento más cercano; si hay existencias históricas no asociadas a un lote, el saldo global seguirá siendo utilizable y quedará diferenciado de los lotes trazables.
+
+| Evento | Efecto de stock | Aviso |
+|---|---|---|
+| Compra recibida | Suma la cantidad convertida a unidad base y crea el movimiento `restock`. | Avisa de inmediato si el lote ya está dentro de su ventana de vencimiento. |
+| Pedido entregado | Resta recetas y consume lotes vigentes por orden de vencimiento. | Mantiene las alertas de bajo stock existentes. |
+| Lote próximo a vencer | No modifica stock. | Panel Manager e inbox interna para los Managers del local. |
+| Lote vencido con saldo | No se consume automáticamente ni se elimina. | Panel e inbox interna; el Manager debe registrar un ajuste auditado tras la merma física. |
+
+La revisión automática se ejecutará todos los días a las **8:00 a. m. de Colombia**. El proceso será idempotente: cada lote recibe una notificación al entrar a estado “próximo a vencer” y otra, si corresponde, al pasar a “vencido”; no se repetirá el mismo aviso todos los días.
