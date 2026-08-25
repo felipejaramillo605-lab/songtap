@@ -39,6 +39,7 @@ export const uploadRouter = router({
         filename: z.string().trim().min(1).max(120),
         base64Data: z.string().min(1).max(7_000_000),
         contentType: z.string(),
+        purpose: z.enum(["general", "cv"]).optional().default("general"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -54,6 +55,9 @@ export const uploadRouter = router({
           code: "BAD_REQUEST",
           message: `Formato de archivo no permitido (${actualMime}). Solo se permiten imágenes (JPEG, PNG, WEBP) o documentos (PDF, DOC, DOCX).`,
         });
+      }
+      if (input.purpose === "cv" && !isDoc) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Un CV debe ser un documento PDF, DOC o DOCX." });
       }
 
       try {
@@ -76,9 +80,15 @@ export const uploadRouter = router({
         }
 
         const extension = extensionByMime[actualMime];
-        const safeKey = `uploads/${ctx.user.id}/${randomUUID()}.${extension}`;
+        const safeKey = input.purpose === "cv"
+          ? `private/cv/${ctx.user.id}/${randomUUID()}.${extension}`
+          : `uploads/${ctx.user.id}/${randomUUID()}.${extension}`;
         const res = await storagePut(safeKey, buffer, actualMime);
-        return { success: true, url: res.url };
+        return {
+          success: true,
+          url: input.purpose === "cv" ? `private-cv://${res.key}` : res.url,
+          isPrivate: input.purpose === "cv",
+        };
       } catch (err: any) {
         if (err instanceof TRPCError) throw err;
         throw new TRPCError({

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Archive, Bell, CheckCircle2, CreditCard, FileText, History, Home, Lock, Mail, Phone, Scissors, ShieldCheck, Upload, User } from "lucide-react";
+import { Archive, Bell, CheckCircle2, CreditCard, Download, FileText, History, Home, Lock, Mail, Phone, Scissors, ShieldCheck, Upload, User } from "lucide-react";
 import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
 import { ProfilePhotoCropper } from "@/components/ProfilePhotoCropper";
 
@@ -36,6 +36,12 @@ export default function Profile() {
   const [showArchivedNotifications, setShowArchivedNotifications] = useState(false);
 
   const uploadMutation = trpc.upload.uploadFile.useMutation();
+  const cvDownloadMutation = trpc.users.getCvDownloadUrl.useMutation({
+    onSuccess: (data) => {
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    },
+    onError: (err) => toast.error(err.message || "No fue posible generar el enlace temporal del CV"),
+  });
   const notificationHistoryInput = useMemo(() => ({ archived: showArchivedNotifications }), [showArchivedNotifications]);
   const { data: accessNotifications = [], isLoading: isLoadingAccessNotifications, refetch: refetchAccessNotifications } = trpc.notifications.getMyHistory.useQuery(notificationHistoryInput, { enabled: Boolean(user && user.role !== "owner") });
   const { data: unreadAccessNotifications = 0, refetch: refetchUnreadAccessNotifications } = trpc.notifications.getMyUnreadCount.useQuery(undefined, { enabled: Boolean(user && user.role !== "owner") });
@@ -97,6 +103,7 @@ export default function Profile() {
           filename: file.name,
           base64Data,
           contentType: file.type || "application/octet-stream",
+          purpose: "cv",
         });
         setCvUrl(res.url);
         toast.success("Hoja de vida (CV) cargada correctamente");
@@ -168,6 +175,11 @@ export default function Profile() {
       return;
     }
     updatePasswordMutation.mutate({ currentPassword, newPassword });
+  };
+
+  const handleDownloadCv = () => {
+    if (!user || !cvUrl.startsWith("private-cv://")) return;
+    cvDownloadMutation.mutate({ userId: user.id });
   };
 
   if (!user) {
@@ -407,11 +419,17 @@ export default function Profile() {
                       />
                     </div>
                     {uploadingCv && <p className="text-xs text-primary animate-pulse">Subiendo CV...</p>}
-                    {cvUrl && !uploadingCv && (
-                      <p className="text-xs text-green-400 flex items-center gap-1">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> CV cargado correctamente
-                      </p>
-                    )}
+                    {cvUrl && !uploadingCv && (cvUrl.startsWith("private-cv://") ? (
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-green-400">
+                        <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> CV protegido y cargado correctamente</span>
+                        <Button type="button" variant="outline" size="sm" onClick={handleDownloadCv} disabled={cvDownloadMutation.isPending}>
+                          <Download className="mr-1 h-3.5 w-3.5" />
+                          {cvDownloadMutation.isPending ? "Generando enlace..." : "Descargar CV"}
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-amber-500">Por privacidad, vuelve a cargar este CV para protegerlo con un enlace temporal.</p>
+                    ))}
                   </div>
                 </div>
 

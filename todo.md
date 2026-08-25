@@ -482,3 +482,5 @@
 - [x] Revisar autenticación, sesiones, RBAC, aislamiento por local, QR, entradas y dependencias
 - [x] Corregir hallazgos de seguridad verificables y añadir pruebas de regresión
 - [x] Documentar resultados, riesgos residuales y controles validados
+- [x] Proteger la descarga de CV con autorización por rol y URLs firmadas temporales
+- [x] Añadir regresiones de privacidad de CV, validación técnica y documentación

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Users, UserCheck, Trash2, Mail, Phone, FileText } from "lucide-react";
+import { Users, UserCheck, Trash2, Mail, Phone, FileText, Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
@@ -35,6 +35,10 @@ export default function ManagerStaff() {
     onSuccess: () => { toast.success("Empleado eliminado"); setSelectedUser(null); refetch(); },
     onError: (e) => toast.error(e.message),
   });
+  const cvDownload = trpc.users.getCvDownloadUrl.useMutation({
+    onSuccess: (data) => window.open(data.url, "_blank", "noopener,noreferrer"),
+    onError: (e) => toast.error(e.message || "No fue posible generar el enlace temporal del CV"),
+  });
 
   const myStaff = staff?.filter((u) => u.venueId === venueId && u.id !== user?.id && u.role === "staff") ?? [];
 
@@ -49,7 +53,6 @@ export default function ManagerStaff() {
       cedula: u.cedula || "",
       address: u.address || "",
       photoUrl: u.photoUrl || "",
-      cvUrl: u.cvUrl || "",
     });
     setImagePreview(u.photoUrl || "");
   };
@@ -201,14 +204,23 @@ export default function ManagerStaff() {
                 />
               </div>
 
-              <div>
-                <Label className="text-xs text-muted-foreground flex items-center gap-1"><FileText size={12} /> CV (URL)</Label>
-                <Input
-                  className="mt-1 bg-input border-border text-foreground"
-                  value={editForm.cvUrl}
-                  onChange={(e) => setEditForm({ ...editForm, cvUrl: e.target.value })}
-                  placeholder="https://..."
-                />
+              <div className="rounded-lg border border-border bg-secondary/20 p-3">
+                <Label className="text-xs text-muted-foreground flex items-center gap-1"><FileText size={12} /> Hoja de vida (CV)</Label>
+                {selectedUser.hasCv ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => cvDownload.mutate({ userId: selectedUser.id })}
+                    disabled={cvDownload.isPending}
+                  >
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    {cvDownload.isPending ? "Generando enlace..." : "Descargar CV privado"}
+                  </Button>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">El integrante aún no ha cargado un CV privado desde su perfil.</p>
+                )}
               </div>
 
               <div className="flex gap-2 pt-4">

@@ -1,11 +1,22 @@
 import type { Express } from "express";
 import { ENV } from "./env";
 
+export function isPrivateStorageKey(key: string) {
+  return key.startsWith("private/");
+}
+
 export function registerStorageProxy(app: Express) {
   app.get("/manus-storage/*", async (req, res) => {
     const key = (req.params as Record<string, string>)[0];
     if (!key) {
       res.status(400).send("Missing storage key");
+      return;
+    }
+
+    // Los objetos privados (como CV) solo se sirven a través de una URL de S3
+    // firmada y autorizada por un procedimiento tRPC; nunca por el proxy público.
+    if (isPrivateStorageKey(key)) {
+      res.status(403).send("Private storage objects require an authorized temporary link");
       return;
     }
 

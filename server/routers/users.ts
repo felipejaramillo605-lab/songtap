@@ -7,7 +7,18 @@ import { users } from "../../drizzle/schema";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 import { favoriteModulesByRole, isFavoriteModuleAllowed } from "../../shared/favoriteModules";
-import { toClientSafeUser } from "../userSafety";
+import { toClientSafeUser, toTeamSafeUser } from "../userSafety";
+import { storageGetSignedUrl } from "../storage";
+
+const PRIVATE_CV_PREFIX = "private-cv://";
+
+function getPrivateCvKey(cvUrl: string | null | undefined, userId: number) {
+  if (!cvUrl?.startsWith(PRIVATE_CV_PREFIX)) return null;
+  const key = cvUrl.slice(PRIVATE_CV_PREFIX.length);
+  const expectedPrefix = `private/cv/${userId}/`;
+  if (!key.startsWith(expectedPrefix) || key.includes("..") || key.includes("\\")) return null;
+  return key;
+}
 
 export const usersRouter = router({
   favoriteModules: protectedProcedure.query(async ({ ctx }) => {
@@ -35,10 +46,10 @@ export const usersRouter = router({
 
   list: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user.role === "owner") {
-      return (await getAllUsers()).map(toClientSafeUser);
+      return (await getAllUsers()).map(toTeamSafeUser);
     }
     if (ctx.user.venueId) {
-      return (await getUsersByVenue(ctx.user.venueId)).map(toClientSafeUser);
+      return (await getUsersByVenue(ctx.user.venueId)).map(toTeamSafeUser);
     }
     return [];
   }),
@@ -183,6 +194,13 @@ export const usersRouter = router({
           throw new TRPCError({ code: "FORBIDDEN" });
         }
       }
+
+      if (input.cvUrl !== undefined && !getPrivateCvKey(input.cvUrl, targetUser.id)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Por seguridad, el CV debe cargarse nuevamente desde el perfil para guardarse de forma privada.",
+        });
+      }
       
       const { userId, ...updateData } = input;
       await db.update(users).set(updateData).where(eq(users.id, userId));
@@ -196,6 +214,36 @@ export const usersRouter = router({
         details: JSON.stringify(updateData),
       });
       return { success: true };
+    }),
+
+  getCvDownloadUrl: protectedProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [targetUser] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "Usuario no encontrado" });
+
+      const isSelf = ctx.user.id === targetUser.id;
+      const isOwner = ctx.user.role === "owner";
+      const isManagerOfStaff = ctx.user.role === "manager"
+        && targetUser.role === "staff"
+        && ctx.user.venueId !== null
+        && targetUser.venueId === ctx.user.venueId;
+      if (!isSelf && !isOwner && !isManagerOfStaff) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tienes permiso para descargar este CV" });
+      }
+
+      const key = getPrivateCvKey(targetUser.cvUrl, targetUser.id);
+      if (!key) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No hay un CV privado disponible. Vuelve a cargarlo desde el perfil.",
+        });
+      }
+
+      const url = await storageGetSignedUrl(key);
+      return { url };
     }),
 
   deleteUser: protectedProcedure
