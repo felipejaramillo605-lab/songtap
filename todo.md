@@ -484,3 +484,6 @@
 - [x] Documentar resultados, riesgos residuales y controles validados
 - [x] Proteger la descarga de CV con autorización por rol y URLs firmadas temporales
 - [x] Añadir regresiones de privacidad de CV, validación técnica y documentación
+- [x] Crear un local de prueba aislado con tres cuentas de roles distintos
+- [x] Crear y validar el Owner adicional creativestrategicsolutions2@gmail.com
+- [x] Verificar asignaciones, roles y credenciales temporales de las cuentas de prueba
