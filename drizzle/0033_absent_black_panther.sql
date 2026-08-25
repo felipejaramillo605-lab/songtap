@@ -1,0 +1,1 @@
+ALTER TABLE `song_queue` ADD `karaokeReviewDueAt` timestamp;

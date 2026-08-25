@@ -30,6 +30,7 @@ interface KaraokeSong {
   karaokeProviderName?: string | null;
   karaokeLinkStatus?: KaraokeLinkStatus | null;
   karaokeLinkReviewNote?: string | null;
+  karaokeReviewDueAt?: Date | string | null;
 }
 
 interface KaraokeLinkManagerProps {
@@ -38,7 +39,7 @@ interface KaraokeLinkManagerProps {
   isSaving?: boolean;
   isUpdatingStatus?: boolean;
   onSave: (input: { songId: number; karaokeUrl: string; karaokeProviderName: string | null }) => void;
-  onUpdateStatus?: (input: { songId: number; status: KaraokeLinkStatus; reviewNote?: string }) => void;
+  onUpdateStatus?: (input: { songId: number; status: KaraokeLinkStatus; reviewNote?: string; reviewDueAt?: Date }) => void;
 }
 
 export default function KaraokeLinkManager({ song, providers, isSaving = false, isUpdatingStatus = false, onSave, onUpdateStatus }: KaraokeLinkManagerProps) {
@@ -47,6 +48,7 @@ export default function KaraokeLinkManager({ song, providers, isSaving = false, 
   const [karaokeUrl, setKaraokeUrl] = useState(song.karaokeUrl ?? "");
   const [providerName, setProviderName] = useState(song.karaokeProviderName ?? "");
   const [reviewNote, setReviewNote] = useState(song.karaokeLinkReviewNote ?? "");
+  const [reviewDueDate, setReviewDueDate] = useState(() => song.karaokeReviewDueAt ? new Date(song.karaokeReviewDueAt).toISOString().slice(0, 10) : "");
 
   const openSaveDialog = () => {
     setKaraokeUrl(song.karaokeUrl ?? "");
@@ -73,6 +75,7 @@ export default function KaraokeLinkManager({ song, providers, isSaving = false, 
   const requestStatusChange = (status: KaraokeLinkStatus) => {
     if (status === "needs_review") {
       setReviewNote(song.karaokeLinkReviewNote ?? "");
+      setReviewDueDate(song.karaokeReviewDueAt ? new Date(song.karaokeReviewDueAt).toISOString().slice(0, 10) : "");
       setReviewDialogOpen(true);
       return;
     }
@@ -81,8 +84,9 @@ export default function KaraokeLinkManager({ song, providers, isSaving = false, 
 
   const confirmNeedsReview = () => {
     const note = reviewNote.trim();
-    if (!note) return;
-    onUpdateStatus?.({ songId: song.id, status: "needs_review", reviewNote: note });
+    const dueAt = reviewDueDate ? new Date(`${reviewDueDate}T23:59:59.999`) : null;
+    if (!note || !dueAt || Number.isNaN(dueAt.getTime())) return;
+    onUpdateStatus?.({ songId: song.id, status: "needs_review", reviewNote: note, reviewDueAt: dueAt });
     setReviewDialogOpen(false);
   };
 
@@ -137,7 +141,7 @@ export default function KaraokeLinkManager({ song, providers, isSaving = false, 
               </SelectContent>
             </Select>
           )}
-          {linkStatus === "needs_review" && song.karaokeLinkReviewNote && <p className="w-full rounded-md border border-amber-400/20 bg-amber-400/5 px-2 py-1 text-xs text-amber-100">Nota: {song.karaokeLinkReviewNote}</p>}
+          {linkStatus === "needs_review" && (song.karaokeLinkReviewNote || song.karaokeReviewDueAt) && <div className="w-full rounded-md border border-amber-400/20 bg-amber-400/5 px-2 py-1 text-xs text-amber-100">{song.karaokeLinkReviewNote && <p>Nota: {song.karaokeLinkReviewNote}</p>}{song.karaokeReviewDueAt && <p className="mt-1">Fecha límite: {new Date(song.karaokeReviewDueAt).toLocaleDateString("es-CO", { dateStyle: "medium" })}</p>}</div>}
         </>
       )}
       <Button
@@ -201,10 +205,14 @@ export default function KaraokeLinkManager({ song, providers, isSaving = false, 
             <Label htmlFor={`karaoke-review-note-${song.id}`}>Nota de revisión *</Label>
             <Textarea id={`karaoke-review-note-${song.id}`} value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} maxLength={500} placeholder="Ej. El video no tiene audio o ya no está disponible." className="min-h-24 bg-input text-foreground" />
             <p className="text-right text-xs text-muted-foreground">{reviewNote.length}/500</p>
+            <div className="grid gap-1">
+              <Label htmlFor={`karaoke-review-due-${song.id}`}>Fecha límite *</Label>
+              <Input id={`karaoke-review-due-${song.id}`} type="date" value={reviewDueDate} onChange={(event) => setReviewDueDate(event.target.value)} className="bg-input text-foreground" />
+            </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmNeedsReview} disabled={!reviewNote.trim() || isUpdatingStatus}>Guardar como Requiere revisión</Button>
+            <Button onClick={confirmNeedsReview} disabled={!reviewNote.trim() || !reviewDueDate || isUpdatingStatus}>Guardar como Requiere revisión</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

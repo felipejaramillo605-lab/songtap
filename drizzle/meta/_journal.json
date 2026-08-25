@@ -232,6 +232,13 @@
       "when": 1787640632431,
       "tag": "0032_faithful_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1787667780544,
+      "tag": "0033_absent_black_panther",
+      "breakpoints": true
     }
   ]
 }

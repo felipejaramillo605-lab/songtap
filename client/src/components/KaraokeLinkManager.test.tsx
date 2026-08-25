@@ -55,8 +55,9 @@ describe("KaraokeLinkManager", () => {
     fireEvent.click(screen.getByRole("option", { name: "Requiere revisión" }));
     expect(screen.getByText("Explicar revisión del enlace")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Nota de revisión *"), { target: { value: "El video ya no está disponible" } });
+    fireEvent.change(screen.getByLabelText("Fecha límite *"), { target: { value: "2030-08-31" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar como Requiere revisión" }));
 
-    expect(onUpdateStatus).toHaveBeenCalledWith({ songId: 16, status: "needs_review", reviewNote: "El video ya no está disponible" });
+    expect(onUpdateStatus).toHaveBeenCalledWith({ songId: 16, status: "needs_review", reviewNote: "El video ya no está disponible", reviewDueAt: expect.any(Date) });
   });
 });

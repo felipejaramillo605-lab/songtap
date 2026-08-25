@@ -15,6 +15,7 @@ const dbMocks = vi.hoisted(() => ({
   getVenueKaraokeProviders: vi.fn(),
   saveKaraokeLinkForSong: vi.fn(),
   updateKaraokeLinkStatusForSong: vi.fn(),
+  notifyVenueManagersOfKaraokeReview: vi.fn(),
   getOwnerKaraokeLinkMetrics: vi.fn(),
 }));
 
@@ -44,6 +45,7 @@ describe("music router", () => {
     dbMocks.getVenueKaraokeProviders.mockResolvedValue([]);
     dbMocks.saveKaraokeLinkForSong.mockResolvedValue(true);
     dbMocks.updateKaraokeLinkStatusForSong.mockResolvedValue(true);
+    dbMocks.notifyVenueManagersOfKaraokeReview.mockResolvedValue(1);
     dbMocks.getOwnerKaraokeLinkMetrics.mockResolvedValue({ totals: { totalLinks: 0, workingLinks: 0, unverifiedLinks: 0, needsReviewLinks: 0, workingRate: 0 }, venues: [] });
   });
 
@@ -213,17 +215,20 @@ describe("music router", () => {
     const caller = musicRouter.createCaller({ user: { id: 5, role: "staff", venueId: 7 }, req: {}, res: {} } as any);
 
     await expect(caller.updateKaraokeLinkStatus({ venueId: 7, songId: 14, status: "working" })).resolves.toEqual({ success: true });
-    expect(dbMocks.updateKaraokeLinkStatusForSong).toHaveBeenCalledWith({ venueId: 7, songId: 14, status: "working", reviewNote: null, updatedByUserId: 5 });
-    await expect(caller.updateKaraokeLinkStatus({ venueId: 8, songId: 14, status: "needs_review", reviewNote: "El enlace pertenece a otro local" })).rejects.toThrow("FORBIDDEN");
+    expect(dbMocks.updateKaraokeLinkStatusForSong).toHaveBeenCalledWith({ venueId: 7, songId: 14, status: "working", reviewNote: null, reviewDueAt: null, updatedByUserId: 5 });
+    await expect(caller.updateKaraokeLinkStatus({ venueId: 8, songId: 14, status: "needs_review", reviewNote: "El enlace pertenece a otro local", reviewDueAt: new Date("2030-08-31T23:59:59.999Z") })).rejects.toThrow("FORBIDDEN");
   });
 
   it("requiere una nota explicativa cuando el Staff marca un enlace para revisión", async () => {
-    dbMocks.getSongByIdForVenue.mockResolvedValue({ id: 14, venueId: 7, karaokeUrl: "https://example.com/karaoke" });
+    dbMocks.getSongByIdForVenue.mockResolvedValue({ id: 14, venueId: 7, songName: "Vivir Mi Vida", artist: "Marc Anthony", karaokeUrl: "https://example.com/karaoke" });
     const caller = musicRouter.createCaller({ user: { id: 5, role: "staff", venueId: 7 }, req: {}, res: {} } as any);
 
+    const deadline = new Date("2030-08-31T23:59:59.999Z");
     await expect(caller.updateKaraokeLinkStatus({ venueId: 7, songId: 14, status: "needs_review" })).rejects.toThrow("Explica por qué el enlace requiere revisión");
-    await expect(caller.updateKaraokeLinkStatus({ venueId: 7, songId: 14, status: "needs_review", reviewNote: "El video abre sin audio" })).resolves.toEqual({ success: true });
-    expect(dbMocks.updateKaraokeLinkStatusForSong).toHaveBeenLastCalledWith({ venueId: 7, songId: 14, status: "needs_review", reviewNote: "El video abre sin audio", updatedByUserId: 5 });
+    await expect(caller.updateKaraokeLinkStatus({ venueId: 7, songId: 14, status: "needs_review", reviewNote: "El video abre sin audio" })).rejects.toThrow("Define una fecha límite para la revisión");
+    await expect(caller.updateKaraokeLinkStatus({ venueId: 7, songId: 14, status: "needs_review", reviewNote: "El video abre sin audio", reviewDueAt: deadline })).resolves.toEqual({ success: true });
+    expect(dbMocks.updateKaraokeLinkStatusForSong).toHaveBeenLastCalledWith({ venueId: 7, songId: 14, status: "needs_review", reviewNote: "El video abre sin audio", reviewDueAt: deadline, updatedByUserId: 5 });
+    expect(dbMocks.notifyVenueManagersOfKaraokeReview).toHaveBeenCalledWith(expect.objectContaining({ venueId: 7, songName: "Vivir Mi Vida", artist: "Marc Anthony", reviewDueAt: deadline, actorUserId: 5 }));
   });
 
   it("expone métricas agregadas de karaoke solo al Owner", async () => {

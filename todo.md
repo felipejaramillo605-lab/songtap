@@ -475,3 +475,6 @@
 - [x] Registrar y mostrar el Staff que inició la reproducción de cada canción
 - [x] Solicitar y guardar notas explicativas al marcar un enlace de karaoke como Requiere revisión
 - [x] Crear métricas Owner de enlaces de karaoke funcionales, pendientes y en revisión por local
+- [x] Permitir establecer y visualizar una fecha límite para la revisión de cada enlace de karaoke
+- [x] Notificar al Manager del local cuando un enlace sea marcado como Requiere revisión
+- [x] Exportar en CSV las métricas de salud de enlaces de karaoke por local desde Owner

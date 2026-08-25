@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { buildPqrsFilename, createPqrsCsv, createPqrsWorkbook, toPqrsExportRows } from "@/lib/pqrsExport";
 import { getPreviousPqrsPeriod } from "@/lib/pqrsPeriod";
 import { getSlaRisk } from "@/lib/pqrsSlaRisk";
+import { buildKaraokeMetricsFilename, createKaraokeMetricsCsv } from "@/lib/karaokeMetricsExport";
 import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet, ShieldCheck, TriangleAlert, FilePlus2, BookOpenCheck, Music2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
@@ -170,6 +171,15 @@ export default function OwnerDashboard() {
     if (!pqrsAnalytics) return;
     writeFileXLSX(createPqrsWorkbook(pqrsExportRows, selectedPqrsTotals, pqrsDateRange.dateFrom, pqrsDateRange.dateTo, pqrsExportFilters), buildPqrsFilename("xlsx"));
   };
+  const downloadKaraokeMetricsCsv = () => {
+    if (!karaokeMetrics) return;
+    const url = URL.createObjectURL(new Blob([`\uFEFF${createKaraokeMetricsCsv(karaokeMetrics)}`], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = buildKaraokeMetricsFilename();
+    link.click();
+    URL.revokeObjectURL(url);
+  };
   const saveSlaTarget = () => {
     if (slaVenueId === null) return;
     upsertSlaTarget.mutate({ venueId: slaVenueId, type: slaType, targetMinutes: slaTargetMinutes });
@@ -237,7 +247,7 @@ export default function OwnerDashboard() {
         <section aria-labelledby="karaoke-metrics-title" className="rounded-xl border border-emerald-400/25 bg-emerald-400/5 p-4 sm:p-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div><h3 id="karaoke-metrics-title" className="flex items-center gap-2 text-lg font-bold"><Music2 className="h-5 w-5 text-emerald-300" />Salud de enlaces de karaoke</h3><p className="mt-1 text-sm text-muted-foreground">Proporción de enlaces que el Staff confirmó como funcionales en cada local activo.</p></div>
-            <Badge variant="outline" className="w-fit border-emerald-400/40 text-emerald-300">Solo Owner</Badge>
+            <div className="flex flex-wrap items-center gap-2"><Button type="button" variant="outline" size="sm" onClick={downloadKaraokeMetricsCsv} disabled={!karaokeMetrics?.venues.length} aria-label="Descargar métricas de salud de karaoke en CSV"><Download size={14} className="mr-2" />CSV</Button><Badge variant="outline" className="w-fit border-emerald-400/40 text-emerald-300">Solo Owner</Badge></div>
           </div>
           {isLoadingKaraokeMetrics ? <div className="py-6 text-sm text-muted-foreground">Cargando métricas de karaoke…</div> : <>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[

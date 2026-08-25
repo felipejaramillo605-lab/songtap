@@ -1175,6 +1175,7 @@ export async function saveKaraokeLinkForSong(input: {
     karaokeSavedAt: new Date(),
     karaokeLinkStatus: "unverified",
     karaokeLinkReviewNote: null,
+    karaokeReviewDueAt: null,
     karaokeLinkStatusUpdatedByUserId: input.karaokeSavedByUserId,
     karaokeLinkStatusUpdatedAt: new Date(),
   }).where(and(eq(songQueue.id, input.songId), eq(songQueue.venueId, input.venueId)));
@@ -1188,6 +1189,7 @@ export async function updateKaraokeLinkStatusForSong(input: {
   songId: number;
   status: KaraokeLinkStatus;
   reviewNote?: string | null;
+  reviewDueAt?: Date | null;
   updatedByUserId: number;
 }) {
   const db = await getDb();
@@ -1195,10 +1197,35 @@ export async function updateKaraokeLinkStatusForSong(input: {
   const result = await db.update(songQueue).set({
     karaokeLinkStatus: input.status,
     karaokeLinkReviewNote: input.status === "needs_review" ? (input.reviewNote ?? null) : null,
+    karaokeReviewDueAt: input.status === "needs_review" ? (input.reviewDueAt ?? null) : null,
     karaokeLinkStatusUpdatedByUserId: input.updatedByUserId,
     karaokeLinkStatusUpdatedAt: new Date(),
   }).where(and(eq(songQueue.id, input.songId), eq(songQueue.venueId, input.venueId)));
   return (result[0] as { affectedRows: number }).affectedRows > 0;
+}
+
+export async function notifyVenueManagersOfKaraokeReview(input: {
+  venueId: number;
+  songName: string;
+  artist: string;
+  reviewNote: string;
+  reviewDueAt: Date;
+  actorUserId: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const managers = await db.select({ id: users.id }).from(users).where(and(eq(users.venueId, input.venueId), eq(users.role, "manager")));
+  const recipients = managers.filter((manager) => manager.id !== input.actorUserId);
+  if (recipients.length === 0) return 0;
+
+  const deadline = new Intl.DateTimeFormat("es-CO", { dateStyle: "long", timeZone: "America/Bogota" }).format(input.reviewDueAt);
+  await db.insert(userNotificationHistory).values(recipients.map((manager) => ({
+    userId: manager.id,
+    type: "karaoke_review",
+    title: "Enlace de karaoke requiere revisión",
+    content: `${input.songName} — ${input.artist}. Fecha límite: ${deadline}. Nota: ${input.reviewNote}`,
+  })));
+  return recipients.length;
 }
 
 export async function getSongPlaybackHistory(venueId: number, input: { limit?: number; from?: Date; to?: Date } = {}) {

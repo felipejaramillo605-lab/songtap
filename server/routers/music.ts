@@ -16,6 +16,7 @@ import {
   getVenueKaraokeProviders,
   saveKaraokeLinkForSong,
   updateKaraokeLinkStatusForSong,
+  notifyVenueManagersOfKaraokeReview,
   getOwnerKaraokeLinkMetrics,
 } from "../db";
 import { normalizeMusicMetadata } from "../musicMetadata";
@@ -37,6 +38,7 @@ function sanitizeSongForClient<T extends Record<string, unknown> | null>(song: T
     karaokeSavedAt,
     karaokeLinkStatus,
     karaokeLinkReviewNote,
+    karaokeReviewDueAt,
     karaokeLinkStatusUpdatedByUserId,
     karaokeLinkStatusUpdatedAt,
     playedByUserId,
@@ -230,9 +232,16 @@ export const musicRouter = router({
       songId: z.number(),
       status: z.enum(["unverified", "working", "needs_review"]),
       reviewNote: z.string().trim().max(500).optional(),
+      reviewDueAt: z.date().optional(),
     }).superRefine((input, context) => {
       if (input.status === "needs_review" && !input.reviewNote?.trim()) {
         context.addIssue({ code: "custom", path: ["reviewNote"], message: "Explica por qué el enlace requiere revisión" });
+      }
+      if (input.status === "needs_review" && !input.reviewDueAt) {
+        context.addIssue({ code: "custom", path: ["reviewDueAt"], message: "Define una fecha límite para la revisión" });
+      }
+      if (input.status === "needs_review" && input.reviewDueAt && input.reviewDueAt <= new Date()) {
+        context.addIssue({ code: "custom", path: ["reviewDueAt"], message: "La fecha límite debe ser futura" });
       }
     }))
     .mutation(async ({ ctx, input }) => {
@@ -245,9 +254,20 @@ export const musicRouter = router({
         songId: input.songId,
         status: input.status,
         reviewNote: input.reviewNote?.trim() || null,
+        reviewDueAt: input.reviewDueAt ?? null,
         updatedByUserId: ctx.user.id,
       });
       if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Canción no encontrada en este local" });
+      if (input.status === "needs_review" && input.reviewDueAt && input.reviewNote?.trim()) {
+        await notifyVenueManagersOfKaraokeReview({
+          venueId: input.venueId,
+          songName: song.songName,
+          artist: song.artist,
+          reviewNote: input.reviewNote.trim(),
+          reviewDueAt: input.reviewDueAt,
+          actorUserId: ctx.user.id,
+        });
+      }
       return { success: true };
     }),
 

@@ -125,6 +125,23 @@ describe("OwnerDashboard analytics", () => {
     expect(screen.getByLabelText("Sucursales con caída significativa de SLA").textContent).toContain("Bar Central: -13 pp");
   });
 
+  it("exporta el resumen de salud de enlaces de karaoke en CSV", async () => {
+    render(<OwnerDashboard />);
+    const createObjectUrl = vi.fn((_: Blob) => "blob:karaoke");
+    const revokeObjectUrl = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL: createObjectUrl, revokeObjectURL: revokeObjectUrl });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+
+    fireEvent.click(screen.getByRole("button", { name: "Descargar métricas de salud de karaoke en CSV" }));
+
+    expect(createObjectUrl).toHaveBeenCalledOnce();
+    const [csvBlob] = createObjectUrl.mock.calls[0]!;
+    expect(await csvBlob.text()).toContain("Bar Central,4,3,0,1,75");
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:karaoke");
+    clickSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
   it("permite comparar SLA con un período manual y restaurar el automático", () => {
     render(<OwnerDashboard />);
     const manualComparison = screen.getByLabelText("Usar período de referencia manual para SLA") as HTMLInputElement;
