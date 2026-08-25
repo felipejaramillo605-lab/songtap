@@ -116,3 +116,32 @@ La pestaña Órdenes permite crear órdenes previas por proveedor y líneas, env
 | Orden previa | No altera inventario hasta recibir; la recepción parcial y final actualizan estado correctamente. |
 | Seguridad | Staff no puede registrar merma; cada consulta y mutación permanece aislada por `venueId`. |
 | Suite final | **50 archivos y 199 pruebas aprobadas**, con TypeScript sin errores. |
+
+## Ampliación: exportaciones y conteos físicos cíclicos
+
+La exportación Excel genera un libro por local con las hojas **Resumen**, **Costos**, **Márgenes** y **Mermas**. El resumen conserva fecha de generación, local, valor estimado de existencias, valor de mermas y fórmulas costeadas; las hojas de detalle incluyen filtros y columnas de costo promedio, receta, margen, cantidad afectada, observación y fecha. La descarga toma exclusivamente los datos que el Manager ya recibió bajo alcance por `venueId`.
+
+Un conteo físico tendrá estados `borrador`, `en progreso`, `listo para conciliar`, `conciliado` y `cancelado`. Al iniciarlo, SongTap creará líneas para los insumos activos con un saldo de sistema como referencia. El Manager registra la cantidad física en unidad base o en una unidad compatible; la diferencia será visible antes de cualquier ajuste.
+
+La conciliación automática será una transacción única y solo podrá aplicarse si el saldo actual aún coincide con el saldo capturado al comenzar el conteo. Si un pedido, compra o ajuste modificó el inventario mientras el conteo estaba abierto, SongTap rechazará la conciliación para impedir que se borren movimientos recientes. Al conciliar, cada diferencia genera un movimiento `adjustment`, actualiza existencias y conserva sesión, línea, usuario y marca temporal. Las diferencias negativas también reducirán cantidades de lotes para que sus saldos no superen el inventario global; las positivas quedarán como stock sin lote, listo para una posterior trazabilidad de recepción.
+
+| Evento | Efecto sobre existencias | Trazabilidad |
+|---|---|---|
+| Iniciar conteo | No modifica stock | Captura saldo de referencia por insumo |
+| Registrar cantidad física | No modifica stock | Calcula diferencia visible |
+| Conciliar diferencia | Ajusta stock cuando no hay cambios concurrentes | Crea movimiento y conserva la línea conciliada |
+| Exportar reporte | No modifica stock | Generación, local y periodo incluidos en Excel |
+
+## Estado de implementación: reportes y conteos
+
+Manager cuenta con dos nuevas pestañas en **Inventario**. **Reportes** descarga el archivo Excel detallado del local actual. **Conteos** permite iniciar un ciclo con nota opcional, guardar cada cantidad física usando unidades compatibles, enviar el conteo solo cuando todas las líneas estén completas, revisar la diferencia y confirmar la conciliación de manera explícita.
+
+Las operaciones de inicio, captura por línea, envío y conciliación quedan en la bitácora de Auditoría bajo el módulo Inventario. El servidor valida el rol Owner/Manager y el `venueId` en cada procedimiento; Staff no puede alterar un conteo. Antes de aplicar ajustes se comprueba nuevamente el saldo de todas las líneas contra su fotografía inicial. Si hay alguna variación, el proceso devuelve `CONTEO_DESACTUALIZADO` y no crea movimientos.
+
+| Validación | Resultado |
+|---|---|
+| Exportación Excel | El libro contiene Resumen, Costos, Márgenes y Mermas; las pruebas verifican sus datos y nombre de descarga. |
+| Conciliación | Un conteo completo ajusta la diferencia y genera movimiento `adjustment`; un conteo incompleto no se puede enviar. |
+| Concurrencia | Un movimiento posterior al inicio bloquea la conciliación sin modificar saldo. |
+| Permisos y aislamiento | Staff no puede conciliar y cada lectura/escritura queda limitada al local autorizado. |
+| Suite final | **51 archivos y 203 pruebas aprobadas**, con TypeScript sin errores. |

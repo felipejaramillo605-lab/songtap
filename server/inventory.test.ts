@@ -14,6 +14,8 @@ import {
   inventoryPurchaseOrderLines,
   inventoryPurchaseOrders,
   inventoryPurchases,
+  inventoryPhysicalCountLines,
+  inventoryPhysicalCounts,
   inventoryRecipeLines,
   inventoryRecipes,
   inventorySuppliers,
@@ -78,12 +80,15 @@ afterEach(async () => {
     if (recipes.length) await db.delete(inventoryRecipeLines).where(inArray(inventoryRecipeLines.recipeId, recipes.map((recipe) => recipe.id)));
     const purchases = await db.select({ id: inventoryPurchases.id }).from(inventoryPurchases).where(eq(inventoryPurchases.venueId, venueId));
     const purchaseOrders = await db.select({ id: inventoryPurchaseOrders.id }).from(inventoryPurchaseOrders).where(eq(inventoryPurchaseOrders.venueId, venueId));
+    const physicalCounts = await db.select({ id: inventoryPhysicalCounts.id }).from(inventoryPhysicalCounts).where(eq(inventoryPhysicalCounts.venueId, venueId));
     if (itemIds.length) await db.delete(inventoryLots).where(eq(inventoryLots.venueId, venueId));
     await db.delete(inventoryWastes).where(eq(inventoryWastes.venueId, venueId));
     if (purchases.length) await db.delete(inventoryPurchaseLines).where(inArray(inventoryPurchaseLines.purchaseId, purchases.map((purchase) => purchase.id)));
     await db.delete(inventoryPurchases).where(eq(inventoryPurchases.venueId, venueId));
     if (purchaseOrders.length) await db.delete(inventoryPurchaseOrderLines).where(inArray(inventoryPurchaseOrderLines.purchaseOrderId, purchaseOrders.map((order) => order.id)));
     await db.delete(inventoryPurchaseOrders).where(eq(inventoryPurchaseOrders.venueId, venueId));
+    if (physicalCounts.length) await db.delete(inventoryPhysicalCountLines).where(inArray(inventoryPhysicalCountLines.physicalCountId, physicalCounts.map((count) => count.id)));
+    await db.delete(inventoryPhysicalCounts).where(eq(inventoryPhysicalCounts.venueId, venueId));
     await db.delete(inventorySuppliers).where(eq(inventorySuppliers.venueId, venueId));
     if (itemIds.length) {
       await db.delete(inventoryAlerts).where(eq(inventoryAlerts.venueId, venueId));
@@ -246,5 +251,45 @@ describe("inventarios", () => {
     expect((await managerCaller.inventory.purchaseOrders({ venueId }))[0].status).toBe("partially_received");
     await managerCaller.inventory.receivePurchase({ venueId, purchaseOrderId: order.purchaseOrderId, receivedAt: new Date(), lines: [{ inventoryItemId: item.item!.id, purchaseOrderLineId: orderLine.id, quantity: 1.5, unit: "liter", unitCost: 5000 }] });
     expect((await managerCaller.inventory.purchaseOrders({ venueId }))[0].status).toBe("received");
+  }, 15_000);
+
+  it("concilia un conteo físico completo y evita que un Staff o un conteo desactualizado alteren el saldo", async () => {
+    const { venueId, manager, staff } = await createFixture();
+    const managerCaller = appRouter.createCaller(context({ id: manager.id, role: "manager", venueId }));
+    const item = await managerCaller.inventory.createItem({ venueId, name: "Cerveza conteo", dimension: "count", reorderPointQuantity: 0, reorderPointUnit: "unit" });
+    await managerCaller.inventory.registerMovement({ venueId, inventoryItemId: item.item!.id, movementType: "initial", quantity: 12, unit: "unit" });
+    const count = await managerCaller.inventory.startPhysicalCount({ venueId, notes: "Conteo semanal" });
+    await managerCaller.inventory.recordPhysicalCountLine({ venueId, physicalCountId: count.physicalCountId, inventoryItemId: item.item!.id, physicalQuantity: 10, unit: "unit", note: "Dos unidades dañadas" });
+    const staffCaller = appRouter.createCaller(context({ id: staff.id, role: "staff", venueId }));
+    await expect(staffCaller.inventory.reconcilePhysicalCount({ venueId, physicalCountId: count.physicalCountId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await managerCaller.inventory.submitPhysicalCount({ venueId, physicalCountId: count.physicalCountId });
+    await managerCaller.inventory.reconcilePhysicalCount({ venueId, physicalCountId: count.physicalCountId });
+    const dashboard = await managerCaller.inventory.dashboard({ venueId });
+    expect(Number(dashboard.items.find((candidate) => candidate.id === item.item!.id)?.currentStockBase)).toBe(10);
+    const countRecord = (await managerCaller.inventory.physicalCounts({ venueId }))[0];
+    expect(countRecord.status).toBe("reconciled");
+    expect(Number(countRecord.lines[0].varianceBase)).toBe(-2);
+
+    const staleCount = await managerCaller.inventory.startPhysicalCount({ venueId });
+    await managerCaller.inventory.recordPhysicalCountLine({ venueId, physicalCountId: staleCount.physicalCountId, inventoryItemId: item.item!.id, physicalQuantity: 9, unit: "unit" });
+    await managerCaller.inventory.registerMovement({ venueId, inventoryItemId: item.item!.id, movementType: "adjustment", quantity: 1, unit: "unit" });
+    await managerCaller.inventory.submitPhysicalCount({ venueId, physicalCountId: staleCount.physicalCountId });
+    await expect(managerCaller.inventory.reconcilePhysicalCount({ venueId, physicalCountId: staleCount.physicalCountId })).rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringContaining("cambió") });
+  }, 20_000);
+
+  it("reduce lotes por vencimiento al conciliar una diferencia física negativa", async () => {
+    const { venueId, manager } = await createFixture();
+    const managerCaller = appRouter.createCaller(context({ id: manager.id, role: "manager", venueId }));
+    const item = await managerCaller.inventory.createItem({ venueId, name: "Jugo con lote", dimension: "volume", reorderPointQuantity: 0, reorderPointUnit: "ml", isPerishable: true });
+    await managerCaller.inventory.receivePurchase({ venueId, receivedAt: new Date(), lines: [{ inventoryItemId: item.item!.id, quantity: 1, unit: "liter", unitCost: 8000, expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) }] });
+    const count = await managerCaller.inventory.startPhysicalCount({ venueId });
+    await managerCaller.inventory.recordPhysicalCountLine({ venueId, physicalCountId: count.physicalCountId, inventoryItemId: item.item!.id, physicalQuantity: 750, unit: "ml" });
+    await managerCaller.inventory.submitPhysicalCount({ venueId, physicalCountId: count.physicalCountId });
+    await managerCaller.inventory.reconcilePhysicalCount({ venueId, physicalCountId: count.physicalCountId });
+    const db = await getDb();
+    const [lot] = await db!.select().from(inventoryLots).where(eq(inventoryLots.venueId, venueId)).limit(1);
+    expect(Number(lot.remainingQuantityBase)).toBe(750);
+    const adjustment = (await managerCaller.inventory.movements({ venueId, inventoryItemId: item.item!.id })).find((movement) => movement.movementType === "adjustment");
+    expect(Number(adjustment?.quantityBase)).toBe(-250);
   }, 15_000);
 });

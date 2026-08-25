@@ -4,12 +4,14 @@ import { createAuditLog } from "../db";
 import {
   InventoryStockError,
   createInventoryItem,
+  createInventoryPhysicalCount,
   createInventoryPurchaseOrder,
   createInventoryMovement,
   createInventorySupplier,
   getInventoryDashboard,
   getInventoryExpiryAlerts,
   getInventoryMovements,
+  getInventoryPhysicalCounts,
   getInventoryPurchaseOrders,
   getInventoryPurchases,
   getInventoryRecipes,
@@ -19,8 +21,11 @@ import {
   getVenueMenuItemsForRecipe,
   receiveInventoryPurchase,
   recordExpiredInventoryWaste,
+  reconcileInventoryPhysicalCount,
   replaceInventoryRecipe,
+  submitInventoryPhysicalCount,
   updateInventoryItem,
+  updateInventoryPhysicalCountLine,
   updateInventoryPurchaseOrderStatus,
 } from "../inventoryDb";
 import { INVENTORY_UNITS, InventoryDimension, InventoryUnit, toBaseQuantity } from "../inventory";
@@ -67,6 +72,14 @@ function toInventoryError(error: unknown): never {
     LINEAS_ORDEN_INVALIDAS: "La orden requiere líneas únicas con cantidades positivas.",
     RECEPCION_ORDEN_INVALIDA: "La recepción supera lo pendiente o no coincide con la orden.",
     PROVEEDOR_NO_COINCIDE_CON_ORDEN: "El proveedor debe coincidir con el de la orden de compra.",
+    CONTEO_SIN_INSUMOS: "No hay insumos activos para iniciar un conteo físico.",
+    CONTEO_NO_ENCONTRADO: "El conteo físico no existe en este local.",
+    CONTEO_NO_EDITABLE: "El conteo ya fue enviado, conciliado o cancelado y no admite cambios.",
+    LINEA_CONTEO_NO_ENCONTRADA: "El insumo no pertenece a este conteo físico.",
+    CANTIDAD_CONTEO_INVALIDA: "La cantidad física debe ser igual o mayor que cero.",
+    CONTEO_INCOMPLETO: "Registra una cantidad física para todos los insumos antes de enviar el conteo.",
+    CONTEO_NO_CONCILIABLE: "El conteo debe estar listo para conciliar.",
+    CONTEO_DESACTUALIZADO: "El inventario cambió durante el conteo. Inicia un nuevo conteo para evitar sobrescribir movimientos recientes.",
     PRODUCTO_NO_ENCONTRADO: "El producto de menú no existe en este local.",
     PEDIDO_ENTREGADO_FINAL: "Un pedido entregado no puede cambiarse a otro estado; registra un ajuste de inventario si es necesario.",
   };
@@ -237,6 +250,13 @@ export const inventoryRouter = router({
       return getRecipeCostMargins(input.venueId);
     }),
 
+  physicalCounts: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      return getInventoryPhysicalCounts(input.venueId);
+    }),
+
   expiryAlerts: protectedProcedure
     .input(z.object({ venueId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
@@ -321,6 +341,66 @@ export const inventoryRouter = router({
       try {
         const result = await recordExpiredInventoryWaste({ ...input, performedByUserId: ctx.user.id });
         await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_EXPIRED_WASTE_RECORDED", entity: "inventory_waste", entityId: result.wasteId, details: JSON.stringify({ inventoryLotId: input.inventoryLotId, quantityBase: result.quantityBase, totalCost: result.totalCost }) });
+        return result;
+      } catch (error) {
+        return toInventoryError(error);
+      }
+    }),
+
+  startPhysicalCount: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive(), notes: z.string().trim().max(1000).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      assertInventoryManager(ctx.user);
+      try {
+        const result = await createInventoryPhysicalCount({ venueId: input.venueId, createdByUserId: ctx.user.id, notes: input.notes });
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PHYSICAL_COUNT_STARTED", entity: "inventory_physical_count", entityId: result.physicalCountId, details: JSON.stringify({ itemCount: result.itemCount }) });
+        return result;
+      } catch (error) {
+        return toInventoryError(error);
+      }
+    }),
+
+  recordPhysicalCountLine: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive(), physicalCountId: z.number().int().positive(), inventoryItemId: z.number().int().positive(), physicalQuantity: z.number().finite().min(0), unit: inventoryUnitSchema, packBaseQuantity: z.number().finite().positive().optional(), note: z.string().trim().max(500).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      assertInventoryManager(ctx.user);
+      try {
+        const dashboard = await getInventoryDashboard(input.venueId);
+        const item = dashboard.items.find((candidate) => candidate.id === input.inventoryItemId);
+        if (!item) throw new Error("INSUMO_NO_ENCONTRADO");
+        const physicalStockBase = convertQuantity({ dimension: item.dimension, quantity: input.physicalQuantity, unit: input.unit, packBaseQuantity: input.packBaseQuantity });
+        const result = await updateInventoryPhysicalCountLine({ venueId: input.venueId, physicalCountId: input.physicalCountId, inventoryItemId: input.inventoryItemId, physicalStockBase, countedByUserId: ctx.user.id, note: input.note });
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PHYSICAL_COUNT_LINE_RECORDED", entity: "inventory_physical_count_line", entityId: result.lineId, details: JSON.stringify({ physicalCountId: input.physicalCountId, inventoryItemId: input.inventoryItemId, physicalStockBase: result.physicalStockBase, varianceBase: result.varianceBase }) });
+        return result;
+      } catch (error) {
+        return toInventoryError(error);
+      }
+    }),
+
+  submitPhysicalCount: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive(), physicalCountId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      assertInventoryManager(ctx.user);
+      try {
+        const result = await submitInventoryPhysicalCount(input);
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PHYSICAL_COUNT_SUBMITTED", entity: "inventory_physical_count", entityId: input.physicalCountId, details: JSON.stringify({ differenceCount: result.differenceCount }) });
+        return result;
+      } catch (error) {
+        return toInventoryError(error);
+      }
+    }),
+
+  reconcilePhysicalCount: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive(), physicalCountId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      assertInventoryManager(ctx.user);
+      try {
+        const result = await reconcileInventoryPhysicalCount({ ...input, reconciledByUserId: ctx.user.id });
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PHYSICAL_COUNT_RECONCILED", entity: "inventory_physical_count", entityId: input.physicalCountId, details: JSON.stringify({ adjustmentCount: result.adjustmentCount }) });
         return result;
       } catch (error) {
         return toInventoryError(error);

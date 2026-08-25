@@ -5,6 +5,8 @@ import {
   inventoryItems,
   inventoryLots,
   inventoryMovements,
+  inventoryPhysicalCountLines,
+  inventoryPhysicalCounts,
   inventoryPurchaseLines,
   inventoryPurchaseOrderLines,
   inventoryPurchaseOrders,
@@ -481,6 +483,104 @@ export async function getInventoryWastes(venueId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(inventoryWastes).where(eq(inventoryWastes.venueId, venueId)).orderBy(desc(inventoryWastes.createdAt)).limit(100);
+}
+
+export async function createInventoryPhysicalCount(input: { venueId: number; createdByUserId: number; notes?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.transaction(async (tx: Tx) => {
+    const activeItems = await tx.select().from(inventoryItems).where(and(eq(inventoryItems.venueId, input.venueId), eq(inventoryItems.isActive, true)));
+    if (!activeItems.length) throw new Error("CONTEO_SIN_INSUMOS");
+    const result = await tx.insert(inventoryPhysicalCounts).values({ venueId: input.venueId, status: "in_progress", notes: input.notes?.trim() || null, createdByUserId: input.createdByUserId, startedAt: new Date() });
+    const physicalCountId = Number((result[0] as { insertId: number }).insertId);
+    await tx.insert(inventoryPhysicalCountLines).values(activeItems.map((item: typeof inventoryItems.$inferSelect) => ({ physicalCountId, inventoryItemId: item.id, systemStockBase: String(item.currentStockBase) })));
+    return { physicalCountId, itemCount: activeItems.length };
+  });
+}
+
+export async function getInventoryPhysicalCounts(venueId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const counts = await db.select().from(inventoryPhysicalCounts).where(eq(inventoryPhysicalCounts.venueId, venueId)).orderBy(desc(inventoryPhysicalCounts.createdAt)).limit(50);
+  const lines = counts.length ? await db.select().from(inventoryPhysicalCountLines).where(inArray(inventoryPhysicalCountLines.physicalCountId, counts.map((count) => count.id))) : [];
+  const itemIds = Array.from(new Set(lines.map((line) => line.inventoryItemId)));
+  const items = itemIds.length ? await db.select().from(inventoryItems).where(and(eq(inventoryItems.venueId, venueId), inArray(inventoryItems.id, itemIds))) : [];
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  return counts.map((count) => ({ ...count, lines: lines.filter((line) => line.physicalCountId === count.id).map((line) => ({ ...line, item: itemById.get(line.inventoryItemId) ?? null })) }));
+}
+
+export async function updateInventoryPhysicalCountLine(input: { venueId: number; physicalCountId: number; inventoryItemId: number; physicalStockBase: number; countedByUserId: number; note?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.transaction(async (tx: Tx) => {
+    const [count] = await tx.select().from(inventoryPhysicalCounts).where(and(eq(inventoryPhysicalCounts.id, input.physicalCountId), eq(inventoryPhysicalCounts.venueId, input.venueId))).limit(1);
+    if (!count) throw new Error("CONTEO_NO_ENCONTRADO");
+    if (count.status !== "draft" && count.status !== "in_progress") throw new Error("CONTEO_NO_EDITABLE");
+    const [line] = await tx.select().from(inventoryPhysicalCountLines).where(and(eq(inventoryPhysicalCountLines.physicalCountId, count.id), eq(inventoryPhysicalCountLines.inventoryItemId, input.inventoryItemId))).limit(1);
+    if (!line) throw new Error("LINEA_CONTEO_NO_ENCONTRADA");
+    const physicalStockBase = roundBase(input.physicalStockBase);
+    if (physicalStockBase < 0) throw new Error("CANTIDAD_CONTEO_INVALIDA");
+    const varianceBase = roundBase(physicalStockBase - Number(line.systemStockBase));
+    await tx.update(inventoryPhysicalCountLines).set({ physicalStockBase: String(physicalStockBase), varianceBase: String(varianceBase), countedByUserId: input.countedByUserId, countedAt: new Date(), note: input.note?.trim() || null }).where(eq(inventoryPhysicalCountLines.id, line.id));
+    return { lineId: line.id, systemStockBase: Number(line.systemStockBase), physicalStockBase, varianceBase };
+  });
+}
+
+export async function submitInventoryPhysicalCount(input: { venueId: number; physicalCountId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.transaction(async (tx: Tx) => {
+    const [count] = await tx.select().from(inventoryPhysicalCounts).where(and(eq(inventoryPhysicalCounts.id, input.physicalCountId), eq(inventoryPhysicalCounts.venueId, input.venueId))).limit(1);
+    if (!count) throw new Error("CONTEO_NO_ENCONTRADO");
+    if (count.status !== "draft" && count.status !== "in_progress") throw new Error("CONTEO_NO_EDITABLE");
+    const lines = await tx.select().from(inventoryPhysicalCountLines).where(eq(inventoryPhysicalCountLines.physicalCountId, count.id));
+    if (!lines.length || lines.some((line: typeof inventoryPhysicalCountLines.$inferSelect) => line.physicalStockBase === null)) throw new Error("CONTEO_INCOMPLETO");
+    await tx.update(inventoryPhysicalCounts).set({ status: "ready_to_reconcile", submittedAt: new Date() }).where(eq(inventoryPhysicalCounts.id, count.id));
+    return { physicalCountId: count.id, differenceCount: lines.filter((line: typeof inventoryPhysicalCountLines.$inferSelect) => Number(line.varianceBase ?? 0) !== 0).length };
+  });
+}
+
+async function reduceLotsForPhysicalVariance(tx: Tx, item: typeof inventoryItems.$inferSelect, amount: number) {
+  let remaining = amount;
+  const lots = await tx.select().from(inventoryLots).where(and(eq(inventoryLots.venueId, item.venueId), eq(inventoryLots.inventoryItemId, item.id), gt(inventoryLots.remainingQuantityBase, "0"))).orderBy(asc(inventoryLots.expiresAt));
+  for (const lot of lots) {
+    if (remaining <= 0) break;
+    const reduction = Math.min(remaining, Number(lot.remainingQuantityBase));
+    await tx.update(inventoryLots).set({ remainingQuantityBase: String(roundBase(Number(lot.remainingQuantityBase) - reduction)) }).where(eq(inventoryLots.id, lot.id));
+    remaining = roundBase(remaining - reduction);
+  }
+}
+
+export async function reconcileInventoryPhysicalCount(input: { venueId: number; physicalCountId: number; reconciledByUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.transaction(async (tx: Tx) => {
+    const [count] = await tx.select().from(inventoryPhysicalCounts).where(and(eq(inventoryPhysicalCounts.id, input.physicalCountId), eq(inventoryPhysicalCounts.venueId, input.venueId))).limit(1);
+    if (!count) throw new Error("CONTEO_NO_ENCONTRADO");
+    if (count.status !== "ready_to_reconcile") throw new Error("CONTEO_NO_CONCILIABLE");
+    const lines = await tx.select().from(inventoryPhysicalCountLines).where(eq(inventoryPhysicalCountLines.physicalCountId, count.id));
+    if (!lines.length || lines.some((line: typeof inventoryPhysicalCountLines.$inferSelect) => line.physicalStockBase === null)) throw new Error("CONTEO_INCOMPLETO");
+    const itemIds = lines.map((line: typeof inventoryPhysicalCountLines.$inferSelect) => line.inventoryItemId);
+    const items = await tx.select().from(inventoryItems).where(and(eq(inventoryItems.venueId, input.venueId), inArray(inventoryItems.id, itemIds))) as Array<typeof inventoryItems.$inferSelect>;
+    if (items.length !== itemIds.length) throw new Error("INSUMO_NO_ENCONTRADO");
+    const itemById = new Map(items.map((item) => [item.id, item]));
+    const stale = lines.find((line: typeof inventoryPhysicalCountLines.$inferSelect) => Number(itemById.get(line.inventoryItemId)?.currentStockBase) !== Number(line.systemStockBase));
+    if (stale) throw new Error("CONTEO_DESACTUALIZADO");
+    let adjustmentCount = 0;
+    for (const line of lines) {
+      const varianceBase = Number(line.varianceBase ?? 0);
+      if (varianceBase === 0) continue;
+      const item = itemById.get(line.inventoryItemId)!;
+      const stockAfter = Number(line.physicalStockBase);
+      if (varianceBase < 0) await reduceLotsForPhysicalVariance(tx, item, Math.abs(varianceBase));
+      await tx.update(inventoryItems).set({ currentStockBase: String(stockAfter) }).where(eq(inventoryItems.id, item.id));
+      await tx.insert(inventoryMovements).values({ venueId: input.venueId, inventoryItemId: item.id, movementType: "adjustment", quantityBase: String(varianceBase), stockAfterBase: String(stockAfter), unitCostBase: String(item.averageUnitCostBase), totalCost: String(roundBase(Math.abs(varianceBase) * Number(item.averageUnitCostBase))), performedByUserId: input.reconciledByUserId, note: `Conciliación de conteo físico #${count.id}${line.note ? ` · ${line.note}` : ""}` });
+      await syncLowStockAlert(tx, item, stockAfter);
+      adjustmentCount += 1;
+    }
+    await tx.update(inventoryPhysicalCounts).set({ status: "reconciled", reconciledAt: new Date(), reconciledByUserId: input.reconciledByUserId }).where(eq(inventoryPhysicalCounts.id, count.id));
+    return { physicalCountId: count.id, adjustmentCount };
+  });
 }
 
 export async function getRecipeCostMargins(venueId: number) {

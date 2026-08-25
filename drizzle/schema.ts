@@ -331,6 +331,54 @@ export const inventoryWastes = mysqlTable(
 export type InventoryWaste = typeof inventoryWastes.$inferSelect;
 export type InsertInventoryWaste = typeof inventoryWastes.$inferInsert;
 
+export const inventoryPhysicalCounts = mysqlTable(
+  "inventory_physical_counts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    status: mysqlEnum("status", ["draft", "in_progress", "ready_to_reconcile", "reconciled", "cancelled"]).default("draft").notNull(),
+    notes: text("notes"),
+    createdByUserId: int("createdByUserId").notNull(),
+    startedAt: timestamp("startedAt"),
+    submittedAt: timestamp("submittedAt"),
+    reconciledAt: timestamp("reconciledAt"),
+    reconciledByUserId: int("reconciledByUserId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    venueStatusIndex: index("inventory_physical_counts_venue_status_idx").on(table.venueId, table.status, table.createdAt),
+  })
+);
+
+export type InventoryPhysicalCount = typeof inventoryPhysicalCounts.$inferSelect;
+export type InsertInventoryPhysicalCount = typeof inventoryPhysicalCounts.$inferInsert;
+
+export const inventoryPhysicalCountLines = mysqlTable(
+  "inventory_physical_count_lines",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    physicalCountId: int("physicalCountId").notNull(),
+    inventoryItemId: int("inventoryItemId").notNull(),
+    systemStockBase: decimal("systemStockBase", { precision: 14, scale: 4 }).notNull(),
+    physicalStockBase: decimal("physicalStockBase", { precision: 14, scale: 4 }),
+    varianceBase: decimal("varianceBase", { precision: 14, scale: 4 }),
+    countedByUserId: int("countedByUserId"),
+    countedAt: timestamp("countedAt"),
+    note: text("note"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    countItemUnique: uniqueIndex("inventory_physical_count_line_uq").on(table.physicalCountId, table.inventoryItemId),
+    countIndex: index("inventory_physical_count_lines_count_idx").on(table.physicalCountId),
+    itemIndex: index("inventory_physical_count_lines_item_idx").on(table.inventoryItemId),
+  })
+);
+
+export type InventoryPhysicalCountLine = typeof inventoryPhysicalCountLines.$inferSelect;
+export type InsertInventoryPhysicalCountLine = typeof inventoryPhysicalCountLines.$inferInsert;
+
 export const inventorySuppliers = mysqlTable(
   "inventory_suppliers",
   {

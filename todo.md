@@ -507,3 +507,9 @@
 - [x] Implementar órdenes de compra con proveedores, líneas, estados y recepción parcial o total
 - [x] Añadir paneles Manager para mermas, costos, márgenes y órdenes de compra
 - [x] Validar cálculos, trazabilidad, permisos y aislamiento por local
+- [x] Definir reglas de exportación Excel, conteo físico y conciliación automática
+- [x] Crear esquema multi-local de sesiones de conteo, líneas y diferencias
+- [x] Exportar reportes detallados de costos y mermas a Excel por local
+- [x] Implementar conteos cíclicos y conciliación transaccional de diferencias de stock
+- [x] Añadir panel Manager para ejecutar conteos, revisar diferencias y descargar reportes
+- [x] Validar archivos Excel, conteos, conciliaciones, permisos y aislamiento por local
