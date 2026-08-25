@@ -1,0 +1,72 @@
+import SongTapLayout from "@/components/SongTapLayout";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { trpc } from "@/lib/trpc";
+import { BookOpenCheck, FileQuestion, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+
+type ContentType = "tutorial" | "help";
+type Audience = "owner" | "manager" | "staff";
+
+const blankContent = () => ({ contentType: "tutorial" as ContentType, slug: "", title: "", summary: "", body: "", roles: ["manager"] as Audience[], category: "", modulePath: "", durationMinutes: "", sortOrder: "0", isActive: true });
+const audiences: { value: Audience; label: string }[] = [{ value: "owner", label: "Owner" }, { value: "manager", label: "Manager" }, { value: "staff", label: "Staff" }];
+
+function slugify(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 96);
+}
+
+export default function OwnerGuideContent() {
+  const utils = trpc.useUtils();
+  const { data: contents = [], isLoading } = trpc.learning.adminList.useQuery();
+  const [query, setQuery] = useState("");
+  const [form, setForm] = useState(blankContent);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
+
+  const visibleContents = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase("es");
+    if (!normalized) return contents;
+    return contents.filter((content) => [content.title, content.summary, content.category, content.slug].join(" ").toLocaleLowerCase("es").includes(normalized));
+  }, [contents, query]);
+
+  const closeDialog = () => { setDialogOpen(false); setEditingId(null); setSlugEdited(false); setForm(blankContent()); };
+  const openCreate = () => { setEditingId(null); setSlugEdited(false); setForm(blankContent()); setDialogOpen(true); };
+  const openEdit = (content: typeof contents[number]) => {
+    setEditingId(content.id);
+    setSlugEdited(true);
+    setForm({ contentType: content.contentType, slug: content.slug, title: content.title, summary: content.summary, body: content.body, roles: content.roles.split(",").filter((role): role is Audience => role === "owner" || role === "manager" || role === "staff"), category: content.category, modulePath: content.modulePath ?? "", durationMinutes: content.durationMinutes ? String(content.durationMinutes) : "", sortOrder: String(content.sortOrder), isActive: content.isActive });
+    setDialogOpen(true);
+  };
+
+  const create = trpc.learning.adminCreate.useMutation({ onSuccess: () => { toast.success("Contenido de guía creado."); utils.learning.adminList.invalidate(); closeDialog(); }, onError: (error) => toast.error(error.message) });
+  const update = trpc.learning.adminUpdate.useMutation({ onSuccess: () => { toast.success("Contenido de guía actualizado."); utils.learning.adminList.invalidate(); closeDialog(); }, onError: (error) => toast.error(error.message) });
+  const remove = trpc.learning.adminDelete.useMutation({ onSuccess: () => { toast.success("Contenido de guía eliminado."); utils.learning.adminList.invalidate(); setDeleteTarget(null); }, onError: (error) => toast.error(error.message) });
+
+  const toggleAudience = (role: Audience) => setForm((current) => ({ ...current, roles: current.roles.includes(role) ? current.roles.filter((item) => item !== role) : [...current.roles, role] }));
+  const submit = () => {
+    if (!form.title.trim() || !form.summary.trim() || !form.body.trim() || !form.category.trim() || !form.slug.trim() || !form.roles.length) return toast.error("Completa título, resumen, contenido, categoría, roles y clave.");
+    const content = { contentType: form.contentType, slug: form.slug.trim(), title: form.title.trim(), summary: form.summary.trim(), body: form.body.trim(), roles: form.roles, category: form.category.trim(), modulePath: form.modulePath.trim() || null, durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null, sortOrder: Number(form.sortOrder || 0), isActive: form.isActive };
+    if (editingId) update.mutate({ id: editingId, content }); else create.mutate(content);
+  };
+
+  return <SongTapLayout role="owner" title="Administrar guías"><main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+    <section className="flex flex-col gap-4 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/12 via-card to-card p-5 sm:flex-row sm:items-end sm:justify-between"><div><Badge className="mb-3 bg-primary/15 text-primary hover:bg-primary/15">Solo Owner</Badge><h1 className="flex items-center gap-2 text-2xl font-bold"><BookOpenCheck className="h-6 w-6 text-primary" />Administrar guías y ayuda</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Crea contenido operativo propio, ajusta su audiencia y mantén la biblioteca de aprendizaje actualizada sin exponer edición a otros roles.</p></div><Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" />Agregar contenido</Button></section>
+    <Card><CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between"><div><CardTitle>Biblioteca administrada</CardTitle><CardDescription>{contents.length} contenido{contents.length === 1 ? "" : "s"} persistidos. Los cambios quedan en auditoría.</CardDescription></div><div className="relative w-full sm:w-80"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-9" placeholder="Buscar título, categoría o clave" aria-label="Buscar contenido administrado" /></div></CardHeader><CardContent>
+      {isLoading ? <p className="text-sm text-muted-foreground">Cargando contenidos…</p> : visibleContents.length ? <div className="grid gap-3 lg:grid-cols-2">{visibleContents.map((content) => <article key={content.id} className="rounded-xl border border-border bg-background p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{content.contentType === "tutorial" ? "Tutorial" : "Ayuda"}</Badge><Badge variant={content.isActive ? "default" : "secondary"}>{content.isActive ? "Activo" : "Oculto"}</Badge><span className="text-xs text-muted-foreground">{content.category}</span></div><h2 className="mt-2 font-semibold text-foreground">{content.title}</h2><p className="mt-1 text-sm text-muted-foreground">{content.summary}</p></div><div className="flex shrink-0 gap-1"><Button type="button" variant="ghost" size="icon" onClick={() => openEdit(content)} aria-label={`Editar ${content.title}`}><Pencil className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => setDeleteTarget({ id: content.id, title: content.title })} aria-label={`Eliminar ${content.title}`}><Trash2 className="h-4 w-4" /></Button></div></div><div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">{content.roles.split(",").map((role) => <Badge key={role} variant="outline" className="text-[10px] capitalize">{role}</Badge>)}{content.modulePath && <span className="ml-auto truncate text-xs text-muted-foreground">{content.modulePath}</span>}</div></article>)}</div> : <div className="rounded-xl border border-dashed border-border p-8 text-center"><FileQuestion className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-3 font-medium">No hay contenido administrado todavía</p><p className="mt-1 text-sm text-muted-foreground">Crea un tutorial o artículo de ayuda para incorporarlo a la biblioteca por rol.</p></div>}
+    </CardContent></Card>
+  </main>
+  <Dialog open={dialogOpen} onOpenChange={(open) => open ? setDialogOpen(true) : closeDialog()}><DialogContent className="max-h-[92dvh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>{editingId ? "Editar contenido" : "Agregar contenido"}</DialogTitle><DialogDescription>Define una clave única, una audiencia y contenido claro. Las rutas deben ser internas de SongTap.</DialogDescription></DialogHeader><div className="grid gap-4 py-2 sm:grid-cols-2"><div className="grid gap-2"><Label>Tipo</Label><Select value={form.contentType} onValueChange={(value: ContentType) => setForm((current) => ({ ...current, contentType: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutorial">Tutorial</SelectItem><SelectItem value="help">Artículo de ayuda</SelectItem></SelectContent></Select></div><div className="grid gap-2"><Label htmlFor="guide-category">Categoría</Label><Input id="guide-category" value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} placeholder="Ej.: Inventario" maxLength={96} /></div><div className="grid gap-2 sm:col-span-2"><Label htmlFor="guide-title">Título</Label><Input id="guide-title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value, slug: slugEdited ? current.slug : slugify(event.target.value) }))} placeholder="Ej.: Conciliación física segura" maxLength={180} /></div><div className="grid gap-2 sm:col-span-2"><Label htmlFor="guide-slug">Clave única</Label><Input id="guide-slug" value={form.slug} onChange={(event) => { setSlugEdited(true); setForm((current) => ({ ...current, slug: slugify(event.target.value) })); }} placeholder="conciliacion-fisica-segura" maxLength={96} /><p className="text-xs text-muted-foreground">Se usa para búsqueda, favoritos y trazabilidad. Solo letras, números y guiones.</p></div><div className="grid gap-2 sm:col-span-2"><Label htmlFor="guide-summary">Resumen</Label><Textarea id="guide-summary" value={form.summary} onChange={(event) => setForm((current) => ({ ...current, summary: event.target.value }))} placeholder="Describe cuándo debe usarse este contenido." rows={3} maxLength={2000} /></div><div className="grid gap-2 sm:col-span-2"><Label htmlFor="guide-body">Contenido y pasos</Label><Textarea id="guide-body" value={form.body} onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} placeholder="Escribe instrucciones, controles y advertencias prácticas." rows={7} maxLength={8000} /></div><div className="grid gap-2"><Label htmlFor="guide-path">Ruta interna (opcional)</Label><Input id="guide-path" value={form.modulePath} onChange={(event) => setForm((current) => ({ ...current, modulePath: event.target.value }))} placeholder="/manager/inventory" maxLength={255} /></div><div className="grid grid-cols-2 gap-3"><div className="grid gap-2"><Label htmlFor="guide-duration">Minutos</Label><Input id="guide-duration" type="number" min="1" max="180" value={form.durationMinutes} onChange={(event) => setForm((current) => ({ ...current, durationMinutes: event.target.value }))} placeholder="8" /></div><div className="grid gap-2"><Label htmlFor="guide-order">Orden</Label><Input id="guide-order" type="number" min="0" value={form.sortOrder} onChange={(event) => setForm((current) => ({ ...current, sortOrder: event.target.value }))} /></div></div><div className="sm:col-span-2"><Label>Audiencia</Label><div className="mt-2 flex flex-wrap gap-4">{audiences.map((audience) => <label key={audience.value} className="flex items-center gap-2 text-sm"><Checkbox checked={form.roles.includes(audience.value)} onCheckedChange={() => toggleAudience(audience.value)} />{audience.label}</label>)}<label className="ml-auto flex items-center gap-2 text-sm"><Checkbox checked={form.isActive} onCheckedChange={(checked) => setForm((current) => ({ ...current, isActive: checked === true }))} />Publicado</label></div></div></div><DialogFooter><Button type="button" variant="outline" onClick={closeDialog}>Cancelar</Button><Button type="button" onClick={submit} disabled={create.isPending || update.isPending}>{create.isPending || update.isPending ? "Guardando…" : editingId ? "Guardar cambios" : "Crear contenido"}</Button></DialogFooter></DialogContent></Dialog>
+  <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Eliminar contenido de guía?</AlertDialogTitle><AlertDialogDescription>{deleteTarget ? `Eliminarás “${deleteTarget.title}”. Esta acción retira el contenido administrado de la biblioteca.` : ""}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => deleteTarget && remove.mutate({ id: deleteTarget.id })}>Eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+  </SongTapLayout>;
+}

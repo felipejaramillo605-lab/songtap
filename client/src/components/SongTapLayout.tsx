@@ -25,6 +25,7 @@ import {
   Menu,
   ArrowLeft,
   Package,
+  BookOpenCheck,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
@@ -138,6 +139,7 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
     { label: "Solicitudes", href: "/owner/venue-requests", icon: <ClipboardList size={18} />, badge: pendingCount > 0 ? pendingCount : undefined },
     { label: "Notificaciones", href: "/owner/notifications", icon: <Bell size={18} /> },
     { label: "Usuarios", href: "/owner/users", icon: <Users size={18} /> },
+    { label: "Guías", href: "/owner/guides", icon: <BookOpenCheck size={18} /> },
     { label: "Auditoría", href: "/owner/audit", icon: <Shield size={18} /> },
     { label: "Modo de pruebas", href: "/owner/test-mode", icon: <TestTube2 size={18} /> },
     { label: "Mi Perfil", href: "/profile", icon: <User size={18} /> },

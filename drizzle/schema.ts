@@ -953,6 +953,36 @@ export const userOnboardingProgress = mysqlTable(
 
 export type UserOnboardingProgress = typeof userOnboardingProgress.$inferSelect;
 
+// ─── OWNER-MANAGED LEARNING CONTENT ──────────────────────────────────────────
+export const guideContents = mysqlTable(
+  "guide_contents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    contentType: mysqlEnum("contentType", ["tutorial", "help"]).notNull(),
+    slug: varchar("slug", { length: 96 }).notNull(),
+    title: varchar("title", { length: 180 }).notNull(),
+    summary: text("summary").notNull(),
+    body: text("body").notNull(),
+    roles: varchar("roles", { length: 64 }).notNull(),
+    category: varchar("category", { length: 96 }).notNull(),
+    modulePath: varchar("modulePath", { length: 255 }),
+    durationMinutes: int("durationMinutes"),
+    sortOrder: int("sortOrder").default(0).notNull(),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    updatedByUserId: int("updatedByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    slugUnique: uniqueIndex("guide_contents_slug_unique").on(table.slug),
+    typeActiveIdx: index("guide_contents_type_active_idx").on(table.contentType, table.isActive),
+  }),
+);
+
+export type GuideContent = typeof guideContents.$inferSelect;
+export type InsertGuideContent = typeof guideContents.$inferInsert;
+
 export const supportTickets = mysqlTable("support_tickets", {
   id: int("id").autoincrement().primaryKey(),
   reporterId: int("reporterId").notNull(),

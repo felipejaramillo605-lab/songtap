@@ -25,3 +25,11 @@ La guía se puede abrir manualmente, minimizar, ampliar, cerrar y reiniciar. Los
 ## Validación
 
 La ampliación incorpora pruebas para rutas completas, guía breve, búsqueda de tutoriales, incorporación de un tutorial de inventario, finalización, modo de pruebas, ayuda, favoritos, votos y validación de claves de artículos en backend. La suite final de esta entrega aprobó **208 pruebas** con TypeScript sin errores.
+
+## Administración Owner y búsqueda asistida
+
+El Owner cuenta con la ruta **Panel Owner → Guías** para crear, editar, publicar, ocultar y eliminar tutoriales o artículos de ayuda administrados. Cada contenido define clave única, tipo, categoría, audiencia, resumen, instrucciones, ruta interna opcional, duración y orden. Las mutaciones se restringen al rol Owner, se bloquean durante modo de pruebas y se registran en Auditoría con el módulo **Guías**.
+
+Los contenidos activos se entregan solo a los roles definidos. Los tutoriales se incorporan a la biblioteca operativa; los artículos se muestran en la pestaña de ayuda. La búsqueda de la biblioteca combina coincidencias locales con sugerencias persistidas y presenta autocompletado accesible para temas específicos. La migración `0040_smooth_penance.sql` agrega la tabla `guide_contents` sin modificar el historial de onboarding ni las interacciones existentes.
+
+La validación final de la administración y búsqueda aprobó **214 pruebas** con TypeScript sin errores.

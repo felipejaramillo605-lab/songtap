@@ -33,6 +33,7 @@ import { testIncidentsRouter } from "./routers/testIncidents";
 import { onboardingRouter } from "./routers/onboarding";
 import { ownerReportsRouter } from "./routers/ownerReports";
 import { inventoryRouter } from "./routers/inventory";
+import { learningRouter } from "./routers/learning";
 
 export const appRouter = router({
   system: systemRouter,
@@ -40,6 +41,7 @@ export const appRouter = router({
   onboarding: onboardingRouter,
   ownerReports: ownerReportsRouter,
   inventory: inventoryRouter,
+  learning: learningRouter,
   auth: router({
     me: publicProcedure.query(({ ctx }) => {
       return ctx.user ? toClientSafeUser(ctx.user) : null;

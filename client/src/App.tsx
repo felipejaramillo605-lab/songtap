@@ -32,6 +32,7 @@ import OwnerAudit from "./pages/owner/OwnerAudit";
 import OwnerVenueRequests from "./pages/owner/OwnerVenueRequests";
 import OwnerNotificationsSettings from "./pages/owner/OwnerNotificationsSettings";
 import OwnerPreviewMode from "./pages/owner/OwnerPreviewMode";
+import OwnerGuideContent from "./pages/owner/OwnerGuideContent";
 
 // Manager pages
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
@@ -89,6 +90,7 @@ const OwnerUsersRoute = ownerOnly(OwnerUsers);
 const OwnerAuditRoute = ownerOnly(OwnerAudit);
 const OwnerNotificationsRoute = ownerOnly(OwnerNotificationsSettings);
 const OwnerPreviewModeRoute = ownerOnly(OwnerPreviewMode);
+const OwnerGuideContentRoute = ownerOnly(OwnerGuideContent);
 const ManagerDashboardRoute = managerOnly(ManagerDashboard);
 const ManagerMenuRoute = managerOnly(ManagerMenu);
 const ManagerTablesRoute = managerOnly(ManagerTables);
@@ -133,6 +135,7 @@ function Router() {
       <Route path="/owner/audit" component={OwnerAuditRoute} />
       <Route path="/owner/notifications" component={OwnerNotificationsRoute} />
       <Route path="/owner/test-mode" component={OwnerPreviewModeRoute} />
+      <Route path="/owner/guides" component={OwnerGuideContentRoute} />
 
       {/* Manager */}
       <Route path="/manager" component={ManagerDashboardRoute} />

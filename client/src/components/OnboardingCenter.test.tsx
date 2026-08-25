@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn(), progress: null as any, progressResolved: true, isPreviewMode: false }));
+const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn(), progress: null as any, progressResolved: true, isPreviewMode: false, managedContents: [] as any[], suggestions: [] as any[] }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -22,6 +22,10 @@ vi.mock("@/lib/trpc", () => ({
       setHelpVote: { useMutation: () => ({ mutate: mocks.setHelpVote, isPending: false }) },
       toggleHelpFavorite: { useMutation: () => ({ mutate: mocks.toggleHelpFavorite, isPending: false }) },
     },
+    learning: {
+      available: { useQuery: () => ({ data: mocks.managedContents }) },
+      suggestions: { useQuery: () => ({ data: mocks.suggestions }) },
+    },
   },
 }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ isPreviewMode: mocks.isPreviewMode }) }));
@@ -30,7 +34,7 @@ vi.mock("wouter", () => ({ useLocation: () => ["/owner", mocks.navigate] }));
 import OnboardingCenter from "./OnboardingCenter";
 
 describe("OnboardingCenter", () => {
-  afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.progress = null; mocks.progressResolved = true; mocks.isPreviewMode = false; });
+  afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.progress = null; mocks.progressResolved = true; mocks.isPreviewMode = false; mocks.managedContents = []; mocks.suggestions = []; });
 
   it("abre el recorrido Owner pendiente y muestra una captura del botón principal", async () => {
     render(<OnboardingCenter role="owner" />);
@@ -161,10 +165,30 @@ describe("OnboardingCenter", () => {
     render(<OnboardingCenter role="manager" />);
     await screen.findByRole("dialog");
     await user.type(screen.getByRole("textbox", { name: "Buscar tutoriales por módulo" }), "doble aprobación");
-    const libraryCard = screen.getAllByText("Conteos, diferencias y doble aprobación")[0]?.closest("article");
+    const libraryCard = screen.getAllByText("Conteos, diferencias y doble aprobación").map((node) => node.closest("article")).find((card): card is HTMLElement => Boolean(card && within(card).queryByRole("button", { name: "Añadir a ruta" })));
     if (!libraryCard) throw new Error("No se encontró el tutorial de conteo");
     await user.click(within(libraryCard).getByRole("button", { name: "Añadir a ruta" }));
     expect(screen.getByText("Progreso: 10 de 11")).toBeTruthy();
+  });
+
+  it("muestra sugerencias administradas mientras se escribe una búsqueda de guía", async () => {
+    const user = userEvent.setup();
+    mocks.suggestions = [{ id: 91, title: "Aprobación de compras", category: "Inventario", contentType: "tutorial" }];
+    render(<OnboardingCenter role="manager" />);
+    await screen.findByRole("dialog");
+    await user.type(screen.getByRole("textbox", { name: "Buscar tutoriales por módulo" }), "aprobación");
+    expect(screen.getByRole("listbox", { name: "Sugerencias de búsqueda" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /Aprobación de compras/i })).toBeTruthy();
+  });
+
+  it("muestra artículos de ayuda publicados por Owner para el rol autorizado", async () => {
+    const user = userEvent.setup();
+    mocks.managedContents = [{ id: 92, contentType: "help", title: "Recepción guiada", summary: "Pasos propios para validar una compra.", body: "Confirma proveedor\nRevisa lotes", category: "Inventario", modulePath: "/manager/inventory", durationMinutes: 5 }];
+    render(<OnboardingCenter role="manager" />);
+    await screen.findByRole("dialog");
+    await user.click(screen.getByRole("tab", { name: "Ayuda y errores" }));
+    expect(screen.getByText("Ayuda administrada")).toBeTruthy();
+    expect(screen.getByText("Recepción guiada")).toBeTruthy();
   });
 
   it("ofrece reiniciar el onboarding desde Ayuda", async () => {

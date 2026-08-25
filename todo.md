@@ -531,3 +531,9 @@
 - [x] Extender la base de ayuda con soluciones y búsquedas para incidentes frecuentes
 - [x] Mejorar navegación por categorías, progreso y retorno al módulo asociado
 - [x] Validar cobertura, accesibilidad y experiencia responsive de guías ampliadas
+- [x] Definir contenido editable, roles, límites y reglas de publicación de guías
+- [x] Crear esquema persistente para tutoriales y artículos administrados por Owner
+- [x] Implementar API Owner para crear, editar, activar y eliminar contenido de guías
+- [x] Construir panel exclusivo de administración de aprendizaje para Owner
+- [x] Añadir búsqueda inteligente con sugerencias y autocompletado en Guía y ayuda
+- [x] Validar permisos, CRUD, sugerencias, borrado y accesibilidad responsive

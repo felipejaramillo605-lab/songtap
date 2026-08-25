@@ -34,6 +34,10 @@ vi.mock("@/lib/trpc", () => ({
       setHelpVote: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       toggleHelpFavorite: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
     },
+    learning: {
+      available: { useQuery: () => ({ data: [] }) },
+      suggestions: { useQuery: () => ({ data: [] }) },
+    },
   },
 }));
 
