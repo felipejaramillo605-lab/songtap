@@ -4,18 +4,24 @@ import { createAuditLog } from "../db";
 import {
   InventoryStockError,
   createInventoryItem,
+  createInventoryPurchaseOrder,
   createInventoryMovement,
   createInventorySupplier,
   getInventoryDashboard,
   getInventoryExpiryAlerts,
   getInventoryMovements,
+  getInventoryPurchaseOrders,
   getInventoryPurchases,
   getInventoryRecipes,
   getInventorySuppliers,
+  getInventoryWastes,
+  getRecipeCostMargins,
   getVenueMenuItemsForRecipe,
   receiveInventoryPurchase,
+  recordExpiredInventoryWaste,
   replaceInventoryRecipe,
   updateInventoryItem,
+  updateInventoryPurchaseOrderStatus,
 } from "../inventoryDb";
 import { INVENTORY_UNITS, InventoryDimension, InventoryUnit, toBaseQuantity } from "../inventory";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -51,6 +57,16 @@ function toInventoryError(error: unknown): never {
     CANTIDAD_COMPRA_INVALIDA: "Cada línea de compra debe tener una cantidad positiva.",
     CADUCIDAD_REQUERIDA: "Los insumos perecederos requieren una fecha de caducidad.",
     CADUCIDAD_INVALIDA: "La caducidad debe ser posterior a la fecha de recepción.",
+    LOTE_NO_ENCONTRADO: "El lote no existe en este local.",
+    LOTE_AUN_VIGENTE: "Solo puedes registrar merma automática cuando el lote esté vencido.",
+    CANTIDAD_MERMA_INVALIDA: "La cantidad de merma debe ser positiva y no puede superar el saldo del lote.",
+    STOCK_INSUFICIENTE: "El saldo global del insumo no permite registrar esta merma.",
+    ORDEN_NO_ENCONTRADA: "La orden de compra no existe en este local.",
+    ORDEN_NO_DISPONIBLE: "La orden fue cancelada o ya se recibió completamente.",
+    ORDEN_CON_RECEPCIONES_NO_EDITABLE: "Una orden con recepciones no puede volver a borrador, enviarse ni cancelarse.",
+    LINEAS_ORDEN_INVALIDAS: "La orden requiere líneas únicas con cantidades positivas.",
+    RECEPCION_ORDEN_INVALIDA: "La recepción supera lo pendiente o no coincide con la orden.",
+    PROVEEDOR_NO_COINCIDE_CON_ORDEN: "El proveedor debe coincidir con el de la orden de compra.",
     PRODUCTO_NO_ENCONTRADO: "El producto de menú no existe en este local.",
     PEDIDO_ENTREGADO_FINAL: "Un pedido entregado no puede cambiarse a otro estado; registra un ajuste de inventario si es necesario.",
   };
@@ -200,6 +216,27 @@ export const inventoryRouter = router({
       return getInventoryPurchases(input.venueId);
     }),
 
+  purchaseOrders: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      return getInventoryPurchaseOrders(input.venueId);
+    }),
+
+  wastes: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      return getInventoryWastes(input.venueId);
+    }),
+
+  recipeMargins: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      return getRecipeCostMargins(input.venueId);
+    }),
+
   expiryAlerts: protectedProcedure
     .input(z.object({ venueId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
@@ -228,10 +265,73 @@ export const inventoryRouter = router({
       }
     }),
 
+  createPurchaseOrder: protectedProcedure
+    .input(z.object({
+      venueId: z.number().int().positive(),
+      supplierId: z.number().int().positive(),
+      reference: z.string().trim().max(128).optional(),
+      expectedAt: z.coerce.date().optional(),
+      notes: z.string().trim().max(1000).optional(),
+      lines: z.array(z.object({
+        inventoryItemId: z.number().int().positive(),
+        quantity: z.number().finite().positive(),
+        unit: inventoryUnitSchema,
+        packBaseQuantity: z.number().finite().positive().optional(),
+        estimatedUnitCost: z.number().finite().min(0).optional(),
+      })).min(1).max(100),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      assertInventoryManager(ctx.user);
+      try {
+        const dashboard = await getInventoryDashboard(input.venueId);
+        const itemById = new Map(dashboard.items.map((item) => [item.id, item]));
+        const lines = input.lines.map((line) => {
+          const item = itemById.get(line.inventoryItemId);
+          if (!item) throw new Error("INSUMO_NO_ENCONTRADO");
+          return { inventoryItemId: item.id, quantityOrderedBase: convertQuantity({ dimension: item.dimension, quantity: line.quantity, unit: line.unit, packBaseQuantity: line.packBaseQuantity }), sourceQuantity: line.quantity, sourceUnit: line.unit, packBaseQuantity: line.packBaseQuantity, estimatedUnitCost: line.estimatedUnitCost };
+        });
+        const result = await createInventoryPurchaseOrder({ venueId: input.venueId, supplierId: input.supplierId, reference: input.reference, expectedAt: input.expectedAt, notes: input.notes, createdByUserId: ctx.user.id, lines });
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PURCHASE_ORDER_CREATED", entity: "inventory_purchase_order", entityId: result.purchaseOrderId, details: JSON.stringify({ supplierId: input.supplierId, lineCount: lines.length }) });
+        return result;
+      } catch (error) {
+        return toInventoryError(error);
+      }
+    }),
+
+  updatePurchaseOrderStatus: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive(), purchaseOrderId: z.number().int().positive(), status: z.enum(["draft", "sent", "cancelled"]) }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      assertInventoryManager(ctx.user);
+      try {
+        const result = await updateInventoryPurchaseOrderStatus(input);
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: `INVENTORY_PURCHASE_ORDER_${input.status.toUpperCase()}`, entity: "inventory_purchase_order", entityId: input.purchaseOrderId, details: null });
+        return result;
+      } catch (error) {
+        return toInventoryError(error);
+      }
+    }),
+
+  recordExpiredWaste: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive(), inventoryLotId: z.number().int().positive(), quantityBase: z.number().finite().positive(), note: z.string().trim().max(500).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      assertInventoryManager(ctx.user);
+      try {
+        const result = await recordExpiredInventoryWaste({ ...input, performedByUserId: ctx.user.id });
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_EXPIRED_WASTE_RECORDED", entity: "inventory_waste", entityId: result.wasteId, details: JSON.stringify({ inventoryLotId: input.inventoryLotId, quantityBase: result.quantityBase, totalCost: result.totalCost }) });
+        return result;
+      } catch (error) {
+        return toInventoryError(error);
+      }
+    }),
+
   receivePurchase: protectedProcedure
     .input(z.object({
       venueId: z.number().int().positive(),
       supplierId: z.number().int().positive().optional(),
+      purchaseOrderId: z.number().int().positive().optional(),
       reference: z.string().trim().max(128).optional(),
       receivedAt: z.coerce.date(),
       notes: z.string().trim().max(1000).optional(),
@@ -241,6 +341,7 @@ export const inventoryRouter = router({
         unit: inventoryUnitSchema,
         packBaseQuantity: z.number().finite().positive().optional(),
         unitCost: z.number().finite().min(0).optional(),
+        purchaseOrderLineId: z.number().int().positive().optional(),
         lotCode: z.string().trim().max(128).optional(),
         expiresAt: z.coerce.date().optional(),
       })).min(1).max(100),
@@ -265,8 +366,8 @@ export const inventoryRouter = router({
             expiresAt: line.expiresAt,
           };
         });
-        const result = await receiveInventoryPurchase({ venueId: input.venueId, supplierId: input.supplierId, reference: input.reference, receivedAt: input.receivedAt, notes: input.notes, createdByUserId: ctx.user.id, lines });
-        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PURCHASE_RECEIVED", entity: "inventory_purchase", entityId: result.purchaseId, details: JSON.stringify({ supplierId: input.supplierId ?? null, reference: input.reference ?? null, lineCount: lines.length, totalCost: result.totalCost }) });
+        const result = await receiveInventoryPurchase({ venueId: input.venueId, supplierId: input.supplierId, purchaseOrderId: input.purchaseOrderId, reference: input.reference, receivedAt: input.receivedAt, notes: input.notes, createdByUserId: ctx.user.id, lines: lines.map((line, index) => ({ ...line, purchaseOrderLineId: input.lines[index].purchaseOrderLineId })) });
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PURCHASE_RECEIVED", entity: "inventory_purchase", entityId: result.purchaseId, details: JSON.stringify({ supplierId: input.supplierId ?? null, purchaseOrderId: input.purchaseOrderId ?? null, reference: input.reference ?? null, lineCount: lines.length, totalCost: result.totalCost }) });
         return result;
       } catch (error) {
         return toInventoryError(error);

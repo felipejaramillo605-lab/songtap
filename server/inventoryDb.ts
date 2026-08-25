@@ -6,10 +6,13 @@ import {
   inventoryLots,
   inventoryMovements,
   inventoryPurchaseLines,
+  inventoryPurchaseOrderLines,
+  inventoryPurchaseOrders,
   inventoryPurchases,
   inventoryRecipeLines,
   inventoryRecipes,
   inventorySuppliers,
+  inventoryWastes,
   menuItems,
   orderItems,
   userNotificationHistory,
@@ -234,9 +237,55 @@ export async function createInventorySupplier(input: {
   return (await db.select().from(inventorySuppliers).where(eq(inventorySuppliers.id, id)).limit(1))[0];
 }
 
+export async function createInventoryPurchaseOrder(input: {
+  venueId: number;
+  supplierId: number;
+  reference?: string | null;
+  expectedAt?: Date | null;
+  notes?: string | null;
+  createdByUserId: number;
+  lines: Array<{ inventoryItemId: number; quantityOrderedBase: number; sourceQuantity: number; sourceUnit: InventoryUnit; packBaseQuantity?: number | null; estimatedUnitCost?: number | null }>;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.transaction(async (tx: Tx) => {
+    const [supplier] = await tx.select().from(inventorySuppliers).where(and(eq(inventorySuppliers.id, input.supplierId), eq(inventorySuppliers.venueId, input.venueId), eq(inventorySuppliers.isActive, true))).limit(1);
+    if (!supplier) throw new Error("PROVEEDOR_NO_ENCONTRADO");
+    const itemIds = input.lines.map((line) => line.inventoryItemId);
+    if (!itemIds.length || new Set(itemIds).size !== itemIds.length) throw new Error("LINEAS_ORDEN_INVALIDAS");
+    const items = await tx.select().from(inventoryItems).where(and(eq(inventoryItems.venueId, input.venueId), inArray(inventoryItems.id, itemIds)));
+    if (items.length !== itemIds.length || input.lines.some((line) => line.quantityOrderedBase <= 0 || line.sourceQuantity <= 0)) throw new Error("LINEAS_ORDEN_INVALIDAS");
+    const result = await tx.insert(inventoryPurchaseOrders).values({ venueId: input.venueId, supplierId: input.supplierId, reference: input.reference?.trim() || null, expectedAt: input.expectedAt || null, notes: input.notes?.trim() || null, createdByUserId: input.createdByUserId });
+    const purchaseOrderId = Number((result[0] as { insertId: number }).insertId);
+    await tx.insert(inventoryPurchaseOrderLines).values(input.lines.map((line) => ({ purchaseOrderId, inventoryItemId: line.inventoryItemId, quantityOrderedBase: String(roundBase(line.quantityOrderedBase)), sourceQuantity: String(line.sourceQuantity), sourceUnit: line.sourceUnit, packBaseQuantity: line.packBaseQuantity ? String(line.packBaseQuantity) : null, estimatedUnitCost: line.estimatedUnitCost !== undefined && line.estimatedUnitCost !== null ? String(line.estimatedUnitCost) : null })));
+    return { purchaseOrderId };
+  });
+}
+
+export async function getInventoryPurchaseOrders(venueId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const orders = await db.select().from(inventoryPurchaseOrders).where(eq(inventoryPurchaseOrders.venueId, venueId)).orderBy(desc(inventoryPurchaseOrders.createdAt)).limit(100);
+  const lines = orders.length ? await db.select().from(inventoryPurchaseOrderLines).where(inArray(inventoryPurchaseOrderLines.purchaseOrderId, orders.map((order) => order.id))) : [];
+  const suppliers = await getInventorySuppliers(venueId);
+  const supplierById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+  return orders.map((order) => ({ ...order, supplier: supplierById.get(order.supplierId) ?? null, lines: lines.filter((line) => line.purchaseOrderId === order.id) }));
+}
+
+export async function updateInventoryPurchaseOrderStatus(input: { venueId: number; purchaseOrderId: number; status: "draft" | "sent" | "cancelled" }) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const [order] = await db.select().from(inventoryPurchaseOrders).where(and(eq(inventoryPurchaseOrders.id, input.purchaseOrderId), eq(inventoryPurchaseOrders.venueId, input.venueId))).limit(1);
+  if (!order) throw new Error("ORDEN_NO_ENCONTRADA");
+  if (order.status === "received" || order.status === "partially_received") throw new Error("ORDEN_CON_RECEPCIONES_NO_EDITABLE");
+  await db.update(inventoryPurchaseOrders).set({ status: input.status }).where(eq(inventoryPurchaseOrders.id, order.id));
+  return { purchaseOrderId: order.id, status: input.status };
+}
+
 export async function receiveInventoryPurchase(input: {
   venueId: number;
   supplierId?: number | null;
+  purchaseOrderId?: number | null;
   reference?: string | null;
   receivedAt: Date;
   notes?: string | null;
@@ -248,6 +297,7 @@ export async function receiveInventoryPurchase(input: {
     sourceUnit: InventoryUnit;
     packBaseQuantity?: number | null;
     unitCost?: number | null;
+    purchaseOrderLineId?: number | null;
     lotCode?: string | null;
     expiresAt?: Date | null;
   }>;
@@ -255,8 +305,20 @@ export async function receiveInventoryPurchase(input: {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   return db.transaction(async (tx: Tx) => {
-    if (input.supplierId) {
-      const [supplier] = await tx.select().from(inventorySuppliers).where(and(eq(inventorySuppliers.id, input.supplierId), eq(inventorySuppliers.venueId, input.venueId), eq(inventorySuppliers.isActive, true))).limit(1);
+    let effectiveSupplierId = input.supplierId || null;
+    let linkedOrder: typeof inventoryPurchaseOrders.$inferSelect | null = null;
+    let linkedOrderLines = new Map<number, typeof inventoryPurchaseOrderLines.$inferSelect>();
+    if (input.purchaseOrderId) {
+      const [order] = await tx.select().from(inventoryPurchaseOrders).where(and(eq(inventoryPurchaseOrders.id, input.purchaseOrderId), eq(inventoryPurchaseOrders.venueId, input.venueId))).limit(1);
+      if (!order || order.status === "cancelled" || order.status === "received") throw new Error("ORDEN_NO_DISPONIBLE");
+      if (effectiveSupplierId && effectiveSupplierId !== order.supplierId) throw new Error("PROVEEDOR_NO_COINCIDE_CON_ORDEN");
+      linkedOrder = order;
+      effectiveSupplierId = order.supplierId;
+      const orderLines = await tx.select().from(inventoryPurchaseOrderLines).where(eq(inventoryPurchaseOrderLines.purchaseOrderId, order.id));
+      linkedOrderLines = new Map(orderLines.map((line: typeof inventoryPurchaseOrderLines.$inferSelect) => [line.id, line]));
+    }
+    if (effectiveSupplierId) {
+      const [supplier] = await tx.select().from(inventorySuppliers).where(and(eq(inventorySuppliers.id, effectiveSupplierId), eq(inventorySuppliers.venueId, input.venueId), eq(inventorySuppliers.isActive, true))).limit(1);
       if (!supplier) throw new Error("PROVEEDOR_NO_ENCONTRADO");
     }
     const itemIds = input.lines.map((line) => line.inventoryItemId);
@@ -268,11 +330,16 @@ export async function receiveInventoryPurchase(input: {
       if (line.quantityBase <= 0) throw new Error("CANTIDAD_COMPRA_INVALIDA");
       if (item.isPerishable && !line.expiresAt) throw new Error("CADUCIDAD_REQUERIDA");
       if (line.expiresAt && line.expiresAt.getTime() <= input.receivedAt.getTime()) throw new Error("CADUCIDAD_INVALIDA");
+      if (linkedOrder) {
+        const orderLine = line.purchaseOrderLineId ? linkedOrderLines.get(line.purchaseOrderLineId) : null;
+        if (!orderLine || orderLine.inventoryItemId !== item.id || line.quantityBase > roundBase(Number(orderLine.quantityOrderedBase) - Number(orderLine.quantityReceivedBase))) throw new Error("RECEPCION_ORDEN_INVALIDA");
+      }
     }
     const totalCost = roundBase(input.lines.reduce((total, line) => total + (line.unitCost ?? 0) * line.sourceQuantity, 0));
     const purchaseResult = await tx.insert(inventoryPurchases).values({
       venueId: input.venueId,
-      supplierId: input.supplierId || null,
+      supplierId: effectiveSupplierId,
+      purchaseOrderId: input.purchaseOrderId || null,
       reference: input.reference?.trim() || null,
       receivedAt: input.receivedAt,
       totalCost: String(totalCost),
@@ -281,11 +348,13 @@ export async function receiveInventoryPurchase(input: {
     });
     const purchaseId = Number((purchaseResult[0] as { insertId: number }).insertId);
     const runningStock = new Map<number, number>(items.map((item: typeof inventoryItems.$inferSelect) => [item.id, Number(item.currentStockBase)]));
+    const runningValue = new Map<number, number>(items.map((item: typeof inventoryItems.$inferSelect) => [item.id, roundBase(Number(item.currentStockBase) * Number(item.averageUnitCostBase))]));
     const expiringLots: string[] = [];
     for (const line of input.lines) {
       const item = itemById.get(line.inventoryItemId)!;
       const lineResult = await tx.insert(inventoryPurchaseLines).values({
         purchaseId,
+        purchaseOrderLineId: line.purchaseOrderLineId || null,
         inventoryItemId: item.id,
         quantityBase: String(roundBase(line.quantityBase)),
         sourceQuantity: String(line.sourceQuantity),
@@ -296,9 +365,15 @@ export async function receiveInventoryPurchase(input: {
         expiresAt: line.expiresAt || null,
       });
       const purchaseLineId = Number((lineResult[0] as { insertId: number }).insertId);
-      const stockAfter = roundBase((runningStock.get(item.id) ?? 0) + line.quantityBase);
+      const stockBefore = runningStock.get(item.id) ?? 0;
+      const receivedCost = roundBase((line.unitCost ?? 0) * line.sourceQuantity);
+      const receivedUnitCostBase = line.quantityBase > 0 ? roundBase(receivedCost / line.quantityBase) : 0;
+      const stockAfter = roundBase(stockBefore + line.quantityBase);
+      const valueAfter = roundBase((runningValue.get(item.id) ?? 0) + receivedCost);
+      const averageUnitCostBase = stockAfter > 0 ? roundBase(valueAfter / stockAfter) : 0;
       runningStock.set(item.id, stockAfter);
-      await tx.update(inventoryItems).set({ currentStockBase: String(stockAfter) }).where(eq(inventoryItems.id, item.id));
+      runningValue.set(item.id, valueAfter);
+      await tx.update(inventoryItems).set({ currentStockBase: String(stockAfter), averageUnitCostBase: String(averageUnitCostBase) }).where(eq(inventoryItems.id, item.id));
       await tx.insert(inventoryMovements).values({
         venueId: input.venueId,
         inventoryItemId: item.id,
@@ -308,6 +383,8 @@ export async function receiveInventoryPurchase(input: {
         sourceQuantity: String(line.sourceQuantity),
         sourceUnit: line.sourceUnit,
         packBaseQuantity: line.packBaseQuantity ? String(line.packBaseQuantity) : null,
+        unitCostBase: String(receivedUnitCostBase),
+        totalCost: String(receivedCost),
         performedByUserId: input.createdByUserId,
         note: `Compra #${purchaseId}${input.reference?.trim() ? ` · ${input.reference.trim()}` : ""}`,
       });
@@ -327,6 +404,16 @@ export async function receiveInventoryPurchase(input: {
         if (lot && (await syncLotExpiryAlert(tx, lot, item)) !== "none") expiringLots.push(item.name);
       }
       await syncLowStockAlert(tx, item, stockAfter);
+      if (linkedOrder && line.purchaseOrderLineId) {
+        const orderLine = linkedOrderLines.get(line.purchaseOrderLineId)!;
+        const receivedAfter = roundBase(Number(orderLine.quantityReceivedBase) + line.quantityBase);
+        await tx.update(inventoryPurchaseOrderLines).set({ quantityReceivedBase: String(receivedAfter) }).where(eq(inventoryPurchaseOrderLines.id, orderLine.id));
+        linkedOrderLines.set(orderLine.id, { ...orderLine, quantityReceivedBase: String(receivedAfter) });
+      }
+    }
+    if (linkedOrder) {
+      const allReceived = Array.from(linkedOrderLines.values()).every((line) => Number(line.quantityReceivedBase) >= Number(line.quantityOrderedBase));
+      await tx.update(inventoryPurchaseOrders).set({ status: allReceived ? "received" : "partially_received" }).where(eq(inventoryPurchaseOrders.id, linkedOrder.id));
     }
     return { purchaseId, totalCost, expiringLots };
   });
@@ -353,6 +440,63 @@ export async function getInventoryExpiryAlerts(venueId: number, now = new Date()
     if (!item) return [];
     const state = getLotAlertState(new Date(lot.expiresAt), item.expiryAlertDays, now);
     return state === "none" ? [] : [{ ...lot, item, state }];
+  });
+}
+
+export async function recordExpiredInventoryWaste(input: {
+  venueId: number;
+  inventoryLotId: number;
+  quantityBase: number;
+  performedByUserId: number;
+  note?: string | null;
+  now?: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.transaction(async (tx: Tx) => {
+    const now = input.now ?? new Date();
+    const [lot] = await tx.select().from(inventoryLots).where(and(eq(inventoryLots.id, input.inventoryLotId), eq(inventoryLots.venueId, input.venueId))).limit(1);
+    if (!lot) throw new Error("LOTE_NO_ENCONTRADO");
+    if (new Date(lot.expiresAt).getTime() > now.getTime()) throw new Error("LOTE_AUN_VIGENTE");
+    const quantityBase = roundBase(input.quantityBase);
+    if (quantityBase <= 0 || quantityBase > Number(lot.remainingQuantityBase)) throw new Error("CANTIDAD_MERMA_INVALIDA");
+    const [item] = await tx.select().from(inventoryItems).where(and(eq(inventoryItems.id, lot.inventoryItemId), eq(inventoryItems.venueId, input.venueId))).limit(1);
+    if (!item) throw new Error("INSUMO_NO_ENCONTRADO");
+    if (Number(item.currentStockBase) < quantityBase) throw new Error("STOCK_INSUFICIENTE");
+    const lotAfter = roundBase(Number(lot.remainingQuantityBase) - quantityBase);
+    const stockAfter = roundBase(Number(item.currentStockBase) - quantityBase);
+    const unitCostBase = Number(item.averageUnitCostBase);
+    const totalCost = roundBase(quantityBase * unitCostBase);
+    await tx.update(inventoryLots).set({ remainingQuantityBase: String(lotAfter) }).where(eq(inventoryLots.id, lot.id));
+    await tx.update(inventoryItems).set({ currentStockBase: String(stockAfter) }).where(eq(inventoryItems.id, item.id));
+    const wasteResult = await tx.insert(inventoryWastes).values({ venueId: input.venueId, inventoryItemId: item.id, inventoryLotId: lot.id, quantityBase: String(quantityBase), unitCostBase: String(unitCostBase), totalCost: String(totalCost), reason: "expired", note: input.note?.trim() || null, performedByUserId: input.performedByUserId });
+    const wasteId = Number((wasteResult[0] as { insertId: number }).insertId);
+    await tx.insert(inventoryMovements).values({ venueId: input.venueId, inventoryItemId: item.id, movementType: "waste", quantityBase: String(-quantityBase), stockAfterBase: String(stockAfter), unitCostBase: String(unitCostBase), totalCost: String(totalCost), performedByUserId: input.performedByUserId, note: `Merma por vencimiento · Lote ${lot.lotCode || `#${lot.id}`}${input.note?.trim() ? ` · ${input.note.trim()}` : ""}` });
+    await syncLowStockAlert(tx, item, stockAfter);
+    return { wasteId, itemName: item.name, quantityBase, unitCostBase, totalCost, stockAfter, lotAfter };
+  });
+}
+
+export async function getInventoryWastes(venueId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(inventoryWastes).where(eq(inventoryWastes.venueId, venueId)).orderBy(desc(inventoryWastes.createdAt)).limit(100);
+}
+
+export async function getRecipeCostMargins(venueId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const recipes = await getInventoryRecipes(venueId);
+  const items = await db.select().from(inventoryItems).where(eq(inventoryItems.venueId, venueId));
+  const products = await db.select({ id: menuItems.id, name: menuItems.name, price: menuItems.price }).from(menuItems).where(eq(menuItems.venueId, venueId));
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const productById = new Map(products.map((product) => [product.id, product]));
+  return recipes.map((recipe) => {
+    const product = productById.get(recipe.menuItemId);
+    const recipeCost = roundBase(recipe.lines.reduce((sum, line) => sum + Number(line.quantityBase) * Number(itemById.get(line.inventoryItemId)?.averageUnitCostBase ?? 0), 0));
+    const salePrice = Number(product?.price ?? 0);
+    const marginAmount = roundBase(salePrice - recipeCost);
+    return { recipeId: recipe.id, menuItemId: recipe.menuItemId, name: product?.name ?? recipe.name ?? `Producto #${recipe.menuItemId}`, salePrice, recipeCost, marginAmount, marginPercent: salePrice > 0 ? roundBase((marginAmount / salePrice) * 100) : null, isCosted: recipe.lines.every((line) => Number(itemById.get(line.inventoryItemId)?.averageUnitCostBase ?? 0) > 0) };
   });
 }
 
@@ -495,6 +639,8 @@ export async function applyInventoryForDeliveredOrder(tx: Tx, input: { orderId: 
       quantityBase: String(-required),
       stockAfterBase: String(stockAfter),
       orderId: input.orderId,
+      unitCostBase: String(Number(item.averageUnitCostBase)),
+      totalCost: String(roundBase(required * Number(item.averageUnitCostBase))),
       performedByUserId: input.performedByUserId ?? null,
       note: `Consumo automático del pedido #${input.orderId}`,
     });

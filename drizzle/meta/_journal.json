@@ -253,6 +253,20 @@
       "when": 1787681142933,
       "tag": "0035_wise_the_hood",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1787683083105,
+      "tag": "0036_classy_master_chief",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1787683154828,
+      "tag": "0037_nappy_warstar",
+      "breakpoints": true
     }
   ]
 }

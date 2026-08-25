@@ -500,3 +500,10 @@
 - [x] Añadir panel visual de alertas al Dashboard Manager y gestión de compras/caducidades en Inventario
 - [x] Validar compras, vencimientos, notificaciones, permisos y aislamiento por local
 - [x] Programar la revisión diaria de lotes a las 8:00 a. m. de Colombia y verificar su ejecución
+- [x] Definir reglas de merma por vencimiento, costo promedio ponderado y márgenes por receta
+- [x] Crear esquema multi-local para costos unitarios, mermas y órdenes de compra
+- [x] Registrar mermas por lote vencido y ajustar stock de forma transaccional y auditable
+- [x] Calcular costos promedio y márgenes reales por receta y producto de menú
+- [x] Implementar órdenes de compra con proveedores, líneas, estados y recepción parcial o total
+- [x] Añadir paneles Manager para mermas, costos, márgenes y órdenes de compra
+- [x] Validar cálculos, trazabilidad, permisos y aislamiento por local

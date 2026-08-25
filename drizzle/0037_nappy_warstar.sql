@@ -1,0 +1,1 @@
+ALTER TABLE `inventory_movements` MODIFY COLUMN `movementType` enum('initial','restock','adjustment','order_delivery','order_reversal','waste') NOT NULL;

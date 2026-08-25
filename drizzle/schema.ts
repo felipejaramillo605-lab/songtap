@@ -199,6 +199,7 @@ export const inventoryItems = mysqlTable(
     dimension: mysqlEnum("dimension", ["count", "volume", "mass"]).notNull(),
     baseUnit: mysqlEnum("baseUnit", ["unit", "ml", "g"]).notNull(),
     currentStockBase: decimal("currentStockBase", { precision: 14, scale: 4 }).default("0").notNull(),
+    averageUnitCostBase: decimal("averageUnitCostBase", { precision: 14, scale: 6 }).default("0").notNull(),
     reorderPointBase: decimal("reorderPointBase", { precision: 14, scale: 4 }).default("0").notNull(),
     isPerishable: boolean("isPerishable").default(false).notNull(),
     expiryAlertDays: int("expiryAlertDays").default(7).notNull(),
@@ -262,12 +263,14 @@ export const inventoryMovements = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     venueId: int("venueId").notNull(),
     inventoryItemId: int("inventoryItemId").notNull(),
-    movementType: mysqlEnum("movementType", ["initial", "restock", "adjustment", "order_delivery", "order_reversal"]).notNull(),
+    movementType: mysqlEnum("movementType", ["initial", "restock", "adjustment", "order_delivery", "order_reversal", "waste"]).notNull(),
     quantityBase: decimal("quantityBase", { precision: 14, scale: 4 }).notNull(),
     stockAfterBase: decimal("stockAfterBase", { precision: 14, scale: 4 }).notNull(),
     sourceQuantity: decimal("sourceQuantity", { precision: 14, scale: 4 }),
     sourceUnit: varchar("sourceUnit", { length: 24 }),
     packBaseQuantity: decimal("packBaseQuantity", { precision: 14, scale: 4 }),
+    unitCostBase: decimal("unitCostBase", { precision: 14, scale: 6 }),
+    totalCost: decimal("totalCost", { precision: 14, scale: 4 }),
     orderId: int("orderId"),
     performedByUserId: int("performedByUserId"),
     note: text("note"),
@@ -304,6 +307,30 @@ export const inventoryAlerts = mysqlTable(
 export type InventoryAlert = typeof inventoryAlerts.$inferSelect;
 export type InsertInventoryAlert = typeof inventoryAlerts.$inferInsert;
 
+export const inventoryWastes = mysqlTable(
+  "inventory_wastes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    inventoryItemId: int("inventoryItemId").notNull(),
+    inventoryLotId: int("inventoryLotId").notNull(),
+    quantityBase: decimal("quantityBase", { precision: 14, scale: 4 }).notNull(),
+    unitCostBase: decimal("unitCostBase", { precision: 14, scale: 6 }).notNull(),
+    totalCost: decimal("totalCost", { precision: 14, scale: 4 }).notNull(),
+    reason: mysqlEnum("reason", ["expired"]).notNull(),
+    note: text("note"),
+    performedByUserId: int("performedByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({
+    venueIndex: index("inventory_wastes_venue_idx").on(table.venueId, table.createdAt),
+    lotIndex: index("inventory_wastes_lot_idx").on(table.inventoryLotId),
+  })
+);
+
+export type InventoryWaste = typeof inventoryWastes.$inferSelect;
+export type InsertInventoryWaste = typeof inventoryWastes.$inferInsert;
+
 export const inventorySuppliers = mysqlTable(
   "inventory_suppliers",
   {
@@ -332,6 +359,7 @@ export const inventoryPurchases = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     venueId: int("venueId").notNull(),
     supplierId: int("supplierId"),
+    purchaseOrderId: int("purchaseOrderId"),
     reference: varchar("reference", { length: 128 }),
     receivedAt: timestamp("receivedAt").defaultNow().notNull(),
     totalCost: decimal("totalCost", { precision: 12, scale: 2 }).default("0").notNull(),
@@ -353,6 +381,7 @@ export const inventoryPurchaseLines = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     purchaseId: int("purchaseId").notNull(),
+    purchaseOrderLineId: int("purchaseOrderLineId"),
     inventoryItemId: int("inventoryItemId").notNull(),
     quantityBase: decimal("quantityBase", { precision: 14, scale: 4 }).notNull(),
     sourceQuantity: decimal("sourceQuantity", { precision: 14, scale: 4 }).notNull(),
@@ -371,6 +400,52 @@ export const inventoryPurchaseLines = mysqlTable(
 
 export type InventoryPurchaseLine = typeof inventoryPurchaseLines.$inferSelect;
 export type InsertInventoryPurchaseLine = typeof inventoryPurchaseLines.$inferInsert;
+
+export const inventoryPurchaseOrders = mysqlTable(
+  "inventory_purchase_orders",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    supplierId: int("supplierId").notNull(),
+    reference: varchar("reference", { length: 128 }),
+    status: mysqlEnum("status", ["draft", "sent", "partially_received", "received", "cancelled"]).default("draft").notNull(),
+    expectedAt: timestamp("expectedAt"),
+    notes: text("notes"),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    venueIndex: index("inventory_purchase_orders_venue_idx").on(table.venueId, table.status, table.createdAt),
+    supplierIndex: index("inventory_purchase_orders_supplier_idx").on(table.supplierId),
+  })
+);
+
+export type InventoryPurchaseOrder = typeof inventoryPurchaseOrders.$inferSelect;
+export type InsertInventoryPurchaseOrder = typeof inventoryPurchaseOrders.$inferInsert;
+
+export const inventoryPurchaseOrderLines = mysqlTable(
+  "inventory_purchase_order_lines",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    purchaseOrderId: int("purchaseOrderId").notNull(),
+    inventoryItemId: int("inventoryItemId").notNull(),
+    quantityOrderedBase: decimal("quantityOrderedBase", { precision: 14, scale: 4 }).notNull(),
+    quantityReceivedBase: decimal("quantityReceivedBase", { precision: 14, scale: 4 }).default("0").notNull(),
+    sourceQuantity: decimal("sourceQuantity", { precision: 14, scale: 4 }).notNull(),
+    sourceUnit: varchar("sourceUnit", { length: 24 }).notNull(),
+    packBaseQuantity: decimal("packBaseQuantity", { precision: 14, scale: 4 }),
+    estimatedUnitCost: decimal("estimatedUnitCost", { precision: 12, scale: 4 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({
+    orderIndex: index("inventory_purchase_order_lines_order_idx").on(table.purchaseOrderId),
+    itemIndex: index("inventory_purchase_order_lines_item_idx").on(table.inventoryItemId),
+  })
+);
+
+export type InventoryPurchaseOrderLine = typeof inventoryPurchaseOrderLines.$inferSelect;
+export type InsertInventoryPurchaseOrderLine = typeof inventoryPurchaseOrderLines.$inferInsert;
 
 export const inventoryLots = mysqlTable(
   "inventory_lots",

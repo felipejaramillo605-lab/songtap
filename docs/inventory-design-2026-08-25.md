@@ -85,3 +85,34 @@ El Dashboard Manager muestra una tarjeta de abastecimiento con los insumos bajo 
 | Consumo FEFO | La entrega descuenta primero el lote vigente con vencimiento más cercano. |
 | Permisos y aislamiento | Staff no puede crear proveedores y Manager de otro local no puede consultar ni registrar. |
 | Suite final | **50 archivos y 196 pruebas aprobadas**, con TypeScript sin errores. |
+
+## Ampliación: merma, costo promedio y órdenes de compra
+
+La merma por vencimiento se registrará únicamente contra un lote cuyo vencimiento ya haya ocurrido y que conserve saldo. La operación reducirá en la misma transacción el saldo del lote, la existencia global y el valor de inventario; además, generará un movimiento negativo y un registro específico de merma con usuario, fecha, motivo y costo afectado. No se eliminarán lotes ni movimientos históricos.
+
+El costo de cada insumo se expresará por **unidad base** y se actualizará con promedio ponderado únicamente al recibir compras: `(valor existente + valor recibido) / (saldo existente + cantidad recibida)`. Las salidas por pedidos y mermas conservarán el costo promedio vigente en su movimiento, sin recalcular la historia cuando cambie el precio de una compra posterior. El costo real de una receta será la suma de `cantidad base × costo promedio` de sus ingredientes; el margen se mostrará como precio de menú menos costo de receta y su porcentaje sobre el precio de venta.
+
+Las órdenes de compra no aumentarán stock. Tendrán un proveedor, líneas previstas, cantidades y costos estimados, y estados `borrador`, `enviada`, `recibida parcialmente`, `recibida` o `cancelada`. La recepción de una orden creará una compra real y actualizará la cantidad recibida de sus líneas; el stock solo cambiará al confirmar esa recepción.
+
+| Evento | Stock | Costo promedio | Estado de compra |
+|---|---|---|---|
+| Crear/enviar orden | Sin cambio | Sin cambio | Borrador o enviada |
+| Recepción parcial | Aumenta solo lo recibido | Se pondera con costo real | Recibida parcialmente |
+| Recepción final | Aumenta el remanente | Se pondera con costo real | Recibida |
+| Merma por vencimiento | Disminuye el lote y el saldo | Conserva el costo histórico aplicado | Sin cambio |
+
+## Estado de implementación: mermas, costos y órdenes
+
+Manager puede registrar una **merma por vencimiento** desde Inventario. El sistema exige que el lote ya esté vencido, valida que la cantidad no exceda su saldo y descuenta automáticamente el lote y el inventario general dentro de la misma transacción. Cada merma conserva cantidad, costo promedio aplicado, valor afectado, operador, observación y movimiento de salida.
+
+Cada compra con costo actualiza el **costo promedio ponderado por unidad base** del insumo. La pestaña Costos calcula el costo actual de cada receta, compara contra el precio del menú y muestra monto y porcentaje de margen. Los consumos automáticos guardan su costo aplicado como una instantánea para que los movimientos históricos no cambien al recibir compras futuras.
+
+La pestaña Órdenes permite crear órdenes previas por proveedor y líneas, enviarlas, cancelarlas antes de recibirlas y registrar recepciones parciales o totales. Crear o enviar una orden no cambia stock; únicamente la recepción confirmada crea la compra y actualiza existencias y costos.
+
+| Validación | Resultado |
+|---|---|
+| Costo promedio y margen | Dos compras con costos distintos producen promedio ponderado, costo de receta y margen esperado. |
+| Merma | Solo se admite sobre lote vencido; descuenta stock y conserva valor afectado. |
+| Orden previa | No altera inventario hasta recibir; la recepción parcial y final actualizan estado correctamente. |
+| Seguridad | Staff no puede registrar merma; cada consulta y mutación permanece aislada por `venueId`. |
+| Suite final | **50 archivos y 199 pruebas aprobadas**, con TypeScript sin errores. |
