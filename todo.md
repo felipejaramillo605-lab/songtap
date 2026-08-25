@@ -470,3 +470,6 @@
 - [x] Permitir que Staff guarde y consulte el enlace de karaoke elegido para cada canción del local
 - [x] Crear historial de canciones reproducidas aislado por local para consulta de Staff
 - [x] Añadir configuración de proveedores de karaoke personalizados por local con validación de enlaces
+- [x] Añadir etiquetas de estado para enlaces de karaoke y permitir que Staff marque si requieren revisión
+- [x] Filtrar el historial musical por rango de fechas de forma segura por local
+- [x] Registrar y mostrar el Staff que inició la reproducción de cada canción

@@ -1173,16 +1173,38 @@ export async function saveKaraokeLinkForSong(input: {
     karaokeProviderName: input.karaokeProviderName,
     karaokeSavedByUserId: input.karaokeSavedByUserId,
     karaokeSavedAt: new Date(),
+    karaokeLinkStatus: "unverified",
+    karaokeLinkStatusUpdatedByUserId: input.karaokeSavedByUserId,
+    karaokeLinkStatusUpdatedAt: new Date(),
   }).where(and(eq(songQueue.id, input.songId), eq(songQueue.venueId, input.venueId)));
   return (result[0] as { affectedRows: number }).affectedRows > 0;
 }
 
-export async function getSongPlaybackHistory(venueId: number, limit = 50) {
+export type KaraokeLinkStatus = "unverified" | "working" | "needs_review";
+
+export async function updateKaraokeLinkStatusForSong(input: {
+  venueId: number;
+  songId: number;
+  status: KaraokeLinkStatus;
+  updatedByUserId: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.update(songQueue).set({
+    karaokeLinkStatus: input.status,
+    karaokeLinkStatusUpdatedByUserId: input.updatedByUserId,
+    karaokeLinkStatusUpdatedAt: new Date(),
+  }).where(and(eq(songQueue.id, input.songId), eq(songQueue.venueId, input.venueId)));
+  return (result[0] as { affectedRows: number }).affectedRows > 0;
+}
+
+export async function getSongPlaybackHistory(venueId: number, input: { limit?: number; from?: Date; to?: Date } = {}) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(songQueue).where(
-    and(eq(songQueue.venueId, venueId), isNotNull(songQueue.playedAt))
-  ).orderBy(desc(songQueue.playedAt)).limit(limit);
+  const conditions = [eq(songQueue.venueId, venueId), isNotNull(songQueue.playedAt)];
+  if (input.from) conditions.push(gte(songQueue.playedAt, input.from));
+  if (input.to) conditions.push(lte(songQueue.playedAt, input.to));
+  return db.select().from(songQueue).where(and(...conditions)).orderBy(desc(songQueue.playedAt)).limit(input.limit ?? 50);
 }
 
 export type KaraokeProviderConfig = {
@@ -1217,7 +1239,7 @@ export async function updateSongMetadataForVenue(songId: number, venueId: number
   return (result[0] as { affectedRows: number }).affectedRows > 0;
 }
 
-export async function updateCurrentSong(venueId: number, songId: number) {
+export async function updateCurrentSong(venueId: number, songId: number, playedBy: { id: number; name: string | null }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
 
@@ -1230,7 +1252,11 @@ export async function updateCurrentSong(venueId: number, songId: number) {
   );
   
   // Marcar la nueva canción como tocándose
-  await db.update(songQueue).set({ isCurrentlyPlaying: true }).where(and(eq(songQueue.id, songId), eq(songQueue.venueId, venueId)));
+  await db.update(songQueue).set({
+    isCurrentlyPlaying: true,
+    playedByUserId: playedBy.id,
+    playedByUserName: playedBy.name || "Staff SongTap",
+  }).where(and(eq(songQueue.id, songId), eq(songQueue.venueId, venueId)));
   return true;
 }
 

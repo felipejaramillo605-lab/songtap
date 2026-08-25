@@ -15,6 +15,7 @@ import {
   getSongPlaybackHistory,
   getVenueKaraokeProviders,
   saveKaraokeLinkForSong,
+  updateKaraokeLinkStatusForSong,
 } from "../db";
 import { normalizeMusicMetadata } from "../musicMetadata";
 
@@ -28,7 +29,18 @@ const karaokeUrlSchema = z.string().url().max(2048).refine((value) => {
 
 function sanitizeSongForClient<T extends Record<string, unknown> | null>(song: T) {
   if (!song) return null;
-  const { karaokeUrl, karaokeProviderName, karaokeSavedByUserId, karaokeSavedAt, ...publicSong } = song;
+  const {
+    karaokeUrl,
+    karaokeProviderName,
+    karaokeSavedByUserId,
+    karaokeSavedAt,
+    karaokeLinkStatus,
+    karaokeLinkStatusUpdatedByUserId,
+    karaokeLinkStatusUpdatedAt,
+    playedByUserId,
+    playedByUserName,
+    ...publicSong
+  } = song;
   return publicSong;
 }
 
@@ -107,10 +119,18 @@ export const musicRouter = router({
 
   // Staff/Manager: historial de canciones que terminaron de reproducirse.
   getPlaybackHistory: protectedProcedure
-    .input(z.object({ venueId: z.number(), limit: z.number().int().min(1).max(100).default(50) }))
+    .input(z.object({
+      venueId: z.number(),
+      limit: z.number().int().min(1).max(100).default(50),
+      from: z.date().optional(),
+      to: z.date().optional(),
+    }).refine((input) => !input.from || !input.to || input.from <= input.to, {
+      message: "La fecha inicial no puede ser posterior a la fecha final",
+      path: ["to"],
+    }))
     .query(async ({ ctx, input }) => {
       assertVenueAccess(ctx.user, input.venueId);
-      return getSongPlaybackHistory(input.venueId, input.limit);
+      return getSongPlaybackHistory(input.venueId, { limit: input.limit, from: input.from, to: input.to });
     }),
 
   // Cliente: solicitar una canción para el final de la cola FIFO.
@@ -134,7 +154,7 @@ export const musicRouter = router({
       }
       const existingQueue = await getSongQueue(input.venueId);
       const position = existingQueue.length + 1;
-      const isCurrentlyPlaying = existingQueue.length === 0;
+      const isCurrentlyPlaying = false;
 
       await addSongToQueue({
         venueId: input.venueId,
@@ -155,7 +175,7 @@ export const musicRouter = router({
     .input(z.object({ venueId: z.number(), songId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       assertVenueAccess(ctx.user, input.venueId);
-      const updated = await updateCurrentSong(input.venueId, input.songId);
+      const updated = await updateCurrentSong(input.venueId, input.songId, { id: ctx.user.id, name: ctx.user.name ?? null });
       if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Canción no encontrada en este local" });
       return { success: true };
     }),
@@ -187,6 +207,28 @@ export const musicRouter = router({
         karaokeSavedByUserId: ctx.user.id,
       });
       if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Canción no encontrada en este local" });
+      return { success: true };
+    }),
+
+  // Staff/Manager: indicar si un enlace elegido funciona o requiere revisión.
+  updateKaraokeLinkStatus: protectedProcedure
+    .input(z.object({
+      venueId: z.number(),
+      songId: z.number(),
+      status: z.enum(["unverified", "working", "needs_review"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      const song = await getSongByIdForVenue(input.songId, input.venueId);
+      if (!song) throw new TRPCError({ code: "NOT_FOUND", message: "Canción no encontrada en este local" });
+      if (!song.karaokeUrl) throw new TRPCError({ code: "BAD_REQUEST", message: "Primero guarda un enlace de karaoke para esta canción" });
+      const updated = await updateKaraokeLinkStatusForSong({
+        venueId: input.venueId,
+        songId: input.songId,
+        status: input.status,
+        updatedByUserId: ctx.user.id,
+      });
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Canción no encontrada en este local" });
       return { success: true };
     }),
 

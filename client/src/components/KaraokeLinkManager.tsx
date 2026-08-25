@@ -4,7 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { buildKaraokeProviderSearchUrl, buildKaraokeSearchUrl } from "@/lib/karaokeSearch";
+
+type KaraokeLinkStatus = "unverified" | "working" | "needs_review";
+
+const karaokeStatusMeta: Record<KaraokeLinkStatus, { label: string; className: string }> = {
+  unverified: { label: "Sin verificar", className: "border-slate-400/30 bg-slate-400/10 text-slate-300" },
+  working: { label: "Funciona", className: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" },
+  needs_review: { label: "Revisar", className: "border-amber-400/30 bg-amber-400/10 text-amber-200" },
+};
 
 export interface KaraokeProvider {
   id: string;
@@ -18,16 +27,19 @@ interface KaraokeSong {
   artist: string;
   karaokeUrl?: string | null;
   karaokeProviderName?: string | null;
+  karaokeLinkStatus?: KaraokeLinkStatus | null;
 }
 
 interface KaraokeLinkManagerProps {
   song: KaraokeSong;
   providers: KaraokeProvider[];
   isSaving?: boolean;
+  isUpdatingStatus?: boolean;
   onSave: (input: { songId: number; karaokeUrl: string; karaokeProviderName: string | null }) => void;
+  onUpdateStatus?: (input: { songId: number; status: KaraokeLinkStatus }) => void;
 }
 
-export default function KaraokeLinkManager({ song, providers, isSaving = false, onSave }: KaraokeLinkManagerProps) {
+export default function KaraokeLinkManager({ song, providers, isSaving = false, isUpdatingStatus = false, onSave, onUpdateStatus }: KaraokeLinkManagerProps) {
   const [open, setOpen] = useState(false);
   const [karaokeUrl, setKaraokeUrl] = useState(song.karaokeUrl ?? "");
   const [providerName, setProviderName] = useState(song.karaokeProviderName ?? "");
@@ -53,6 +65,7 @@ export default function KaraokeLinkManager({ song, providers, isSaving = false, 
     ...provider,
     href: buildKaraokeProviderSearchUrl(provider.searchUrl, song.songName, song.artist),
   })).filter((provider): provider is KaraokeProvider & { href: string } => Boolean(provider.href));
+  const linkStatus = song.karaokeLinkStatus ?? "unverified";
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -80,15 +93,32 @@ export default function KaraokeLinkManager({ song, providers, isSaving = false, 
         </a>
       ))}
       {song.karaokeUrl && (
-        <a
-          href={song.karaokeUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-8 items-center gap-1 rounded-md border border-emerald-400/40 px-2 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          aria-label={`Abrir enlace de karaoke guardado para ${song.songName}`}
-        >
-          <ExternalLink size={12} /> Abrir elegido
-        </a>
+        <>
+          <a
+            href={song.karaokeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-emerald-400/40 px-2 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label={`Abrir enlace de karaoke guardado para ${song.songName}`}
+          >
+            <ExternalLink size={12} /> Abrir elegido
+          </a>
+          <span className={`inline-flex h-8 items-center rounded-md border px-2 text-xs font-semibold ${karaokeStatusMeta[linkStatus].className}`} aria-label={`Estado del enlace: ${karaokeStatusMeta[linkStatus].label}`}>
+            {karaokeStatusMeta[linkStatus].label}
+          </span>
+          {onUpdateStatus && (
+            <Select value={linkStatus} onValueChange={(status) => onUpdateStatus({ songId: song.id, status: status as KaraokeLinkStatus })} disabled={isUpdatingStatus}>
+              <SelectTrigger className="h-8 w-[142px] border-border bg-input text-xs text-foreground" aria-label={`Cambiar estado del enlace de ${song.songName}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-popover text-popover-foreground">
+                <SelectItem value="unverified">Sin verificar</SelectItem>
+                <SelectItem value="working">Funciona</SelectItem>
+                <SelectItem value="needs_review">Requiere revisión</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </>
       )}
       <Button
         size="sm"

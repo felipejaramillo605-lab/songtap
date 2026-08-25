@@ -25,4 +25,18 @@ describe("KaraokeLinkManager", () => {
       karaokeProviderName: "YouTube",
     });
   });
+
+  it("muestra una etiqueta clara cuando el enlace requiere revisión", () => {
+    render(
+      <KaraokeLinkManager
+        song={{ id: 15, songName: "La Gozadera", artist: "Gente de Zona", karaokeUrl: "https://example.com/karaoke", karaokeLinkStatus: "needs_review" }}
+        providers={[]}
+        onSave={vi.fn()}
+        onUpdateStatus={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Revisar")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Cambiar estado del enlace de La Gozadera" })).toBeTruthy();
+  });
 });

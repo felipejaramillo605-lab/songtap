@@ -3,9 +3,11 @@ import SongTapLayout from "@/components/SongTapLayout";
 import KaraokeLinkManager from "@/components/KaraokeLinkManager";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Music2, Play, CheckCircle2, Trash2, Clock, Star, WandSparkles, History } from "lucide-react";
-import { useEffect } from "react";
+import { CalendarDays, Music2, Play, CheckCircle2, Trash2, Clock, Star, WandSparkles, History, UsersRound } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -14,6 +16,8 @@ import { MusicProvider, musicProviderInfo, providerConnectionMessage } from "@/l
 export default function StaffMusic() {
   const { user, isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
 
   useEffect(() => {
     if (!loading && !isAuthenticated) window.location.href = getLoginUrl();
@@ -21,6 +25,12 @@ export default function StaffMusic() {
   }, [loading, isAuthenticated, user, navigate]);
 
   const venueId = user?.venueId;
+  const playbackHistoryInput = useMemo(() => ({
+    venueId: venueId!,
+    limit: 50,
+    ...(historyFrom ? { from: new Date(`${historyFrom}T00:00:00`) } : {}),
+    ...(historyTo ? { to: new Date(`${historyTo}T23:59:59.999`) } : {}),
+  }), [venueId, historyFrom, historyTo]);
   const { data: musicData, refetch } = trpc.music.getStaffQueue.useQuery(
     { venueId: venueId! },
     { enabled: !!venueId, refetchInterval: 5000 }
@@ -28,7 +38,7 @@ export default function StaffMusic() {
   const { data: venue } = trpc.venues.getById.useQuery({ id: venueId! }, { enabled: !!venueId });
   const { data: karaokeProviders = [] } = trpc.music.getKaraokeProviders.useQuery({ venueId: venueId! }, { enabled: !!venueId });
   const { data: playbackHistory = [], refetch: refetchHistory } = trpc.music.getPlaybackHistory.useQuery(
-    { venueId: venueId!, limit: 50 },
+    playbackHistoryInput,
     { enabled: !!venueId, refetchInterval: 10000 }
   );
 
@@ -52,6 +62,11 @@ export default function StaffMusic() {
 
   const saveKaraokeLink = trpc.music.saveKaraokeLink.useMutation({
     onSuccess: () => { toast.success("Enlace de karaoke guardado"); refetch(); refetchHistory(); },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const updateKaraokeLinkStatus = trpc.music.updateKaraokeLinkStatus.useMutation({
+    onSuccess: () => { toast.success("Estado del enlace actualizado"); refetch(); refetchHistory(); },
     onError: (error) => toast.error(error.message),
   });
 
@@ -100,6 +115,8 @@ export default function StaffMusic() {
                     providers={karaokeProviders}
                     isSaving={saveKaraokeLink.isPending}
                     onSave={(input) => saveKaraokeLink.mutate({ venueId: venueId!, ...input })}
+                    isUpdatingStatus={updateKaraokeLinkStatus.isPending}
+                    onUpdateStatus={(input) => updateKaraokeLinkStatus.mutate({ venueId: venueId!, ...input })}
                   />
                 </div>
               </div>
@@ -172,6 +189,8 @@ export default function StaffMusic() {
                         providers={karaokeProviders}
                         isSaving={saveKaraokeLink.isPending}
                         onSave={(input) => saveKaraokeLink.mutate({ venueId: venueId!, ...input })}
+                        isUpdatingStatus={updateKaraokeLinkStatus.isPending}
+                        onUpdateStatus={(input) => updateKaraokeLinkStatus.mutate({ venueId: venueId!, ...input })}
                       />
                       <Button
                         size="sm"
@@ -215,8 +234,21 @@ export default function StaffMusic() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 grid gap-3 rounded-xl border border-border bg-secondary/20 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <div>
+                <Label htmlFor="history-from" className="text-xs text-muted-foreground">Desde</Label>
+                <Input id="history-from" type="date" className="mt-1 bg-input border-border text-foreground" value={historyFrom} max={historyTo || undefined} onChange={(event) => setHistoryFrom(event.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="history-to" className="text-xs text-muted-foreground">Hasta</Label>
+                <Input id="history-to" type="date" className="mt-1 bg-input border-border text-foreground" value={historyTo} min={historyFrom || undefined} onChange={(event) => setHistoryTo(event.target.value)} />
+              </div>
+              <Button type="button" variant="outline" className="h-9" onClick={() => { setHistoryFrom(""); setHistoryTo(""); }} disabled={!historyFrom && !historyTo}>
+                <CalendarDays size={14} className="mr-2" /> Limpiar fechas
+              </Button>
+            </div>
             {playbackHistory.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">Aún no hay canciones finalizadas en este local.</p>
+              <p className="py-4 text-center text-sm text-muted-foreground">No hay canciones finalizadas para el rango elegido en este local.</p>
             ) : (
               <div className="space-y-2">
                 {playbackHistory.map((song) => (
@@ -224,12 +256,15 @@ export default function StaffMusic() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-foreground">{song.songName}</p>
                       <p className="truncate text-xs text-muted-foreground">{song.artist} · {song.playedAt ? new Date(song.playedAt).toLocaleString("es-CO") : "Sin hora registrada"}</p>
+                      <p className="mt-1 flex items-center gap-1 text-xs text-primary"><UsersRound size={12} /> Reproducida por: {song.playedByUserName || "Sin registro"}</p>
                     </div>
                     <KaraokeLinkManager
                       song={song}
                       providers={karaokeProviders}
                       isSaving={saveKaraokeLink.isPending}
                       onSave={(input) => saveKaraokeLink.mutate({ venueId: venueId!, ...input })}
+                      isUpdatingStatus={updateKaraokeLinkStatus.isPending}
+                      onUpdateStatus={(input) => updateKaraokeLinkStatus.mutate({ venueId: venueId!, ...input })}
                     />
                   </div>
                 ))}

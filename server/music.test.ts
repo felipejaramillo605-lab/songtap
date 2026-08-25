@@ -14,6 +14,7 @@ const dbMocks = vi.hoisted(() => ({
   getSongPlaybackHistory: vi.fn(),
   getVenueKaraokeProviders: vi.fn(),
   saveKaraokeLinkForSong: vi.fn(),
+  updateKaraokeLinkStatusForSong: vi.fn(),
 }));
 
 vi.mock("./db", () => dbMocks);
@@ -37,9 +38,11 @@ describe("music router", () => {
     dbMocks.getQrSessionByToken.mockResolvedValue({ id: 70, venueId: 7, tableId: 3, isActive: true });
     dbMocks.getSongByIdForVenue.mockResolvedValue({ id: 14, venueId: 7, songName: "  Vivir Mi Vida - Marc Anthony ", artist: "Artista desconocido" });
     dbMocks.updateSongMetadataForVenue.mockResolvedValue(true);
+    dbMocks.updateCurrentSong.mockResolvedValue(true);
     dbMocks.getSongPlaybackHistory.mockResolvedValue([]);
     dbMocks.getVenueKaraokeProviders.mockResolvedValue([]);
     dbMocks.saveKaraokeLinkForSong.mockResolvedValue(true);
+    dbMocks.updateKaraokeLinkStatusForSong.mockResolvedValue(true);
   });
 
   it("adds a requested song at the end of the FIFO queue", async () => {
@@ -104,6 +107,8 @@ describe("music router", () => {
 
     expect(result.current).not.toHaveProperty("karaokeUrl");
     expect(result.current).not.toHaveProperty("karaokeProviderName");
+    expect(result.current).not.toHaveProperty("karaokeLinkStatus");
+    expect(result.current).not.toHaveProperty("playedByUserName");
     expect(result.queue[0]).not.toHaveProperty("karaokeUrl");
   });
 
@@ -155,6 +160,12 @@ describe("music router", () => {
     await expect(caller.normalizeSongMetadata({ venueId: 8, songId: 14 })).rejects.toThrow("FORBIDDEN");
   });
 
+  it("registra quién inició la reproducción manual de una canción", async () => {
+    const caller = musicRouter.createCaller({ user: { id: 5, name: "Laura Staff", role: "staff", venueId: 7 }, req: {}, res: {} } as any);
+    await expect(caller.playSong({ venueId: 7, songId: 14 })).resolves.toEqual({ success: true });
+    expect(dbMocks.updateCurrentSong).toHaveBeenCalledWith(7, 14, { id: 5, name: "Laura Staff" });
+  });
+
   it("guarda un enlace de karaoke únicamente dentro del local del Staff", async () => {
     const caller = musicRouter.createCaller({ user: { id: 5, role: "staff", venueId: 7 }, req: {}, res: {} } as any);
     await expect(caller.saveKaraokeLink({
@@ -184,10 +195,21 @@ describe("music router", () => {
     dbMocks.getVenueKaraokeProviders.mockResolvedValue(providers);
     const caller = musicRouter.createCaller({ user: { id: 5, role: "staff", venueId: 7 }, req: {}, res: {} } as any);
 
-    await expect(caller.getPlaybackHistory({ venueId: 7, limit: 20 })).resolves.toEqual(history);
+    const from = new Date("2026-08-01T00:00:00.000Z");
+    const to = new Date("2026-08-31T23:59:59.999Z");
+    await expect(caller.getPlaybackHistory({ venueId: 7, limit: 20, from, to })).resolves.toEqual(history);
     await expect(caller.getKaraokeProviders({ venueId: 7 })).resolves.toEqual(providers);
-    expect(dbMocks.getSongPlaybackHistory).toHaveBeenCalledWith(7, 20);
+    expect(dbMocks.getSongPlaybackHistory).toHaveBeenCalledWith(7, { limit: 20, from, to });
     await expect(caller.getPlaybackHistory({ venueId: 8 })).rejects.toThrow("FORBIDDEN");
     await expect(caller.getKaraokeProviders({ venueId: 8 })).rejects.toThrow("FORBIDDEN");
+  });
+
+  it("permite al Staff marcar un enlace como funcional solo dentro de su local", async () => {
+    dbMocks.getSongByIdForVenue.mockResolvedValue({ id: 14, venueId: 7, karaokeUrl: "https://example.com/karaoke" });
+    const caller = musicRouter.createCaller({ user: { id: 5, role: "staff", venueId: 7 }, req: {}, res: {} } as any);
+
+    await expect(caller.updateKaraokeLinkStatus({ venueId: 7, songId: 14, status: "working" })).resolves.toEqual({ success: true });
+    expect(dbMocks.updateKaraokeLinkStatusForSong).toHaveBeenCalledWith({ venueId: 7, songId: 14, status: "working", updatedByUserId: 5 });
+    await expect(caller.updateKaraokeLinkStatus({ venueId: 8, songId: 14, status: "needs_review" })).rejects.toThrow("FORBIDDEN");
   });
 });
