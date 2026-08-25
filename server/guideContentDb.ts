@@ -1,5 +1,5 @@
-import { and, asc, desc, eq } from "drizzle-orm";
-import { guideContents } from "../drizzle/schema";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { guideContentMedia, guideContents, guideSearchMisses } from "../drizzle/schema";
 import { getDb } from "./db";
 
 export type GuideContentRole = "owner" | "manager" | "staff";
@@ -29,6 +29,10 @@ function encodeRoles(roles: GuideContentRole[]) {
 
 export function decodeGuideRoles(roles: string): GuideContentRole[] {
   return roles.split(",").filter((role): role is GuideContentRole => role === "owner" || role === "manager" || role === "staff");
+}
+
+export function normalizeGuideSearch(value: string) {
+  return normalizeText(value).replace(/[^a-z0-9\s-]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 export async function getManagedGuideContents(input?: { role?: GuideContentRole; activeOnly?: boolean; contentType?: GuideContentType }) {
@@ -104,4 +108,41 @@ export async function searchGuideContentSuggestions(query: string, role: GuideCo
     .sort((left, right) => Number(normalizeText(left.row.title).startsWith(terms[0] ?? "")) - Number(normalizeText(right.row.title).startsWith(terms[0] ?? "")))
     .map(({ row }) => row)
     .slice(0, limit);
+}
+
+export async function createGuideContentMedia(input: { storageKey: string; url: string; altText: string; mimeType: string; uploadedByUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de datos no disponible");
+  const result = await db.insert(guideContentMedia).values(input);
+  const id = Number((result[0] as { insertId: number }).insertId);
+  const [media] = await db.select().from(guideContentMedia).where(eq(guideContentMedia.id, id)).limit(1);
+  return media;
+}
+
+export async function getGuideContentMedia(limit = 60) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(guideContentMedia).orderBy(desc(guideContentMedia.createdAt)).limit(limit);
+}
+
+export async function recordGuideSearchMiss(input: { query: string; role: GuideContentRole }) {
+  const normalizedQuery = normalizeGuideSearch(input.query);
+  if (normalizedQuery.length < 2) return null;
+  const db = await getDb();
+  if (!db) return null;
+  await db.insert(guideSearchMisses).values({ normalizedQuery, displayQuery: input.query.trim().slice(0, 160), role: input.role }).onDuplicateKeyUpdate({
+    set: {
+      displayQuery: input.query.trim().slice(0, 160),
+      searchCount: sql`${guideSearchMisses.searchCount} + 1`,
+      lastSearchedAt: new Date(),
+    },
+  });
+  const [result] = await db.select().from(guideSearchMisses).where(and(eq(guideSearchMisses.normalizedQuery, normalizedQuery), eq(guideSearchMisses.role, input.role))).limit(1);
+  return result ?? null;
+}
+
+export async function getGuideSearchMisses(limit = 40) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(guideSearchMisses).orderBy(desc(guideSearchMisses.searchCount), desc(guideSearchMisses.lastSearchedAt)).limit(limit);
 }

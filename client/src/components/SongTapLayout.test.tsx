@@ -37,6 +37,7 @@ vi.mock("@/lib/trpc", () => ({
     learning: {
       available: { useQuery: () => ({ data: [] }) },
       suggestions: { useQuery: () => ({ data: [] }) },
+      recordSearchMiss: { useMutation: () => ({ mutate: vi.fn() }) },
     },
   },
 }));

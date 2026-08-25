@@ -983,6 +983,43 @@ export const guideContents = mysqlTable(
 export type GuideContent = typeof guideContents.$inferSelect;
 export type InsertGuideContent = typeof guideContents.$inferInsert;
 
+export const guideContentMedia = mysqlTable(
+  "guide_content_media",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    storageKey: varchar("storageKey", { length: 512 }).notNull().unique(),
+    url: varchar("url", { length: 1024 }).notNull(),
+    altText: varchar("altText", { length: 240 }).notNull(),
+    mimeType: varchar("mimeType", { length: 64 }).notNull(),
+    uploadedByUserId: int("uploadedByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    uploadedIdx: index("guide_content_media_uploaded_idx").on(table.uploadedByUserId, table.createdAt),
+  }),
+);
+
+export type GuideContentMedia = typeof guideContentMedia.$inferSelect;
+
+export const guideSearchMisses = mysqlTable(
+  "guide_search_misses",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    normalizedQuery: varchar("normalizedQuery", { length: 160 }).notNull(),
+    displayQuery: varchar("displayQuery", { length: 160 }).notNull(),
+    role: mysqlEnum("role", ["owner", "manager", "staff"]).notNull(),
+    searchCount: int("searchCount").default(1).notNull(),
+    firstSearchedAt: timestamp("firstSearchedAt").defaultNow().notNull(),
+    lastSearchedAt: timestamp("lastSearchedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    queryRoleUnique: uniqueIndex("guide_search_misses_query_role_unique").on(table.normalizedQuery, table.role),
+    popularityIdx: index("guide_search_misses_popularity_idx").on(table.searchCount, table.lastSearchedAt),
+  }),
+);
+
+export type GuideSearchMiss = typeof guideSearchMisses.$inferSelect;
+
 export const supportTickets = mysqlTable("support_tickets", {
   id: int("id").autoincrement().primaryKey(),
   reporterId: int("reporterId").notNull(),

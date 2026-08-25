@@ -537,3 +537,9 @@
 - [x] Construir panel exclusivo de administración de aprendizaje para Owner
 - [x] Añadir búsqueda inteligente con sugerencias y autocompletado en Guía y ayuda
 - [x] Validar permisos, CRUD, sugerencias, borrado y accesibilidad responsive
+- [x] Definir formato enriquecido seguro, límites de imagen y criterios de búsqueda sin resultado
+- [x] Crear esquema de medios de guía y registro agregado de consultas sin resultados
+- [x] Implementar carga segura de imágenes para contenido administrado por Owner
+- [x] Crear editor enriquecido con formato, inserción de imágenes y vista previa
+- [x] Registrar búsquedas sin coincidencias y mostrar términos faltantes al Owner
+- [x] Validar permisos, carga, renderizado, consultas y accesibilidad responsive

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn(), progress: null as any, progressResolved: true, isPreviewMode: false, managedContents: [] as any[], suggestions: [] as any[] }));
+const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), recordSearchMiss: vi.fn(), navigate: vi.fn(), progress: null as any, progressResolved: true, isPreviewMode: false, managedContents: [] as any[], suggestions: [] as any[] }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -25,6 +25,7 @@ vi.mock("@/lib/trpc", () => ({
     learning: {
       available: { useQuery: () => ({ data: mocks.managedContents }) },
       suggestions: { useQuery: () => ({ data: mocks.suggestions }) },
+      recordSearchMiss: { useMutation: () => ({ mutate: mocks.recordSearchMiss }) },
     },
   },
 }));
@@ -179,6 +180,13 @@ describe("OnboardingCenter", () => {
     await user.type(screen.getByRole("textbox", { name: "Buscar tutoriales por módulo" }), "aprobación");
     expect(screen.getByRole("listbox", { name: "Sugerencias de búsqueda" })).toBeTruthy();
     expect(screen.getByRole("option", { name: /Aprobación de compras/i })).toBeTruthy();
+  });
+
+  it("registra una búsqueda de guía que no devuelve coincidencias", async () => {
+    render(<OnboardingCenter role="manager" />);
+    await screen.findByRole("dialog");
+    fireEvent.change(screen.getByRole("textbox", { name: "Buscar tutoriales por módulo" }), { target: { value: "procedimiento inexistente" } });
+    await waitFor(() => expect(mocks.recordSearchMiss).toHaveBeenCalledWith({ query: "procedimiento inexistente" }), { timeout: 1500 });
   });
 
   it("muestra artículos de ayuda publicados por Owner para el rol autorizado", async () => {

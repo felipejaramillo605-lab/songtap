@@ -33,3 +33,11 @@ El Owner cuenta con la ruta **Panel Owner → Guías** para crear, editar, publi
 Los contenidos activos se entregan solo a los roles definidos. Los tutoriales se incorporan a la biblioteca operativa; los artículos se muestran en la pestaña de ayuda. La búsqueda de la biblioteca combina coincidencias locales con sugerencias persistidas y presenta autocompletado accesible para temas específicos. La migración `0040_smooth_penance.sql` agrega la tabla `guide_contents` sin modificar el historial de onboarding ni las interacciones existentes.
 
 La validación final de la administración y búsqueda aprobó **214 pruebas** con TypeScript sin errores.
+
+## Editor visual y priorización de contenido faltante
+
+El panel **Owner → Guías** incluye ahora un editor enriquecido basado en un subconjunto seguro de Markdown: títulos, listas, énfasis, enlaces internos e imágenes. No se interpreta HTML arbitrario. Las imágenes se aceptan solo en JPEG, PNG o WEBP, con firma verificada, tamaño máximo de 4 MB y almacenamiento gestionado bajo el prefijo `guides/`. Cada carga queda registrada en Auditoría y aparece en la galería del panel para su reutilización visual.
+
+La biblioteca y los artículos publicados interpretan el mismo formato seguro y muestran imágenes solamente desde el almacenamiento administrado de SongTap. Las consultas de guías que no obtienen tutoriales ni sugerencias se registran de forma agregada por término normalizado y rol; no se almacena una identidad de quien buscó. Owner puede revisar la frecuencia, el último registro y crear directamente un artículo de ayuda prellenado desde cada necesidad detectada.
+
+La migración `0041_workable_venus.sql` agrega `guide_content_media` y `guide_search_misses`. La validación final de esta entrega aprobó **217 pruebas** con TypeScript sin errores.

@@ -2,15 +2,21 @@ import { describe, expect, it, vi } from "vitest";
 
 const dbMocks = vi.hoisted(() => ({ createAuditLog: vi.fn() }));
 const learningMocks = vi.hoisted(() => ({
+  createGuideContentMedia: vi.fn(),
   createManagedGuideContent: vi.fn(),
   deleteManagedGuideContent: vi.fn(),
+  getGuideContentMedia: vi.fn(),
   getManagedGuideContents: vi.fn(),
+  getGuideSearchMisses: vi.fn(),
+  recordGuideSearchMiss: vi.fn(),
   searchGuideContentSuggestions: vi.fn(),
   updateManagedGuideContent: vi.fn(),
 }));
+const storageMocks = vi.hoisted(() => ({ storagePut: vi.fn() }));
 
 vi.mock("./db", () => dbMocks);
 vi.mock("./guideContentDb", () => learningMocks);
+vi.mock("./storage", () => storageMocks);
 
 import { learningRouter } from "./routers/learning";
 
@@ -40,5 +46,20 @@ describe("learning router", () => {
     learningMocks.deleteManagedGuideContent.mockResolvedValueOnce({ id: 51, title: "Conteos seguros" });
     await expect(learningRouter.createCaller(context("owner")).adminDelete({ id: 51 })).resolves.toEqual({ success: true });
     expect(dbMocks.createAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: "GUIDE_CONTENT_DELETED", entityId: 51 }));
+  });
+
+  it("registra una búsqueda sin resultado con el rol autenticado", async () => {
+    await expect(learningRouter.createCaller(context("staff")).recordSearchMiss({ query: "receta vegana" })).resolves.toEqual({ success: true });
+    expect(learningMocks.recordGuideSearchMiss).toHaveBeenCalledWith({ query: "receta vegana", role: "staff" });
+  });
+
+  it("solo permite a Owner subir una imagen de guía validada y deja auditoría", async () => {
+    storageMocks.storagePut.mockResolvedValueOnce({ key: "guides/11/example.png", url: "/manus-storage/guides/11/example.png" });
+    learningMocks.createGuideContentMedia.mockResolvedValueOnce({ id: 71, url: "/manus-storage/guides/11/example.png" });
+    const result = await learningRouter.createCaller(context("owner")).uploadGuideImage({ filename: "paso.png", contentType: "image/png", altText: "Pantalla de ejemplo", base64Data: "data:image/png;base64,iVBORw0KGgo=" });
+    expect(result).toMatchObject({ id: 71 });
+    expect(storageMocks.storagePut).toHaveBeenCalledWith(expect.stringMatching(/^guides\/11\//), expect.any(Buffer), "image/png");
+    expect(dbMocks.createAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: "GUIDE_IMAGE_UPLOADED", entityId: 71 }));
+    await expect(learningRouter.createCaller(context("manager")).uploadGuideImage({ filename: "paso.png", contentType: "image/png", altText: "Pantalla de ejemplo", base64Data: "data:image/png;base64,iVBORw0KGgo=" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

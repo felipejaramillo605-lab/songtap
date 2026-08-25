@@ -288,6 +288,13 @@
       "when": 1787693193869,
       "tag": "0040_smooth_penance",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1787695525770,
+      "tag": "0041_workable_venus",
+      "breakpoints": true
     }
   ]
 }
