@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { buildKaraokeProviderSearchUrl, buildKaraokeSearchUrl } from "@/lib/karaokeSearch";
 
 type KaraokeLinkStatus = "unverified" | "working" | "needs_review";
@@ -28,6 +29,7 @@ interface KaraokeSong {
   karaokeUrl?: string | null;
   karaokeProviderName?: string | null;
   karaokeLinkStatus?: KaraokeLinkStatus | null;
+  karaokeLinkReviewNote?: string | null;
 }
 
 interface KaraokeLinkManagerProps {
@@ -36,13 +38,15 @@ interface KaraokeLinkManagerProps {
   isSaving?: boolean;
   isUpdatingStatus?: boolean;
   onSave: (input: { songId: number; karaokeUrl: string; karaokeProviderName: string | null }) => void;
-  onUpdateStatus?: (input: { songId: number; status: KaraokeLinkStatus }) => void;
+  onUpdateStatus?: (input: { songId: number; status: KaraokeLinkStatus; reviewNote?: string }) => void;
 }
 
 export default function KaraokeLinkManager({ song, providers, isSaving = false, isUpdatingStatus = false, onSave, onUpdateStatus }: KaraokeLinkManagerProps) {
   const [open, setOpen] = useState(false);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [karaokeUrl, setKaraokeUrl] = useState(song.karaokeUrl ?? "");
   const [providerName, setProviderName] = useState(song.karaokeProviderName ?? "");
+  const [reviewNote, setReviewNote] = useState(song.karaokeLinkReviewNote ?? "");
 
   const openSaveDialog = () => {
     setKaraokeUrl(song.karaokeUrl ?? "");
@@ -66,6 +70,21 @@ export default function KaraokeLinkManager({ song, providers, isSaving = false, 
     href: buildKaraokeProviderSearchUrl(provider.searchUrl, song.songName, song.artist),
   })).filter((provider): provider is KaraokeProvider & { href: string } => Boolean(provider.href));
   const linkStatus = song.karaokeLinkStatus ?? "unverified";
+  const requestStatusChange = (status: KaraokeLinkStatus) => {
+    if (status === "needs_review") {
+      setReviewNote(song.karaokeLinkReviewNote ?? "");
+      setReviewDialogOpen(true);
+      return;
+    }
+    onUpdateStatus?.({ songId: song.id, status });
+  };
+
+  const confirmNeedsReview = () => {
+    const note = reviewNote.trim();
+    if (!note) return;
+    onUpdateStatus?.({ songId: song.id, status: "needs_review", reviewNote: note });
+    setReviewDialogOpen(false);
+  };
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -107,7 +126,7 @@ export default function KaraokeLinkManager({ song, providers, isSaving = false, 
             {karaokeStatusMeta[linkStatus].label}
           </span>
           {onUpdateStatus && (
-            <Select value={linkStatus} onValueChange={(status) => onUpdateStatus({ songId: song.id, status: status as KaraokeLinkStatus })} disabled={isUpdatingStatus}>
+            <Select value={linkStatus} onValueChange={(status) => requestStatusChange(status as KaraokeLinkStatus)} disabled={isUpdatingStatus}>
               <SelectTrigger className="h-8 w-[142px] border-border bg-input text-xs text-foreground" aria-label={`Cambiar estado del enlace de ${song.songName}`}>
                 <SelectValue />
               </SelectTrigger>
@@ -118,6 +137,7 @@ export default function KaraokeLinkManager({ song, providers, isSaving = false, 
               </SelectContent>
             </Select>
           )}
+          {linkStatus === "needs_review" && song.karaokeLinkReviewNote && <p className="w-full rounded-md border border-amber-400/20 bg-amber-400/5 px-2 py-1 text-xs text-amber-100">Nota: {song.karaokeLinkReviewNote}</p>}
         </>
       )}
       <Button
@@ -167,6 +187,24 @@ export default function KaraokeLinkManager({ song, providers, isSaving = false, 
             <Button onClick={submit} disabled={!karaokeUrl.trim() || isSaving}>
               {isSaving ? "Guardando…" : "Guardar enlace"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+        <DialogContent className="bg-card text-card-foreground sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Explicar revisión del enlace</DialogTitle>
+            <DialogDescription>Indica qué debe revisar el equipo en el enlace de <strong>{song.songName}</strong>. Esta nota solo estará disponible para el personal del local.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor={`karaoke-review-note-${song.id}`}>Nota de revisión *</Label>
+            <Textarea id={`karaoke-review-note-${song.id}`} value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} maxLength={500} placeholder="Ej. El video no tiene audio o ya no está disponible." className="min-h-24 bg-input text-foreground" />
+            <p className="text-right text-xs text-muted-foreground">{reviewNote.length}/500</p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={confirmNeedsReview} disabled={!reviewNote.trim() || isUpdatingStatus}>Guardar como Requiere revisión</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { buildPqrsFilename, createPqrsCsv, createPqrsWorkbook, toPqrsExportRows } from "@/lib/pqrsExport";
 import { getPreviousPqrsPeriod } from "@/lib/pqrsPeriod";
 import { getSlaRisk } from "@/lib/pqrsSlaRisk";
-import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet, ShieldCheck, TriangleAlert, FilePlus2, BookOpenCheck } from "lucide-react";
+import { Building2, Users, TrendingUp, Activity, CalendarDays, DollarSign, ReceiptText, Trophy, MessageSquareText, Timer, Download, FileSpreadsheet, ShieldCheck, TriangleAlert, FilePlus2, BookOpenCheck, Music2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { getLoginUrl } from "@/const";
@@ -32,6 +32,7 @@ export default function OwnerDashboard() {
   const { data: venues } = trpc.venues.list.useQuery(undefined, { enabled: !!user });
   const { data: users } = trpc.users.list.useQuery(undefined, { enabled: !!user });
   const { data: onboardingAnalytics, isLoading: isLoadingOnboardingAnalytics } = trpc.onboarding.getAnalytics.useQuery(undefined, { enabled: isAuthenticated && user?.role === "owner" });
+  const { data: karaokeMetrics, isLoading: isLoadingKaraokeMetrics } = trpc.music.getOwnerKaraokeLinkMetrics.useQuery(undefined, { enabled: isAuthenticated && user?.role === "owner" });
   const [periodDays, setPeriodDays] = useState<7 | 30>(7);
   const [selectedPqrsVenueIds, setSelectedPqrsVenueIds] = useState<number[] | null>(null);
   const [pqrsType, setPqrsType] = useState<"all" | "petition" | "complaint" | "claim" | "suggestion" | "congratulation">("all");
@@ -231,6 +232,22 @@ export default function OwnerDashboard() {
             { label: "Finalización", value: `${onboardingAnalytics?.overall.completionRate ?? 0}%`, color: "text-foreground" },
           ].map(metric => <div key={metric.label} className="rounded-lg border border-border bg-card p-3"><p className="text-xs uppercase tracking-wide text-muted-foreground">{metric.label}</p><p className={`mt-1 text-2xl font-bold ${metric.color}`}>{metric.value}</p></div>)}</div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">{(["owner", "manager", "staff"] as const).map(role => { const metric = onboardingAnalytics?.byRole[role] ?? { total: 0, completed: 0, skipped: 0, completionRate: 0 }; const label = role === "owner" ? "Owner" : role === "manager" ? "Managers" : "Staff"; return <div key={role} className="rounded-lg border border-border bg-background p-3"><div className="flex items-center justify-between gap-2"><span className="font-medium text-foreground">{label}</span><span className="text-xs text-muted-foreground">{metric.completed}/{metric.total} completaron</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-primary" style={{ width: `${metric.completionRate}%` }} /></div><p className="mt-2 text-xs text-muted-foreground">{metric.completionRate}% finalización · {metric.skipped} omitieron</p></div> })}</div></>}
+        </section>
+
+        <section aria-labelledby="karaoke-metrics-title" className="rounded-xl border border-emerald-400/25 bg-emerald-400/5 p-4 sm:p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div><h3 id="karaoke-metrics-title" className="flex items-center gap-2 text-lg font-bold"><Music2 className="h-5 w-5 text-emerald-300" />Salud de enlaces de karaoke</h3><p className="mt-1 text-sm text-muted-foreground">Proporción de enlaces que el Staff confirmó como funcionales en cada local activo.</p></div>
+            <Badge variant="outline" className="w-fit border-emerald-400/40 text-emerald-300">Solo Owner</Badge>
+          </div>
+          {isLoadingKaraokeMetrics ? <div className="py-6 text-sm text-muted-foreground">Cargando métricas de karaoke…</div> : <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
+              { label: "Enlaces guardados", value: karaokeMetrics?.totals.totalLinks ?? 0, color: "text-foreground" },
+              { label: "Funcionan", value: karaokeMetrics?.totals.workingLinks ?? 0, color: "text-emerald-300" },
+              { label: "Requieren revisión", value: karaokeMetrics?.totals.needsReviewLinks ?? 0, color: "text-amber-200" },
+              { label: "Proporción funcional", value: `${karaokeMetrics?.totals.workingRate ?? 0}%`, color: "text-emerald-300" },
+            ].map((metric) => <div key={metric.label} className="rounded-lg border border-border bg-card p-3"><p className="text-xs uppercase tracking-wide text-muted-foreground">{metric.label}</p><p className={`mt-1 text-2xl font-bold ${metric.color}`}>{metric.value}</p></div>)}</div>
+            {!karaokeMetrics?.venues.length ? <p className="py-6 text-center text-sm text-muted-foreground">No hay locales activos para medir.</p> : <div className="mt-4 space-y-3">{karaokeMetrics.venues.map((venue) => <div key={venue.venueId} className="rounded-lg border border-border bg-background p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold text-foreground">{venue.venueName}</p><p className="text-xs text-muted-foreground">{venue.workingLinks}/{venue.totalLinks} enlaces funcionales · {venue.unverifiedLinks} sin verificar · {venue.needsReviewLinks} en revisión</p></div><span className="text-lg font-bold text-emerald-300">{venue.workingRate}%</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary" role="progressbar" aria-label={`Enlaces funcionales de ${venue.venueName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={venue.workingRate}><div className="h-full rounded-full bg-emerald-400" style={{ width: `${venue.workingRate}%` }} /></div></div>)}</div>}
+          </>}
         </section>
 
         <section className="space-y-4" aria-labelledby="owner-analytics-title">

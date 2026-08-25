@@ -473,3 +473,5 @@
 - [x] Añadir etiquetas de estado para enlaces de karaoke y permitir que Staff marque si requieren revisión
 - [x] Filtrar el historial musical por rango de fechas de forma segura por local
 - [x] Registrar y mostrar el Staff que inició la reproducción de cada canción
+- [x] Solicitar y guardar notas explicativas al marcar un enlace de karaoke como Requiere revisión
+- [x] Crear métricas Owner de enlaces de karaoke funcionales, pendientes y en revisión por local

@@ -1174,6 +1174,7 @@ export async function saveKaraokeLinkForSong(input: {
     karaokeSavedByUserId: input.karaokeSavedByUserId,
     karaokeSavedAt: new Date(),
     karaokeLinkStatus: "unverified",
+    karaokeLinkReviewNote: null,
     karaokeLinkStatusUpdatedByUserId: input.karaokeSavedByUserId,
     karaokeLinkStatusUpdatedAt: new Date(),
   }).where(and(eq(songQueue.id, input.songId), eq(songQueue.venueId, input.venueId)));
@@ -1186,12 +1187,14 @@ export async function updateKaraokeLinkStatusForSong(input: {
   venueId: number;
   songId: number;
   status: KaraokeLinkStatus;
+  reviewNote?: string | null;
   updatedByUserId: number;
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const result = await db.update(songQueue).set({
     karaokeLinkStatus: input.status,
+    karaokeLinkReviewNote: input.status === "needs_review" ? (input.reviewNote ?? null) : null,
     karaokeLinkStatusUpdatedByUserId: input.updatedByUserId,
     karaokeLinkStatusUpdatedAt: new Date(),
   }).where(and(eq(songQueue.id, input.songId), eq(songQueue.venueId, input.venueId)));
@@ -1230,6 +1233,52 @@ export async function getVenueKaraokeProviders(venueId: number): Promise<Karaoke
   } catch {
     return [];
   }
+}
+
+export type KaraokeVenueMetric = {
+  venueId: number;
+  venueName: string;
+  totalLinks: number;
+  workingLinks: number;
+  unverifiedLinks: number;
+  needsReviewLinks: number;
+  workingRate: number;
+};
+
+export async function getOwnerKaraokeLinkMetrics() {
+  const emptyTotals = { totalLinks: 0, workingLinks: 0, unverifiedLinks: 0, needsReviewLinks: 0, workingRate: 0 };
+  const db = await getDb();
+  if (!db) return { totals: emptyTotals, venues: [] as KaraokeVenueMetric[] };
+
+  const activeVenues = await db.select({ id: venues.id, name: venues.name }).from(venues).where(eq(venues.isActive, true));
+  if (activeVenues.length === 0) return { totals: emptyTotals, venues: [] as KaraokeVenueMetric[] };
+
+  const links = await db.select({ venueId: songQueue.venueId, status: songQueue.karaokeLinkStatus }).from(songQueue).where(
+    and(inArray(songQueue.venueId, activeVenues.map((venue) => venue.id)), isNotNull(songQueue.karaokeUrl))
+  );
+  const venueMetrics = activeVenues.map((venue) => {
+    const venueLinks = links.filter((link) => link.venueId === venue.id);
+    const workingLinks = venueLinks.filter((link) => link.status === "working").length;
+    const needsReviewLinks = venueLinks.filter((link) => link.status === "needs_review").length;
+    const unverifiedLinks = venueLinks.length - workingLinks - needsReviewLinks;
+    return {
+      venueId: venue.id,
+      venueName: venue.name,
+      totalLinks: venueLinks.length,
+      workingLinks,
+      unverifiedLinks,
+      needsReviewLinks,
+      workingRate: venueLinks.length ? Math.round((workingLinks / venueLinks.length) * 100) : 0,
+    };
+  }).sort((a, b) => a.venueName.localeCompare(b.venueName, "es"));
+
+  const totals = venueMetrics.reduce((summary, venue) => ({
+    totalLinks: summary.totalLinks + venue.totalLinks,
+    workingLinks: summary.workingLinks + venue.workingLinks,
+    unverifiedLinks: summary.unverifiedLinks + venue.unverifiedLinks,
+    needsReviewLinks: summary.needsReviewLinks + venue.needsReviewLinks,
+  }), { totalLinks: 0, workingLinks: 0, unverifiedLinks: 0, needsReviewLinks: 0 });
+  return { totals: { ...totals, workingRate: totals.totalLinks ? Math.round((totals.workingLinks / totals.totalLinks) * 100) : 0 }, venues: venueMetrics };
 }
 
 export async function updateSongMetadataForVenue(songId: number, venueId: number, songName: string, artist: string) {

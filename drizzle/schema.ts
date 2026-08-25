@@ -356,6 +356,7 @@ export const songQueue = mysqlTable("song_queue", {
   karaokeSavedByUserId: int("karaokeSavedByUserId"),
   karaokeSavedAt: timestamp("karaokeSavedAt"),
   karaokeLinkStatus: mysqlEnum("karaokeLinkStatus", ["unverified", "working", "needs_review"]).default("unverified").notNull(),
+  karaokeLinkReviewNote: varchar("karaokeLinkReviewNote", { length: 500 }),
   karaokeLinkStatusUpdatedByUserId: int("karaokeLinkStatusUpdatedByUserId"),
   karaokeLinkStatusUpdatedAt: timestamp("karaokeLinkStatusUpdatedAt"),
   playedByUserId: int("playedByUserId"),

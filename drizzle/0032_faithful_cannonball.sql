@@ -1,0 +1,1 @@
+ALTER TABLE `song_queue` ADD `karaokeLinkReviewNote` varchar(500);

@@ -15,6 +15,7 @@ const dbMocks = vi.hoisted(() => ({
   getVenueKaraokeProviders: vi.fn(),
   saveKaraokeLinkForSong: vi.fn(),
   updateKaraokeLinkStatusForSong: vi.fn(),
+  getOwnerKaraokeLinkMetrics: vi.fn(),
 }));
 
 vi.mock("./db", () => dbMocks);
@@ -43,6 +44,7 @@ describe("music router", () => {
     dbMocks.getVenueKaraokeProviders.mockResolvedValue([]);
     dbMocks.saveKaraokeLinkForSong.mockResolvedValue(true);
     dbMocks.updateKaraokeLinkStatusForSong.mockResolvedValue(true);
+    dbMocks.getOwnerKaraokeLinkMetrics.mockResolvedValue({ totals: { totalLinks: 0, workingLinks: 0, unverifiedLinks: 0, needsReviewLinks: 0, workingRate: 0 }, venues: [] });
   });
 
   it("adds a requested song at the end of the FIFO queue", async () => {
@@ -98,6 +100,7 @@ describe("music router", () => {
       karaokeProviderName: "Proveedor privado",
       karaokeSavedByUserId: 5,
       karaokeSavedAt: new Date(),
+      karaokeLinkReviewNote: "El video no tiene audio",
     };
     dbMocks.getCurrentSong.mockResolvedValue(storedSong);
     dbMocks.getSongQueue.mockResolvedValue([storedSong]);
@@ -108,6 +111,7 @@ describe("music router", () => {
     expect(result.current).not.toHaveProperty("karaokeUrl");
     expect(result.current).not.toHaveProperty("karaokeProviderName");
     expect(result.current).not.toHaveProperty("karaokeLinkStatus");
+    expect(result.current).not.toHaveProperty("karaokeLinkReviewNote");
     expect(result.current).not.toHaveProperty("playedByUserName");
     expect(result.queue[0]).not.toHaveProperty("karaokeUrl");
   });
@@ -209,7 +213,26 @@ describe("music router", () => {
     const caller = musicRouter.createCaller({ user: { id: 5, role: "staff", venueId: 7 }, req: {}, res: {} } as any);
 
     await expect(caller.updateKaraokeLinkStatus({ venueId: 7, songId: 14, status: "working" })).resolves.toEqual({ success: true });
-    expect(dbMocks.updateKaraokeLinkStatusForSong).toHaveBeenCalledWith({ venueId: 7, songId: 14, status: "working", updatedByUserId: 5 });
-    await expect(caller.updateKaraokeLinkStatus({ venueId: 8, songId: 14, status: "needs_review" })).rejects.toThrow("FORBIDDEN");
+    expect(dbMocks.updateKaraokeLinkStatusForSong).toHaveBeenCalledWith({ venueId: 7, songId: 14, status: "working", reviewNote: null, updatedByUserId: 5 });
+    await expect(caller.updateKaraokeLinkStatus({ venueId: 8, songId: 14, status: "needs_review", reviewNote: "El enlace pertenece a otro local" })).rejects.toThrow("FORBIDDEN");
+  });
+
+  it("requiere una nota explicativa cuando el Staff marca un enlace para revisión", async () => {
+    dbMocks.getSongByIdForVenue.mockResolvedValue({ id: 14, venueId: 7, karaokeUrl: "https://example.com/karaoke" });
+    const caller = musicRouter.createCaller({ user: { id: 5, role: "staff", venueId: 7 }, req: {}, res: {} } as any);
+
+    await expect(caller.updateKaraokeLinkStatus({ venueId: 7, songId: 14, status: "needs_review" })).rejects.toThrow("Explica por qué el enlace requiere revisión");
+    await expect(caller.updateKaraokeLinkStatus({ venueId: 7, songId: 14, status: "needs_review", reviewNote: "El video abre sin audio" })).resolves.toEqual({ success: true });
+    expect(dbMocks.updateKaraokeLinkStatusForSong).toHaveBeenLastCalledWith({ venueId: 7, songId: 14, status: "needs_review", reviewNote: "El video abre sin audio", updatedByUserId: 5 });
+  });
+
+  it("expone métricas agregadas de karaoke solo al Owner", async () => {
+    const metrics = { totals: { totalLinks: 4, workingLinks: 3, unverifiedLinks: 0, needsReviewLinks: 1, workingRate: 75 }, venues: [{ venueId: 7, venueName: "Local Centro", totalLinks: 4, workingLinks: 3, unverifiedLinks: 0, needsReviewLinks: 1, workingRate: 75 }] };
+    dbMocks.getOwnerKaraokeLinkMetrics.mockResolvedValue(metrics);
+    const ownerCaller = musicRouter.createCaller({ user: { id: 1, role: "owner", venueId: null }, req: {}, res: {} } as any);
+    const staffCaller = musicRouter.createCaller({ user: { id: 5, role: "staff", venueId: 7 }, req: {}, res: {} } as any);
+
+    await expect(ownerCaller.getOwnerKaraokeLinkMetrics()).resolves.toEqual(metrics);
+    await expect(staffCaller.getOwnerKaraokeLinkMetrics()).rejects.toThrow("FORBIDDEN");
   });
 });

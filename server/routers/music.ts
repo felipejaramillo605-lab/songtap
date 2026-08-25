@@ -16,6 +16,7 @@ import {
   getVenueKaraokeProviders,
   saveKaraokeLinkForSong,
   updateKaraokeLinkStatusForSong,
+  getOwnerKaraokeLinkMetrics,
 } from "../db";
 import { normalizeMusicMetadata } from "../musicMetadata";
 
@@ -35,6 +36,7 @@ function sanitizeSongForClient<T extends Record<string, unknown> | null>(song: T
     karaokeSavedByUserId,
     karaokeSavedAt,
     karaokeLinkStatus,
+    karaokeLinkReviewNote,
     karaokeLinkStatusUpdatedByUserId,
     karaokeLinkStatusUpdatedAt,
     playedByUserId,
@@ -48,6 +50,10 @@ function assertVenueAccess(user: { role: string; venueId: number | null }, venue
   if (user.role !== "owner" && user.venueId !== venueId) {
     throw new TRPCError({ code: "FORBIDDEN" });
   }
+}
+
+function assertOwner(user: { role: string }) {
+  if (user.role !== "owner") throw new TRPCError({ code: "FORBIDDEN" });
 }
 
 async function assertClientQrSession(input: {
@@ -115,6 +121,13 @@ export const musicRouter = router({
     .query(async ({ ctx, input }) => {
       assertVenueAccess(ctx.user, input.venueId);
       return getVenueKaraokeProviders(input.venueId);
+    }),
+
+  // Owner: métricas agregadas de calidad de enlaces por cada local activo.
+  getOwnerKaraokeLinkMetrics: protectedProcedure
+    .query(async ({ ctx }) => {
+      assertOwner(ctx.user);
+      return getOwnerKaraokeLinkMetrics();
     }),
 
   // Staff/Manager: historial de canciones que terminaron de reproducirse.
@@ -216,6 +229,11 @@ export const musicRouter = router({
       venueId: z.number(),
       songId: z.number(),
       status: z.enum(["unverified", "working", "needs_review"]),
+      reviewNote: z.string().trim().max(500).optional(),
+    }).superRefine((input, context) => {
+      if (input.status === "needs_review" && !input.reviewNote?.trim()) {
+        context.addIssue({ code: "custom", path: ["reviewNote"], message: "Explica por qué el enlace requiere revisión" });
+      }
     }))
     .mutation(async ({ ctx, input }) => {
       assertVenueAccess(ctx.user, input.venueId);
@@ -226,6 +244,7 @@ export const musicRouter = router({
         venueId: input.venueId,
         songId: input.songId,
         status: input.status,
+        reviewNote: input.reviewNote?.trim() || null,
         updatedByUserId: ctx.user.id,
       });
       if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Canción no encontrada en este local" });
