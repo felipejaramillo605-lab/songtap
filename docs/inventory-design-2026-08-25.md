@@ -144,7 +144,7 @@ Las operaciones de inicio, captura por línea, envío y conciliación quedan en 
 | Conciliación | Un conteo completo ajusta la diferencia y genera movimiento `adjustment`; un conteo incompleto no se puede enviar. |
 | Concurrencia | Un movimiento posterior al inicio bloquea la conciliación sin modificar saldo. |
 | Permisos y aislamiento | Staff no puede conciliar y cada lectura/escritura queda limitada al local autorizado. |
-| Suite final | **51 archivos y 204 pruebas aprobadas**, con TypeScript sin errores. |
+| Suite final | **52 archivos y 206 pruebas aprobadas**, con TypeScript sin errores. |
 
 ## Control dual, plantillas e indicadores
 
@@ -153,3 +153,7 @@ Cada local podrá activar la **aprobación dual** y definir su propio umbral mon
 Los insumos podrán clasificarse con una **familia** definida por el local. Una plantilla de conteo tendrá nombre y una o varias familias; al aplicarla, SongTap incluirá exclusivamente los insumos activos pertenecientes a esas familias y dejará la plantilla utilizada en la sesión para conservar trazabilidad. La plantilla no mezclará datos entre locales y seguirá respetando las validaciones de unidades y concurrencia ya existentes.
 
 El Dashboard Manager incorporará indicadores de control de inventario calculados por local: conteos conciliados en los últimos 30 días, días desde el último conteo, frecuencia media entre conteos, valor absoluto de desviación y porcentaje de desviación frente al valor contado. Los indicadores se basarán solo en conteos conciliados y costos capturados, para evitar que conteos incompletos o pendientes distorsionen la gestión.
+
+Cuando una conciliación queda pendiente por superar el umbral, SongTap genera una **notificación interna** para cada Manager del mismo local que sea elegible para decidirla. El solicitante y quien envió el conteo no reciben esa alerta, conservando la separación de funciones. Las alertas aparecen en el Perfil, participan en el contador de no leídas y nunca se comparten con Staff u otros locales.
+
+La aplicación incorpora una preferencia persistente de **modo claro u oscuro**. El selector está disponible en paneles internos, pantalla de acceso y portal QR; los tokens semánticos adaptan superficies, texto, bordes, tarjetas, estados y avisos. Los colores heredados de estado reciben alternativas de alto contraste en modo claro para mantener la lectura sobre fondos claros.

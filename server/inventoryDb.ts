@@ -562,6 +562,18 @@ export async function submitInventoryPhysicalCount(input: { venueId: number; phy
     const approvalRequired = Boolean(settings?.dualApprovalEnabled && totalVarianceCost > 0 && totalVarianceCost > thresholdCost);
     const status = approvalRequired ? "pending_approval" : "ready_to_reconcile";
     await tx.update(inventoryPhysicalCounts).set({ status, submittedAt: new Date(), submittedByUserId: input.submittedByUserId, totalVarianceCost: String(totalVarianceCost), approvalRequired, approvalThresholdCost: approvalRequired ? String(thresholdCost) : null }).where(eq(inventoryPhysicalCounts.id, count.id));
+    if (approvalRequired) {
+      const managers = await tx.select({ id: users.id }).from(users).where(and(eq(users.venueId, input.venueId), eq(users.role, "manager")));
+      const eligibleManagerIds = managers.map((manager: { id: number }) => manager.id).filter((managerId: number) => managerId !== count.createdByUserId && managerId !== input.submittedByUserId);
+      if (eligibleManagerIds.length) {
+        await tx.insert(userNotificationHistory).values(eligibleManagerIds.map((userId: number) => ({
+          userId,
+          type: "inventory_approval_pending",
+          title: "Aprobación de inventario pendiente",
+          content: `El conteo físico #${count.id} requiere tu decisión antes de conciliar. Diferencia valorada: $${Math.round(totalVarianceCost).toLocaleString("es-CO")}; umbral del local: $${Math.round(thresholdCost).toLocaleString("es-CO")}.`,
+        })));
+      }
+    }
     return { physicalCountId: count.id, differenceCount: lines.filter((line: typeof inventoryPhysicalCountLines.$inferSelect) => Number(line.varianceBase ?? 0) !== 0).length, totalVarianceCost, approvalRequired };
   });
 }

@@ -34,6 +34,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import OnboardingCenter from "@/components/OnboardingCenter";
 import PlatformUpdates from "@/components/PlatformUpdates";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface NavItem {
   label: string;
@@ -72,9 +73,9 @@ const staffNav: NavItem[] = [
 
 const roleLabels = { owner: "Owner", manager: "Manager", staff: "Staff" };
 const roleColors = {
-  owner: "text-purple-400",
-  manager: "text-blue-400",
-  staff: "text-green-400",
+  owner: "text-purple-700 dark:text-purple-400",
+  manager: "text-blue-700 dark:text-blue-400",
+  staff: "text-green-700 dark:text-green-400",
 };
 
 export default function SongTapLayout({ children, role, title }: SongTapLayoutProps) {
@@ -247,6 +248,7 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
           <div className="space-y-1.5">
             <PlatformUpdates compact={collapsed} />
             <OnboardingCenter role={role} compact />
+            <ThemeToggle compact={collapsed} />
             <div className="flex items-center justify-between gap-1">
             <Button
               variant="ghost"
@@ -326,7 +328,7 @@ export default function SongTapLayout({ children, role, title }: SongTapLayoutPr
                 </div>
               </div>
             )}
-            <div className="space-y-1.5"><PlatformUpdates /><OnboardingCenter role={role} compact /></div>
+            <div className="space-y-1.5"><PlatformUpdates /><OnboardingCenter role={role} compact /><ThemeToggle /></div>
             <Button
               variant="ghost"
               className="w-full justify-start gap-2 text-muted-foreground hover:bg-destructive/10 hover:text-foreground"

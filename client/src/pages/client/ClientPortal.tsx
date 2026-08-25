@@ -2,6 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ThemeToggle from "@/components/ThemeToggle";
 import { Music2, MapPin, Phone, QrCode, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
@@ -56,10 +57,11 @@ export default function ClientPortal() {
 
   if (step === "error") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="relative min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="absolute right-4 top-4"><ThemeToggle compact /></div>
         <div className="text-center space-y-5 max-w-sm mx-auto p-6 rounded-2xl bg-card border border-border shadow-2xl">
           <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto">
-            <QrCode size={28} className="text-red-400" />
+            <QrCode size={28} className="text-red-600 dark:text-red-400" />
           </div>
           <div className="space-y-2">
             <h2 className="text-xl font-bold text-foreground">¡Código QR no disponible!</h2>
@@ -79,7 +81,8 @@ export default function ClientPortal() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="relative min-h-screen bg-background text-foreground">
+      <div className="absolute right-4 top-4 z-10"><ThemeToggle compact /></div>
       {/* Header */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent" />

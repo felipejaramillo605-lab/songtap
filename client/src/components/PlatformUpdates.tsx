@@ -16,12 +16,12 @@ const updates = [
   {
     title: "Ayuda y reporte de incidencias",
     description: "La guía ahora reúne soluciones frecuentes, favoritos personales, valoración de artículos y un canal para reportar incidencias al equipo Owner.",
-    icon: <Megaphone className="h-5 w-5 text-blue-400" />,
+    icon: <Megaphone className="h-5 w-5 text-blue-700 dark:text-blue-400" />,
   },
   {
     title: "Control y seguimiento para Owner",
     description: "El panel Owner incorpora reportes manuales y programados, comparativos de PQRS y métricas de adopción del onboarding por rol.",
-    icon: <ShieldCheck className="h-5 w-5 text-purple-400" />,
+    icon: <ShieldCheck className="h-5 w-5 text-purple-700 dark:text-purple-400" />,
   },
 ];
 

@@ -24,7 +24,7 @@ export function ThemeProvider({
   const [theme, setTheme] = useState<Theme>(() => {
     if (switchable) {
       const stored = localStorage.getItem("theme");
-      return (stored as Theme) || defaultTheme;
+      return stored === "light" || stored === "dark" ? stored : defaultTheme;
     }
     return defaultTheme;
   });
@@ -42,11 +42,7 @@ export function ThemeProvider({
     }
   }, [theme, switchable]);
 
-  const toggleTheme = switchable
-    ? () => {
-        setTheme(prev => (prev === "light" ? "dark" : "light"));
-      }
-    : undefined;
+  const toggleTheme = switchable ? () => setTheme(prev => (prev === "light" ? "dark" : "light")) : undefined;
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, switchable }}>
@@ -61,4 +57,8 @@ export function useTheme() {
     throw new Error("useTheme must be used within ThemeProvider");
   }
   return context;
+}
+
+export function useOptionalTheme() {
+  return useContext(ThemeContext);
 }

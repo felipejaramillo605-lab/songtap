@@ -305,7 +305,10 @@ describe("inventarios", () => {
   it("aplica plantillas por familia y exige una aprobación independiente sobre el umbral del local", async () => {
     const { venueId, manager } = await createFixture();
     const managerCaller = appRouter.createCaller(context({ id: manager.id, role: "manager", venueId }));
-    const ownerCaller = appRouter.createCaller(context({ id: 880001, role: "owner", venueId: null }));
+    const secondManager = await createUserWithPassword({ email: `inventory-approver-${Date.now()}-${Math.random()}@songtap.test`, passwordHash: await bcrypt.hash("Inventario!26", 10), name: "Aprobador Inventario", role: "manager", venueId });
+    if (!secondManager) throw new Error("No se creó el segundo Manager de prueba");
+    created.userIds.push(secondManager.id);
+    const secondManagerCaller = appRouter.createCaller(context({ id: secondManager.id, role: "manager", venueId }));
     const drinks = await managerCaller.inventory.createItem({ venueId, name: "Botella controlada", family: "Bebidas", dimension: "count", reorderPointQuantity: 0, reorderPointUnit: "unit" });
     await managerCaller.inventory.createItem({ venueId, name: "Vaso controlado", family: "Bebidas", dimension: "count", reorderPointQuantity: 0, reorderPointUnit: "unit" });
     await managerCaller.inventory.createItem({ venueId, name: "Harina cocina", family: "Cocina", dimension: "mass", reorderPointQuantity: 0, reorderPointUnit: "g" });
@@ -320,9 +323,13 @@ describe("inventarios", () => {
     for (const line of dualLines) await managerCaller.inventory.recordPhysicalCountLine({ venueId, physicalCountId: dualCount.physicalCountId, inventoryItemId: line.inventoryItemId, physicalQuantity: line.inventoryItemId === drinks.item!.id ? 4 : Number(line.systemStockBase), unit: line.item?.baseUnit as "unit" | "ml" | "g" });
     const submitted = await managerCaller.inventory.submitPhysicalCount({ venueId, physicalCountId: dualCount.physicalCountId });
     expect(submitted).toMatchObject({ approvalRequired: true, totalVarianceCost: 3000 });
+    const approverNotifications = await secondManagerCaller.notifications.getMyHistory();
+    expect(approverNotifications.some((notification) => notification.type === "inventory_approval_pending" && notification.content.includes(`conteo físico #${dualCount.physicalCountId}`))).toBe(true);
+    const requesterNotifications = await managerCaller.notifications.getMyHistory();
+    expect(requesterNotifications.some((notification) => notification.type === "inventory_approval_pending")).toBe(false);
     await expect(managerCaller.inventory.decidePhysicalCountApproval({ venueId, physicalCountId: dualCount.physicalCountId, approved: true })).rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringContaining("otra persona") });
     await expect(managerCaller.inventory.reconcilePhysicalCount({ venueId, physicalCountId: dualCount.physicalCountId })).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    await ownerCaller.inventory.decidePhysicalCountApproval({ venueId, physicalCountId: dualCount.physicalCountId, approved: true, note: "Validado por control" });
+    await secondManagerCaller.inventory.decidePhysicalCountApproval({ venueId, physicalCountId: dualCount.physicalCountId, approved: true, note: "Validado por control" });
     await managerCaller.inventory.reconcilePhysicalCount({ venueId, physicalCountId: dualCount.physicalCountId });
     const metrics = await managerCaller.inventory.countMetrics({ venueId });
     expect(metrics).toMatchObject({ reconciledLast30Days: 1, totalVarianceCostLast30Days: 3000, deviationRateLast30Days: 60 });

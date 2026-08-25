@@ -520,3 +520,8 @@
 - [x] Mostrar frecuencia de conteos y desviación de stock en el Dashboard Manager
 - [x] Validar umbrales, permisos, plantillas, indicadores y aislamiento por local
 - [x] Permitir que cada local configure y actualice su propio umbral de aprobación dual
+- [x] Definir alertas internas para Managers elegibles ante conteos pendientes de aprobación
+- [x] Notificar por local la solicitud de aprobación y conservar su trazabilidad
+- [x] Implementar selector de modo claro y oscuro con preferencia persistente
+- [x] Revisar contraste, fondos y legibilidad en modo claro para vistas principales
+- [x] Validar alertas, permisos, temas y compatibilidad responsive

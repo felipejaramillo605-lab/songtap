@@ -202,8 +202,8 @@ export default function Profile() {
         <Card className="border-primary/25 bg-card">
           <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
             <div>
-              <CardTitle className="flex items-center gap-2 text-lg"><Bell className="h-5 w-5 text-primary" /> Decisiones de acceso</CardTitle>
-              <CardDescription className="mt-1">Aquí recibes la respuesta del Owner a las solicitudes de módulos protegidos.</CardDescription>
+              <CardTitle className="flex items-center gap-2 text-lg"><Bell className="h-5 w-5 text-primary" /> Notificaciones internas</CardTitle>
+              <CardDescription className="mt-1">Aquí recibes decisiones de acceso y alertas operativas, como aprobaciones pendientes de inventario.</CardDescription>
             </div>
             {unreadAccessNotifications > 0 && <span className="rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary">{unreadAccessNotifications} nueva{unreadAccessNotifications === 1 ? "" : "s"}</span>}
           </CardHeader>
@@ -211,7 +211,7 @@ export default function Profile() {
             {isLoadingAccessNotifications ? (
               <p className="text-sm text-muted-foreground">Cargando decisiones...</p>
             ) : accessNotifications.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{showArchivedNotifications ? "No tienes notificaciones archivadas." : "No tienes decisiones de acceso pendientes de leer."}</p>
+              <p className="text-sm text-muted-foreground">{showArchivedNotifications ? "No tienes notificaciones archivadas." : "No tienes notificaciones internas pendientes de leer."}</p>
             ) : (
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">

@@ -3,7 +3,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { Toaster } from "sonner";
 import { useAuth } from "./_core/hooks/useAuth";
 import SongTapLayout from "./components/SongTapLayout";
@@ -179,21 +179,24 @@ function ProtectedRouteTransition({ children }: { children: ReactNode }) {
   return isTransitioning ? <DashboardLayoutSkeleton /> : <>{children}</>;
 }
 
+function AppToaster() {
+  const { theme } = useTheme();
+  return <Toaster
+    theme={theme}
+    toastOptions={{
+      style: theme === "dark"
+        ? { background: "oklch(0.14 0.005 240)", border: "1px solid oklch(0.22 0.005 240)", color: "oklch(0.97 0.005 240)" }
+        : { background: "oklch(0.99 0.004 145)", border: "1px solid oklch(0.84 0.01 145)", color: "oklch(0.20 0.02 145)" },
+    }}
+  />;
+}
+
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark">
+      <ThemeProvider defaultTheme="dark" switchable>
         <TooltipProvider>
-          <Toaster
-            theme="dark"
-            toastOptions={{
-              style: {
-                background: "oklch(0.14 0.005 240)",
-                border: "1px solid oklch(0.22 0.005 240)",
-                color: "oklch(0.97 0.005 240)",
-              },
-            }}
-          />
+          <AppToaster />
           <PreviewModeBanner />
           <ProtectedRouteTransition><Router /></ProtectedRouteTransition>
         </TooltipProvider>
