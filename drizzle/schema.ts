@@ -68,6 +68,7 @@ export const venues = mysqlTable("venues", {
   musicMode: mysqlEnum("musicMode", ["auto", "manual"]).default("manual").notNull(),
   musicProvider: mysqlEnum("musicProvider", ["manual", "spotify", "youtube", "soundcloud"]).default("manual").notNull(),
   musicConnectionStatus: mysqlEnum("musicConnectionStatus", ["not_configured", "pending", "connected"]).default("not_configured").notNull(),
+  karaokeProviders: text("karaokeProviders"), // JSON: proveedores de búsqueda definidos por este local
   isActive: boolean("isActive").default(true).notNull(),
   privacyPolicyAccepted: boolean("privacyPolicyAccepted").default(false).notNull(),
   privacyPolicyAcceptedAt: timestamp("privacyPolicyAcceptedAt"),
@@ -350,6 +351,10 @@ export const songQueue = mysqlTable("song_queue", {
   position: int("position").notNull(), // posición en la cola
   addedByTableId: int("addedByTableId"),
   addedByTableName: varchar("addedByTableName", { length: 255 }),
+  karaokeUrl: varchar("karaokeUrl", { length: 2048 }),
+  karaokeProviderName: varchar("karaokeProviderName", { length: 128 }),
+  karaokeSavedByUserId: int("karaokeSavedByUserId"),
+  karaokeSavedAt: timestamp("karaokeSavedAt"),
   playedAt: timestamp("playedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

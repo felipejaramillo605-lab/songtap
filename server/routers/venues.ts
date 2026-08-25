@@ -14,6 +14,29 @@ import {
   updateVenue,
 } from "../db";
 
+const karaokeProviderSchema = z.object({
+  id: z.string().trim().min(1).max(64).regex(/^[a-z0-9-]+$/),
+  name: z.string().trim().min(2).max(80),
+  searchUrl: z.string().url().max(2048).refine((value) => {
+    try {
+      const url = new URL(value);
+      return ["http:", "https:"].includes(url.protocol) && value.includes("{query}");
+    } catch {
+      return false;
+    }
+  }, "La URL debe usar HTTP/HTTPS e incluir {query} como marcador de búsqueda"),
+});
+
+const karaokeProvidersSchema = z.array(karaokeProviderSchema).max(8).superRefine((providers, ctx) => {
+  const identifiers = new Set<string>();
+  providers.forEach((provider, index) => {
+    if (identifiers.has(provider.id)) {
+      ctx.addIssue({ code: "custom", message: "Cada proveedor debe tener un identificador distinto", path: [index, "id"] });
+    }
+    identifiers.add(provider.id);
+  });
+});
+
 export const venuesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user.role === "owner") {
@@ -84,6 +107,7 @@ export const venuesRouter = router({
         socialLinks: z.string().optional(),
         musicMode: z.enum(["auto", "manual"]).optional(),
         musicProvider: z.enum(["manual", "spotify", "youtube", "soundcloud"]).optional(),
+        karaokeProviders: karaokeProvidersSchema.optional(),
         isActive: z.boolean().optional(),
         privacyPolicyAccepted: z.boolean().optional(),
       })
@@ -92,15 +116,19 @@ export const venuesRouter = router({
       if (ctx.user.role !== "owner" && ctx.user.venueId !== input.id) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
-      const { id, ...data } = input;
-      if (data.musicProvider) {
-        (data as Record<string, unknown>).musicConnectionStatus = data.musicProvider === "manual" ? "not_configured" : "pending";
-        (data as Record<string, unknown>).musicMode = "manual";
+      const { id, karaokeProviders, ...data } = input;
+      const venueData = {
+        ...data,
+        ...(karaokeProviders !== undefined ? { karaokeProviders: JSON.stringify(karaokeProviders) } : {}),
+      };
+      if (venueData.musicProvider) {
+        (venueData as Record<string, unknown>).musicConnectionStatus = venueData.musicProvider === "manual" ? "not_configured" : "pending";
+        (venueData as Record<string, unknown>).musicMode = "manual";
       }
-      if (data.privacyPolicyAccepted) {
-        (data as Record<string, unknown>).privacyPolicyAcceptedAt = new Date();
+      if (venueData.privacyPolicyAccepted) {
+        (venueData as Record<string, unknown>).privacyPolicyAcceptedAt = new Date();
       }
-      await updateVenue(id, data);
+      await updateVenue(id, venueData);
       await createAuditLog({
         venueId: id,
         userId: ctx.user.id,
@@ -108,7 +136,7 @@ export const venuesRouter = router({
         action: "UPDATE_VENUE",
         entity: "venue",
         entityId: id,
-        details: JSON.stringify(data),
+        details: JSON.stringify(venueData),
       });
       return { success: true };
     }),

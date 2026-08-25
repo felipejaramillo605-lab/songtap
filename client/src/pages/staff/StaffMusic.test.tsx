@@ -3,7 +3,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ normalize: vi.fn(), refetch: vi.fn(), toastSuccess: vi.fn(), toastError: vi.fn() }));
+const mocks = vi.hoisted(() => ({ normalize: vi.fn(), saveKaraokeLink: vi.fn(), refetch: vi.fn(), historyRefetch: vi.fn(), toastSuccess: vi.fn(), toastError: vi.fn() }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 4, role: "staff", venueId: 7 }, isAuthenticated: true, loading: false }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
@@ -12,6 +12,9 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
     playSong: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
     removeSong: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
     normalizeSongMetadata: { useMutation: () => ({ mutate: mocks.normalize, isPending: false }) },
+    getKaraokeProviders: { useQuery: () => ({ data: [] }) },
+    getPlaybackHistory: { useQuery: () => ({ data: [], refetch: mocks.historyRefetch }) },
+    saveKaraokeLink: { useMutation: () => ({ mutate: mocks.saveKaraokeLink, isPending: false }) },
   },
   venues: { getById: { useQuery: () => ({ data: { musicProvider: "manual", musicConnectionStatus: "not_configured" } }) } },
 } }));
@@ -25,7 +28,7 @@ vi.mock("sonner", () => ({ toast: { success: mocks.toastSuccess, error: mocks.to
 import StaffMusic from "./StaffMusic";
 
 describe("StaffMusic normalización local", () => {
-  beforeEach(() => { mocks.normalize.mockReset(); mocks.refetch.mockReset(); });
+  beforeEach(() => { mocks.normalize.mockReset(); mocks.saveKaraokeLink.mockReset(); mocks.refetch.mockReset(); mocks.historyRefetch.mockReset(); });
   afterEach(() => cleanup());
 
   it("permite normalizar una solicitud sin enviar metadatos a proveedores externos", () => {
@@ -43,5 +46,12 @@ describe("StaffMusic normalización local", () => {
     );
     expect(karaokeLink.getAttribute("target")).toBe("_blank");
     expect(mocks.normalize).not.toHaveBeenCalled();
+  });
+
+  it("permite iniciar el guardado de un enlace elegido sin mezclarlo con la normalización", () => {
+    render(<StaffMusic />);
+    expect(screen.getByRole("button", { name: "Guardar enlace de karaoke para Vivir Mi Vida - Marc Anthony" })).toBeTruthy();
+    expect(screen.getByText("Historial de reproducción")).toBeTruthy();
+    expect(mocks.saveKaraokeLink).not.toHaveBeenCalled();
   });
 });

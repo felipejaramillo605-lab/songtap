@@ -12,8 +12,25 @@ import {
   getQrSessionByToken,
   getSongByIdForVenue,
   updateSongMetadataForVenue,
+  getSongPlaybackHistory,
+  getVenueKaraokeProviders,
+  saveKaraokeLinkForSong,
 } from "../db";
 import { normalizeMusicMetadata } from "../musicMetadata";
+
+const karaokeUrlSchema = z.string().url().max(2048).refine((value) => {
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}, "El enlace debe usar HTTP o HTTPS");
+
+function sanitizeSongForClient<T extends Record<string, unknown> | null>(song: T) {
+  if (!song) return null;
+  const { karaokeUrl, karaokeProviderName, karaokeSavedByUserId, karaokeSavedAt, ...publicSong } = song;
+  return publicSong;
+}
 
 function assertVenueAccess(user: { role: string; venueId: number | null }, venueId: number) {
   if (user.role !== "owner" && user.venueId !== venueId) {
@@ -46,7 +63,7 @@ export const musicRouter = router({
     .input(z.object({ venueId: z.number(), sessionId: z.number(), sessionToken: z.string().min(16) }))
     .query(async ({ input }) => {
       await assertClientQrSession(input);
-      return getCurrentSong(input.venueId);
+      return sanitizeSongForClient(await getCurrentSong(input.venueId));
     }),
 
   // Cliente: cola pública con la canción actual y las próximas canciones.
@@ -54,9 +71,10 @@ export const musicRouter = router({
     .input(z.object({ venueId: z.number(), sessionId: z.number(), sessionToken: z.string().min(16) }))
     .query(async ({ input }) => {
       await assertClientQrSession(input);
+      const [current, queue] = await Promise.all([getCurrentSong(input.venueId), getSongQueue(input.venueId)]);
       return {
-        current: await getCurrentSong(input.venueId),
-        queue: await getSongQueue(input.venueId),
+        current: sanitizeSongForClient(current),
+        queue: queue.map((song) => sanitizeSongForClient(song)!),
       };
     }),
 
@@ -77,6 +95,22 @@ export const musicRouter = router({
         current: await getCurrentSong(input.venueId),
         queue: await getSongQueue(input.venueId),
       };
+    }),
+
+  // Staff/Manager: proveedores de búsqueda configurados para el propio local.
+  getKaraokeProviders: protectedProcedure
+    .input(z.object({ venueId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      return getVenueKaraokeProviders(input.venueId);
+    }),
+
+  // Staff/Manager: historial de canciones que terminaron de reproducirse.
+  getPlaybackHistory: protectedProcedure
+    .input(z.object({ venueId: z.number(), limit: z.number().int().min(1).max(100).default(50) }))
+    .query(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      return getSongPlaybackHistory(input.venueId, input.limit);
     }),
 
   // Cliente: solicitar una canción para el final de la cola FIFO.
@@ -132,6 +166,27 @@ export const musicRouter = router({
     .mutation(async ({ ctx, input }) => {
       assertVenueAccess(ctx.user, input.venueId);
       await removeSongFromQueue(input.songId, input.venueId);
+      return { success: true };
+    }),
+
+  // Staff/Manager: conservar el enlace de karaoke seleccionado para una canción del propio local.
+  saveKaraokeLink: protectedProcedure
+    .input(z.object({
+      venueId: z.number(),
+      songId: z.number(),
+      karaokeUrl: karaokeUrlSchema,
+      karaokeProviderName: z.string().trim().min(1).max(128).nullable().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      const saved = await saveKaraokeLinkForSong({
+        venueId: input.venueId,
+        songId: input.songId,
+        karaokeUrl: input.karaokeUrl,
+        karaokeProviderName: input.karaokeProviderName ?? null,
+        karaokeSavedByUserId: ctx.user.id,
+      });
+      if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Canción no encontrada en este local" });
       return { success: true };
     }),
 

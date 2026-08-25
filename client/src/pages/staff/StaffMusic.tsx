@@ -1,15 +1,15 @@
 import { trpc } from "@/lib/trpc";
 import SongTapLayout from "@/components/SongTapLayout";
+import KaraokeLinkManager from "@/components/KaraokeLinkManager";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Music2, Play, CheckCircle2, Trash2, Clock, Star, WandSparkles, Search } from "lucide-react";
+import { Music2, Play, CheckCircle2, Trash2, Clock, Star, WandSparkles, History } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { MusicProvider, musicProviderInfo, providerConnectionMessage } from "@/lib/musicProvider";
-import { buildKaraokeSearchUrl } from "@/lib/karaokeSearch";
 
 export default function StaffMusic() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -26,9 +26,14 @@ export default function StaffMusic() {
     { enabled: !!venueId, refetchInterval: 5000 }
   );
   const { data: venue } = trpc.venues.getById.useQuery({ id: venueId! }, { enabled: !!venueId });
+  const { data: karaokeProviders = [] } = trpc.music.getKaraokeProviders.useQuery({ venueId: venueId! }, { enabled: !!venueId });
+  const { data: playbackHistory = [], refetch: refetchHistory } = trpc.music.getPlaybackHistory.useQuery(
+    { venueId: venueId!, limit: 50 },
+    { enabled: !!venueId, refetchInterval: 10000 }
+  );
 
   const playSong = trpc.music.playSong.useMutation({
-    onSuccess: () => { toast.success("Canción reproduciéndose"); refetch(); },
+    onSuccess: () => { toast.success("Canción reproduciéndose"); refetch(); refetchHistory(); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -43,6 +48,11 @@ export default function StaffMusic() {
       refetch();
     },
     onError: (e) => toast.error(e.message),
+  });
+
+  const saveKaraokeLink = trpc.music.saveKaraokeLink.useMutation({
+    onSuccess: () => { toast.success("Enlace de karaoke guardado"); refetch(); refetchHistory(); },
+    onError: (error) => toast.error(error.message),
   });
 
   if (loading) return null;
@@ -85,15 +95,12 @@ export default function StaffMusic() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs bg-primary/20 text-primary px-3 py-1.5 rounded-full font-medium">En vivo</span>
-                  <a
-                    href={buildKaraokeSearchUrl(currentSong.songName, currentSong.artist)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    aria-label={`Buscar karaoke de ${currentSong.songName} en YouTube`}
-                  >
-                    <Search size={13} /> Buscar karaoke
-                  </a>
+                  <KaraokeLinkManager
+                    song={currentSong}
+                    providers={karaokeProviders}
+                    isSaving={saveKaraokeLink.isPending}
+                    onSave={(input) => saveKaraokeLink.mutate({ venueId: venueId!, ...input })}
+                  />
                 </div>
               </div>
             ) : (
@@ -160,15 +167,12 @@ export default function StaffMusic() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <a
-                        href={buildKaraokeSearchUrl(song.songName, song.artist)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                        aria-label={`Buscar karaoke de ${song.songName} en YouTube`}
-                      >
-                        <Search size={12} /> Karaoke
-                      </a>
+                      <KaraokeLinkManager
+                        song={song}
+                        providers={karaokeProviders}
+                        isSaving={saveKaraokeLink.isPending}
+                        onSave={(input) => saveKaraokeLink.mutate({ venueId: venueId!, ...input })}
+                      />
                       <Button
                         size="sm"
                         variant="outline"
@@ -197,6 +201,36 @@ export default function StaffMusic() {
                         <Trash2 size={14} />
                       </Button>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <History size={16} className="text-primary" /> Historial de reproducción
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {playbackHistory.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">Aún no hay canciones finalizadas en este local.</p>
+            ) : (
+              <div className="space-y-2">
+                {playbackHistory.map((song) => (
+                  <div key={song.id} className="flex flex-col gap-2 rounded-lg border border-border bg-secondary/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">{song.songName}</p>
+                      <p className="truncate text-xs text-muted-foreground">{song.artist} · {song.playedAt ? new Date(song.playedAt).toLocaleString("es-CO") : "Sin hora registrada"}</p>
+                    </div>
+                    <KaraokeLinkManager
+                      song={song}
+                      providers={karaokeProviders}
+                      isSaving={saveKaraokeLink.isPending}
+                      onSave={(input) => saveKaraokeLink.mutate({ venueId: venueId!, ...input })}
+                    />
                   </div>
                 ))}
               </div>

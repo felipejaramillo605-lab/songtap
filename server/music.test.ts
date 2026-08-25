@@ -11,6 +11,9 @@ const dbMocks = vi.hoisted(() => ({
   getQrSessionByToken: vi.fn(),
   getSongByIdForVenue: vi.fn(),
   updateSongMetadataForVenue: vi.fn(),
+  getSongPlaybackHistory: vi.fn(),
+  getVenueKaraokeProviders: vi.fn(),
+  saveKaraokeLinkForSong: vi.fn(),
 }));
 
 vi.mock("./db", () => dbMocks);
@@ -34,6 +37,9 @@ describe("music router", () => {
     dbMocks.getQrSessionByToken.mockResolvedValue({ id: 70, venueId: 7, tableId: 3, isActive: true });
     dbMocks.getSongByIdForVenue.mockResolvedValue({ id: 14, venueId: 7, songName: "  Vivir Mi Vida - Marc Anthony ", artist: "Artista desconocido" });
     dbMocks.updateSongMetadataForVenue.mockResolvedValue(true);
+    dbMocks.getSongPlaybackHistory.mockResolvedValue([]);
+    dbMocks.getVenueKaraokeProviders.mockResolvedValue([]);
+    dbMocks.saveKaraokeLinkForSong.mockResolvedValue(true);
   });
 
   it("adds a requested song at the end of the FIFO queue", async () => {
@@ -77,6 +83,28 @@ describe("music router", () => {
     expect(result).toEqual({ current, queue });
     expect(dbMocks.getCurrentSong).toHaveBeenCalledWith(7);
     expect(dbMocks.getSongQueue).toHaveBeenCalledWith(7);
+  });
+
+  it("no expone enlaces de karaoke guardados al portal público por QR", async () => {
+    const storedSong = {
+      id: 12,
+      songName: "Vivir Mi Vida",
+      artist: "Marc Anthony",
+      isCurrentlyPlaying: true,
+      karaokeUrl: "https://private-provider.example/watch/123",
+      karaokeProviderName: "Proveedor privado",
+      karaokeSavedByUserId: 5,
+      karaokeSavedAt: new Date(),
+    };
+    dbMocks.getCurrentSong.mockResolvedValue(storedSong);
+    dbMocks.getSongQueue.mockResolvedValue([storedSong]);
+    const caller = musicRouter.createCaller(publicContext as any);
+
+    const result = await caller.getClientQueue({ venueId: 7, sessionId: 70, sessionToken: "valid-music-session-token" });
+
+    expect(result.current).not.toHaveProperty("karaokeUrl");
+    expect(result.current).not.toHaveProperty("karaokeProviderName");
+    expect(result.queue[0]).not.toHaveProperty("karaokeUrl");
   });
 
   it("accepts an applause rating from 1 to 5 and rejects non-integer values", async () => {
@@ -125,5 +153,41 @@ describe("music router", () => {
     await expect(caller.normalizeSongMetadata({ venueId: 7, songId: 14 })).resolves.toMatchObject({ success: true, normalized: { songName: "Vivir Mi Vida", artist: "Marc Anthony" } });
     expect(dbMocks.updateSongMetadataForVenue).toHaveBeenCalledWith(14, 7, "Vivir Mi Vida", "Marc Anthony");
     await expect(caller.normalizeSongMetadata({ venueId: 8, songId: 14 })).rejects.toThrow("FORBIDDEN");
+  });
+
+  it("guarda un enlace de karaoke únicamente dentro del local del Staff", async () => {
+    const caller = musicRouter.createCaller({ user: { id: 5, role: "staff", venueId: 7 }, req: {}, res: {} } as any);
+    await expect(caller.saveKaraokeLink({
+      venueId: 7,
+      songId: 14,
+      karaokeUrl: "https://www.youtube.com/watch?v=chosen-karaoke",
+      karaokeProviderName: "YouTube",
+    })).resolves.toEqual({ success: true });
+    expect(dbMocks.saveKaraokeLinkForSong).toHaveBeenCalledWith({
+      venueId: 7,
+      songId: 14,
+      karaokeUrl: "https://www.youtube.com/watch?v=chosen-karaoke",
+      karaokeProviderName: "YouTube",
+      karaokeSavedByUserId: 5,
+    });
+    await expect(caller.saveKaraokeLink({
+      venueId: 8,
+      songId: 14,
+      karaokeUrl: "https://www.youtube.com/watch?v=chosen-karaoke",
+    })).rejects.toThrow("FORBIDDEN");
+  });
+
+  it("expone historial y proveedores solo al personal del local correspondiente", async () => {
+    const history = [{ id: 12, venueId: 7, songName: "Vivir Mi Vida", playedAt: new Date() }];
+    const providers = [{ id: "youtube", name: "YouTube", searchUrl: "https://www.youtube.com/results?search_query={query}" }];
+    dbMocks.getSongPlaybackHistory.mockResolvedValue(history);
+    dbMocks.getVenueKaraokeProviders.mockResolvedValue(providers);
+    const caller = musicRouter.createCaller({ user: { id: 5, role: "staff", venueId: 7 }, req: {}, res: {} } as any);
+
+    await expect(caller.getPlaybackHistory({ venueId: 7, limit: 20 })).resolves.toEqual(history);
+    await expect(caller.getKaraokeProviders({ venueId: 7 })).resolves.toEqual(providers);
+    expect(dbMocks.getSongPlaybackHistory).toHaveBeenCalledWith(7, 20);
+    await expect(caller.getPlaybackHistory({ venueId: 8 })).rejects.toThrow("FORBIDDEN");
+    await expect(caller.getKaraokeProviders({ venueId: 8 })).rejects.toThrow("FORBIDDEN");
   });
 });

@@ -467,3 +467,6 @@
 - [x] Mostrar de forma persistente la canción en reproducción en el portal por mesa y panel Staff
 - [x] Añadir asistencia por local para buscar enlaces legales de karaoke sin copiar letras ni descargar contenido protegido
 - [x] Implementar enlaces contextuales de búsqueda de karaoke desde cada canción de la cola y canción actual
+- [x] Permitir que Staff guarde y consulte el enlace de karaoke elegido para cada canción del local
+- [x] Crear historial de canciones reproducidas aislado por local para consulta de Staff
+- [x] Añadir configuración de proveedores de karaoke personalizados por local con validación de enlaces

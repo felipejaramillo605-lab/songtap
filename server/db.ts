@@ -1159,6 +1159,57 @@ export async function getSongByIdForVenue(songId: number, venueId: number) {
   return song;
 }
 
+export async function saveKaraokeLinkForSong(input: {
+  venueId: number;
+  songId: number;
+  karaokeUrl: string;
+  karaokeProviderName: string | null;
+  karaokeSavedByUserId: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.update(songQueue).set({
+    karaokeUrl: input.karaokeUrl,
+    karaokeProviderName: input.karaokeProviderName,
+    karaokeSavedByUserId: input.karaokeSavedByUserId,
+    karaokeSavedAt: new Date(),
+  }).where(and(eq(songQueue.id, input.songId), eq(songQueue.venueId, input.venueId)));
+  return (result[0] as { affectedRows: number }).affectedRows > 0;
+}
+
+export async function getSongPlaybackHistory(venueId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(songQueue).where(
+    and(eq(songQueue.venueId, venueId), isNotNull(songQueue.playedAt))
+  ).orderBy(desc(songQueue.playedAt)).limit(limit);
+}
+
+export type KaraokeProviderConfig = {
+  id: string;
+  name: string;
+  searchUrl: string;
+};
+
+export async function getVenueKaraokeProviders(venueId: number): Promise<KaraokeProviderConfig[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [venue] = await db.select({ karaokeProviders: venues.karaokeProviders }).from(venues).where(eq(venues.id, venueId)).limit(1);
+  if (!venue?.karaokeProviders) return [];
+  try {
+    const parsed = JSON.parse(venue.karaokeProviders);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((provider): provider is KaraokeProviderConfig => (
+      provider &&
+      typeof provider.id === "string" &&
+      typeof provider.name === "string" &&
+      typeof provider.searchUrl === "string"
+    ));
+  } catch {
+    return [];
+  }
+}
+
 export async function updateSongMetadataForVenue(songId: number, venueId: number, songName: string, artist: string) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");

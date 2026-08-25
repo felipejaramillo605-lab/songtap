@@ -8,11 +8,29 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Cog, Music2, Shield } from "lucide-react";
+import { Cog, Link2, Music2, Plus, Shield, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { MusicProvider, musicProviderInfo, providerConnectionMessage } from "@/lib/musicProvider";
+
+type KaraokeProviderDraft = { id: string; name: string; searchUrl: string };
+
+function parseKaraokeProviders(value: string | null | undefined): KaraokeProviderDraft[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((provider): provider is KaraokeProviderDraft => (
+      provider &&
+      typeof provider.id === "string" &&
+      typeof provider.name === "string" &&
+      typeof provider.searchUrl === "string"
+    ));
+  } catch {
+    return [];
+  }
+}
 
 export default function ManagerSettings() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -35,6 +53,7 @@ export default function ManagerSettings() {
   const [musicProvider, setMusicProvider] = useState<MusicProvider>("manual");
   const [musicConnectionStatus, setMusicConnectionStatus] = useState<"not_configured" | "pending" | "connected">("not_configured");
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [karaokeProviders, setKaraokeProviders] = useState<KaraokeProviderDraft[]>([]);
 
   useEffect(() => {
     if (venue) {
@@ -43,6 +62,7 @@ export default function ManagerSettings() {
       setMusicProvider(venue.musicProvider ?? "manual");
       setMusicConnectionStatus(venue.musicConnectionStatus ?? "not_configured");
       setPrivacyAccepted(venue.privacyPolicyAccepted);
+      setKaraokeProviders(parseKaraokeProviders(venue.karaokeProviders));
     }
   }, [venue]);
 
@@ -118,6 +138,45 @@ export default function ManagerSettings() {
         </Card>
 
         <Card className="bg-card border-border">
+          <CardHeader><CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2"><Link2 size={16} /> Proveedores de karaoke</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Define buscadores externos propios de este local. La URL debe incluir <code className="rounded bg-secondary px-1 py-0.5 text-foreground">{"{query}"}</code> donde se insertará el título y artista. SongTap solo abre la búsqueda; no reproduce ni descarga contenido.
+            </p>
+            {karaokeProviders.map((provider, index) => (
+              <div key={provider.id} className="rounded-xl border border-border bg-secondary/20 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold text-foreground">Proveedor {index + 1}</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-red-400 hover:bg-red-400/10 hover:text-red-300"
+                    onClick={() => setKaraokeProviders((current) => current.filter((item) => item.id !== provider.id))}
+                    aria-label={`Eliminar proveedor ${provider.name || index + 1}`}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Nombre</Label>
+                    <Input className="mt-1 bg-input border-border text-foreground" placeholder="Ej. Karaoke Oficial" value={provider.name} maxLength={80} onChange={(event) => setKaraokeProviders((current) => current.map((item) => item.id === provider.id ? { ...item, name: event.target.value } : item))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">URL de búsqueda</Label>
+                    <Input className="mt-1 bg-input border-border text-foreground" placeholder="https://ejemplo.com/buscar?q={query}" value={provider.searchUrl} maxLength={2048} onChange={(event) => setKaraokeProviders((current) => current.map((item) => item.id === provider.id ? { ...item, searchUrl: event.target.value } : item))} />
+                  </div>
+                </div>
+              </div>
+            ))}
+            <Button type="button" variant="outline" className="w-full border-dashed" disabled={karaokeProviders.length >= 8} onClick={() => setKaraokeProviders((current) => [...current, { id: `provider-${Date.now()}`, name: "", searchUrl: "" }])}>
+              <Plus size={15} className="mr-2" /> Agregar proveedor
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
           <CardHeader><CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2"><Shield size={16} /> Política de privacidad</CardTitle></CardHeader>
           <CardContent>
             <div className="flex items-start gap-3">
@@ -132,7 +191,7 @@ export default function ManagerSettings() {
 
         <Button
           className="bg-primary text-primary-foreground hover:bg-primary/90 w-full"
-          onClick={() => update.mutate({ id: venueId!, ...form, musicMode, musicProvider, privacyPolicyAccepted: privacyAccepted })}
+          onClick={() => update.mutate({ id: venueId!, ...form, musicMode, musicProvider, karaokeProviders, privacyPolicyAccepted: privacyAccepted })}
           disabled={update.isPending}
         >
           {update.isPending ? "Guardando..." : "Guardar configuración"}
