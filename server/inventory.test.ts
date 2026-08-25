@@ -7,6 +7,9 @@ import { toBaseQuantity } from "./inventory";
 import { runInventoryExpiryNotifications } from "./inventoryDb";
 import {
   inventoryAlerts,
+  inventoryControlSettings,
+  inventoryCountTemplateFamilies,
+  inventoryCountTemplates,
   inventoryItems,
   inventoryLots,
   inventoryMovements,
@@ -16,6 +19,7 @@ import {
   inventoryPurchases,
   inventoryPhysicalCountLines,
   inventoryPhysicalCounts,
+  inventoryPhysicalCountApprovals,
   inventoryRecipeLines,
   inventoryRecipes,
   inventorySuppliers,
@@ -81,6 +85,7 @@ afterEach(async () => {
     const purchases = await db.select({ id: inventoryPurchases.id }).from(inventoryPurchases).where(eq(inventoryPurchases.venueId, venueId));
     const purchaseOrders = await db.select({ id: inventoryPurchaseOrders.id }).from(inventoryPurchaseOrders).where(eq(inventoryPurchaseOrders.venueId, venueId));
     const physicalCounts = await db.select({ id: inventoryPhysicalCounts.id }).from(inventoryPhysicalCounts).where(eq(inventoryPhysicalCounts.venueId, venueId));
+    const countTemplates = await db.select({ id: inventoryCountTemplates.id }).from(inventoryCountTemplates).where(eq(inventoryCountTemplates.venueId, venueId));
     if (itemIds.length) await db.delete(inventoryLots).where(eq(inventoryLots.venueId, venueId));
     await db.delete(inventoryWastes).where(eq(inventoryWastes.venueId, venueId));
     if (purchases.length) await db.delete(inventoryPurchaseLines).where(inArray(inventoryPurchaseLines.purchaseId, purchases.map((purchase) => purchase.id)));
@@ -88,7 +93,11 @@ afterEach(async () => {
     if (purchaseOrders.length) await db.delete(inventoryPurchaseOrderLines).where(inArray(inventoryPurchaseOrderLines.purchaseOrderId, purchaseOrders.map((order) => order.id)));
     await db.delete(inventoryPurchaseOrders).where(eq(inventoryPurchaseOrders.venueId, venueId));
     if (physicalCounts.length) await db.delete(inventoryPhysicalCountLines).where(inArray(inventoryPhysicalCountLines.physicalCountId, physicalCounts.map((count) => count.id)));
+    if (physicalCounts.length) await db.delete(inventoryPhysicalCountApprovals).where(inArray(inventoryPhysicalCountApprovals.physicalCountId, physicalCounts.map((count) => count.id)));
     await db.delete(inventoryPhysicalCounts).where(eq(inventoryPhysicalCounts.venueId, venueId));
+    if (countTemplates.length) await db.delete(inventoryCountTemplateFamilies).where(inArray(inventoryCountTemplateFamilies.templateId, countTemplates.map((template) => template.id)));
+    await db.delete(inventoryCountTemplates).where(eq(inventoryCountTemplates.venueId, venueId));
+    await db.delete(inventoryControlSettings).where(eq(inventoryControlSettings.venueId, venueId));
     await db.delete(inventorySuppliers).where(eq(inventorySuppliers.venueId, venueId));
     if (itemIds.length) {
       await db.delete(inventoryAlerts).where(eq(inventoryAlerts.venueId, venueId));
@@ -292,4 +301,30 @@ describe("inventarios", () => {
     const adjustment = (await managerCaller.inventory.movements({ venueId, inventoryItemId: item.item!.id })).find((movement) => movement.movementType === "adjustment");
     expect(Number(adjustment?.quantityBase)).toBe(-250);
   }, 15_000);
+
+  it("aplica plantillas por familia y exige una aprobación independiente sobre el umbral del local", async () => {
+    const { venueId, manager } = await createFixture();
+    const managerCaller = appRouter.createCaller(context({ id: manager.id, role: "manager", venueId }));
+    const ownerCaller = appRouter.createCaller(context({ id: 880001, role: "owner", venueId: null }));
+    const drinks = await managerCaller.inventory.createItem({ venueId, name: "Botella controlada", family: "Bebidas", dimension: "count", reorderPointQuantity: 0, reorderPointUnit: "unit" });
+    await managerCaller.inventory.createItem({ venueId, name: "Vaso controlado", family: "Bebidas", dimension: "count", reorderPointQuantity: 0, reorderPointUnit: "unit" });
+    await managerCaller.inventory.createItem({ venueId, name: "Harina cocina", family: "Cocina", dimension: "mass", reorderPointQuantity: 0, reorderPointUnit: "g" });
+    await managerCaller.inventory.receivePurchase({ venueId, receivedAt: new Date(), lines: [{ inventoryItemId: drinks.item!.id, quantity: 10, unit: "unit", unitCost: 500 }] });
+    await managerCaller.inventory.saveControlSettings({ venueId, dualApprovalEnabled: true, dualApprovalThresholdCost: 2000 });
+    const template = await managerCaller.inventory.saveCountTemplate({ venueId, name: "Bebidas", families: ["Bebidas"] });
+    const dualCount = await managerCaller.inventory.startPhysicalCount({ venueId, templateId: template.templateId, notes: "Conteo de cierre" });
+    const dualLines = (await managerCaller.inventory.physicalCounts({ venueId })).find((count) => count.id === dualCount.physicalCountId)?.lines ?? [];
+    expect(dualLines).toHaveLength(2);
+    expect(dualLines.every((line) => line.item?.family === "Bebidas")).toBe(true);
+    await expect(managerCaller.inventory.startPhysicalCount({ venueId, notes: "Conteo simultáneo" })).rejects.toThrow(/Ya hay un conteo/);
+    for (const line of dualLines) await managerCaller.inventory.recordPhysicalCountLine({ venueId, physicalCountId: dualCount.physicalCountId, inventoryItemId: line.inventoryItemId, physicalQuantity: line.inventoryItemId === drinks.item!.id ? 4 : Number(line.systemStockBase), unit: line.item?.baseUnit as "unit" | "ml" | "g" });
+    const submitted = await managerCaller.inventory.submitPhysicalCount({ venueId, physicalCountId: dualCount.physicalCountId });
+    expect(submitted).toMatchObject({ approvalRequired: true, totalVarianceCost: 3000 });
+    await expect(managerCaller.inventory.decidePhysicalCountApproval({ venueId, physicalCountId: dualCount.physicalCountId, approved: true })).rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringContaining("otra persona") });
+    await expect(managerCaller.inventory.reconcilePhysicalCount({ venueId, physicalCountId: dualCount.physicalCountId })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await ownerCaller.inventory.decidePhysicalCountApproval({ venueId, physicalCountId: dualCount.physicalCountId, approved: true, note: "Validado por control" });
+    await managerCaller.inventory.reconcilePhysicalCount({ venueId, physicalCountId: dualCount.physicalCountId });
+    const metrics = await managerCaller.inventory.countMetrics({ venueId });
+    expect(metrics).toMatchObject({ reconciledLast30Days: 1, totalVarianceCostLast30Days: 3000, deviationRateLast30Days: 60 });
+  }, 25_000);
 });

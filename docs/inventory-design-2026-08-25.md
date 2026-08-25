@@ -144,4 +144,12 @@ Las operaciones de inicio, captura por línea, envío y conciliación quedan en 
 | Conciliación | Un conteo completo ajusta la diferencia y genera movimiento `adjustment`; un conteo incompleto no se puede enviar. |
 | Concurrencia | Un movimiento posterior al inicio bloquea la conciliación sin modificar saldo. |
 | Permisos y aislamiento | Staff no puede conciliar y cada lectura/escritura queda limitada al local autorizado. |
-| Suite final | **51 archivos y 203 pruebas aprobadas**, con TypeScript sin errores. |
+| Suite final | **51 archivos y 204 pruebas aprobadas**, con TypeScript sin errores. |
+
+## Control dual, plantillas e indicadores
+
+Cada local podrá activar la **aprobación dual** y definir su propio umbral monetario de conciliación. Al enviar un conteo, SongTap calculará el valor absoluto de la diferencia usando el costo unitario capturado para cada insumo. Si el valor total alcanza el umbral activo, el conteo quedará en estado **pendiente de aprobación**; no modificará existencias ni movimientos hasta que lo apruebe un Owner o un Manager distinto del usuario que lo envió. La separación de funciones será obligatoria y toda solicitud, aprobación o rechazo conservará usuario, fecha, umbral y valor evaluado.
+
+Los insumos podrán clasificarse con una **familia** definida por el local. Una plantilla de conteo tendrá nombre y una o varias familias; al aplicarla, SongTap incluirá exclusivamente los insumos activos pertenecientes a esas familias y dejará la plantilla utilizada en la sesión para conservar trazabilidad. La plantilla no mezclará datos entre locales y seguirá respetando las validaciones de unidades y concurrencia ya existentes.
+
+El Dashboard Manager incorporará indicadores de control de inventario calculados por local: conteos conciliados en los últimos 30 días, días desde el último conteo, frecuencia media entre conteos, valor absoluto de desviación y porcentaje de desviación frente al valor contado. Los indicadores se basarán solo en conteos conciliados y costos capturados, para evitar que conteos incompletos o pendientes distorsionen la gestión.

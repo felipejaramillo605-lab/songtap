@@ -4,7 +4,7 @@ import SongTapLayout from "@/components/SongTapLayout";
 import FavoriteModules from "@/components/FavoriteModules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, CalendarClock, DollarSign, TrendingUp, ShoppingBag, TrendingDown, BarChart3, Clock, Zap } from "lucide-react";
+import { AlertTriangle, CalendarClock, DollarSign, TrendingUp, ShoppingBag, TrendingDown, BarChart3, ClipboardCheck, Clock, Scale, Zap } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
@@ -57,6 +57,10 @@ export default function ManagerDashboard() {
     { enabled: !!venueId, refetchInterval: 60_000 }
   );
   const { data: expiryAlerts } = trpc.inventory.expiryAlerts.useQuery(
+    { venueId: venueId! },
+    { enabled: !!venueId, refetchInterval: 60_000 }
+  );
+  const { data: countMetrics } = trpc.inventory.countMetrics.useQuery(
     { venueId: venueId! },
     { enabled: !!venueId, refetchInterval: 60_000 }
   );
@@ -191,6 +195,8 @@ export default function ManagerDashboard() {
             </CardContent>
           </Card>
         )}
+
+        {venueId && <Card className="border border-primary/25 bg-primary/5 shadow-premium"><CardHeader className="flex-row items-start justify-between gap-4 pb-3"><div><CardTitle className="flex items-center gap-2 text-base"><ClipboardCheck className="h-5 w-5 text-primary" /> Disciplina de inventario</CardTitle><p className="mt-1 text-sm text-muted-foreground">Indicadores basados en conteos conciliados del local durante los últimos 30 días.</p></div><button type="button" onClick={() => navigate("/manager/inventory")} className="shrink-0 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary transition hover:bg-primary/20">Administrar conteos</button></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><div className="rounded-lg border border-border bg-background/40 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conteos recientes</p><p className="mt-1 text-2xl font-bold text-foreground">{countMetrics?.reconciledLast30Days ?? 0}</p><p className="mt-1 text-xs text-muted-foreground">Conciliados en 30 días</p></div><div className="rounded-lg border border-border bg-background/40 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Último conteo</p><p className="mt-1 text-2xl font-bold text-foreground">{countMetrics?.daysSinceLastCount === null || countMetrics?.daysSinceLastCount === undefined ? "—" : `${countMetrics.daysSinceLastCount} d`}</p><p className="mt-1 text-xs text-muted-foreground">Días transcurridos</p></div><div className="rounded-lg border border-border bg-background/40 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Frecuencia media</p><p className="mt-1 text-2xl font-bold text-foreground">{countMetrics?.averageDaysBetweenCounts === null || countMetrics?.averageDaysBetweenCounts === undefined ? "—" : `${countMetrics.averageDaysBetweenCounts} d`}</p><p className="mt-1 text-xs text-muted-foreground">Entre conciliaciones</p></div><div className="rounded-lg border border-border bg-background/40 p-4"><p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Scale className="h-3.5 w-3.5" /> Desviación</p><p className="mt-1 text-2xl font-bold text-foreground">${Math.round(countMetrics?.totalVarianceCostLast30Days ?? 0).toLocaleString("es-CO")}</p><p className="mt-1 text-xs text-muted-foreground">{countMetrics?.deviationRateLast30Days === null || countMetrics?.deviationRateLast30Days === undefined ? "Sin base costeada" : `${countMetrics.deviationRateLast30Days}% del valor contado`}</p></div></CardContent></Card>}
 
         {/* Charts Section with Tabs */}
         <div className="space-y-4">

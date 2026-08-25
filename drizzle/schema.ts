@@ -196,6 +196,7 @@ export const inventoryItems = mysqlTable(
     venueId: int("venueId").notNull(),
     name: varchar("name", { length: 160 }).notNull(),
     sku: varchar("sku", { length: 96 }),
+    family: varchar("family", { length: 100 }),
     dimension: mysqlEnum("dimension", ["count", "volume", "mass"]).notNull(),
     baseUnit: mysqlEnum("baseUnit", ["unit", "ml", "g"]).notNull(),
     currentStockBase: decimal("currentStockBase", { precision: 14, scale: 4 }).default("0").notNull(),
@@ -336,11 +337,18 @@ export const inventoryPhysicalCounts = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     venueId: int("venueId").notNull(),
-    status: mysqlEnum("status", ["draft", "in_progress", "ready_to_reconcile", "reconciled", "cancelled"]).default("draft").notNull(),
+    status: mysqlEnum("status", ["draft", "in_progress", "pending_approval", "ready_to_reconcile", "reconciled", "rejected", "cancelled"]).default("draft").notNull(),
     notes: text("notes"),
+    templateId: int("templateId"),
     createdByUserId: int("createdByUserId").notNull(),
     startedAt: timestamp("startedAt"),
     submittedAt: timestamp("submittedAt"),
+    submittedByUserId: int("submittedByUserId"),
+    totalVarianceCost: decimal("totalVarianceCost", { precision: 14, scale: 4 }).default("0").notNull(),
+    approvalRequired: boolean("approvalRequired").default(false).notNull(),
+    approvalThresholdCost: decimal("approvalThresholdCost", { precision: 14, scale: 4 }),
+    approvalDecisionAt: timestamp("approvalDecisionAt"),
+    approvalDecisionByUserId: int("approvalDecisionByUserId"),
     reconciledAt: timestamp("reconciledAt"),
     reconciledByUserId: int("reconciledByUserId"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -363,6 +371,8 @@ export const inventoryPhysicalCountLines = mysqlTable(
     systemStockBase: decimal("systemStockBase", { precision: 14, scale: 4 }).notNull(),
     physicalStockBase: decimal("physicalStockBase", { precision: 14, scale: 4 }),
     varianceBase: decimal("varianceBase", { precision: 14, scale: 4 }),
+    unitCostBaseSnapshot: decimal("unitCostBaseSnapshot", { precision: 14, scale: 6 }).default("0").notNull(),
+    varianceCost: decimal("varianceCost", { precision: 14, scale: 4 }).default("0").notNull(),
     countedByUserId: int("countedByUserId"),
     countedAt: timestamp("countedAt"),
     note: text("note"),
@@ -378,6 +388,72 @@ export const inventoryPhysicalCountLines = mysqlTable(
 
 export type InventoryPhysicalCountLine = typeof inventoryPhysicalCountLines.$inferSelect;
 export type InsertInventoryPhysicalCountLine = typeof inventoryPhysicalCountLines.$inferInsert;
+
+export const inventoryControlSettings = mysqlTable(
+  "inventory_control_settings",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    dualApprovalEnabled: boolean("dualApprovalEnabled").default(false).notNull(),
+    dualApprovalThresholdCost: decimal("dualApprovalThresholdCost", { precision: 14, scale: 4 }).default("0").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({ venueUnique: uniqueIndex("inventory_control_settings_venue_uq").on(table.venueId) })
+);
+
+export type InventoryControlSettings = typeof inventoryControlSettings.$inferSelect;
+export type InsertInventoryControlSettings = typeof inventoryControlSettings.$inferInsert;
+
+export const inventoryCountTemplates = mysqlTable(
+  "inventory_count_templates",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({ venueNameUnique: uniqueIndex("inventory_count_templates_venue_name_uq").on(table.venueId, table.name) })
+);
+
+export type InventoryCountTemplate = typeof inventoryCountTemplates.$inferSelect;
+export type InsertInventoryCountTemplate = typeof inventoryCountTemplates.$inferInsert;
+
+export const inventoryCountTemplateFamilies = mysqlTable(
+  "inventory_count_template_families",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    templateId: int("templateId").notNull(),
+    family: varchar("family", { length: 100 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({ templateFamilyUnique: uniqueIndex("inventory_count_template_family_uq").on(table.templateId, table.family), templateIndex: index("inventory_count_template_families_template_idx").on(table.templateId) })
+);
+
+export type InventoryCountTemplateFamily = typeof inventoryCountTemplateFamilies.$inferSelect;
+export type InsertInventoryCountTemplateFamily = typeof inventoryCountTemplateFamilies.$inferInsert;
+
+export const inventoryPhysicalCountApprovals = mysqlTable(
+  "inventory_physical_count_approvals",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    venueId: int("venueId").notNull(),
+    physicalCountId: int("physicalCountId").notNull(),
+    status: mysqlEnum("status", ["approved", "rejected"]).notNull(),
+    approverUserId: int("approverUserId").notNull(),
+    totalVarianceCost: decimal("totalVarianceCost", { precision: 14, scale: 4 }).notNull(),
+    thresholdCost: decimal("thresholdCost", { precision: 14, scale: 4 }).notNull(),
+    note: text("note"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({ countUnique: uniqueIndex("inventory_physical_count_approval_uq").on(table.physicalCountId), venueIndex: index("inventory_physical_count_approvals_venue_idx").on(table.venueId, table.createdAt) })
+);
+
+export type InventoryPhysicalCountApproval = typeof inventoryPhysicalCountApprovals.$inferSelect;
+export type InsertInventoryPhysicalCountApproval = typeof inventoryPhysicalCountApprovals.$inferInsert;
 
 export const inventorySuppliers = mysqlTable(
   "inventory_suppliers",

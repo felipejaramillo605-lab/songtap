@@ -1,4 +1,5 @@
 import SongTapLayout from "@/components/SongTapLayout";
+import { InventoryCountControls } from "@/components/InventoryCountControls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { downloadInventoryCostWasteExcel } from "@/lib/inventoryExport";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { AlertTriangle, ArrowDownToLine, Boxes, CalendarClock, ClipboardList, FlaskConical, History, PackagePlus, Plus, ReceiptText, RefreshCw, Scale, TrendingUp, Truck, Warehouse } from "lucide-react";
+import { AlertTriangle, ArrowDownToLine, Boxes, CalendarClock, ClipboardList, FlaskConical, History, PackagePlus, Plus, ReceiptText, RefreshCw, Scale, Settings2, ShieldCheck, Tags, TrendingUp, Truck, Warehouse } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -49,7 +50,9 @@ export default function ManagerInventory() {
   const [wasteDialogOpen, setWasteDialogOpen] = useState(false);
   const [purchaseOrderDialogOpen, setPurchaseOrderDialogOpen] = useState(false);
   const [physicalCountDialogOpen, setPhysicalCountDialogOpen] = useState(false);
-  const [itemForm, setItemForm] = useState({ name: "", sku: "", dimension: "count" as Dimension, reorderPoint: "0", reorderUnit: "unit" as Unit, packContent: "", isPerishable: false, expiryAlertDays: "7" });
+  const [countTemplateDialogOpen, setCountTemplateDialogOpen] = useState(false);
+  const [controlSettingsDialogOpen, setControlSettingsDialogOpen] = useState(false);
+  const [itemForm, setItemForm] = useState({ name: "", sku: "", family: "", dimension: "count" as Dimension, reorderPoint: "0", reorderUnit: "unit" as Unit, packContent: "", isPerishable: false, expiryAlertDays: "7" });
   const [movementForm, setMovementForm] = useState({ itemId: "", movementType: "restock" as "initial" | "restock" | "adjustment", quantity: "", unit: "unit" as Unit, packContent: "", note: "" });
   const [recipeForm, setRecipeForm] = useState({ menuItemId: "", lines: [{ inventoryItemId: "", quantity: "", unit: "unit" as Unit, packContent: "" }] });
   const [supplierForm, setSupplierForm] = useState({ name: "", contactName: "", email: "", phone: "" });
@@ -57,7 +60,10 @@ export default function ManagerInventory() {
   const [wasteForm, setWasteForm] = useState({ lotId: "", quantityBase: "", note: "" });
   const [purchaseOrderForm, setPurchaseOrderForm] = useState({ supplierId: "", reference: "", expectedAt: "", notes: "", lines: [{ inventoryItemId: "", quantity: "", unit: "unit" as Unit, packContent: "", estimatedUnitCost: "" }] });
   const [physicalCountNotes, setPhysicalCountNotes] = useState("");
+  const [physicalCountTemplateId, setPhysicalCountTemplateId] = useState("all");
   const [physicalCountValues, setPhysicalCountValues] = useState<Record<number, PhysicalCountValue>>({});
+  const [countTemplateForm, setCountTemplateForm] = useState({ name: "", families: [] as string[] });
+  const [controlSettingsForm, setControlSettingsForm] = useState({ dualApprovalEnabled: false, dualApprovalThresholdCost: "0" });
 
   const dashboard = trpc.inventory.dashboard.useQuery({ venueId }, { enabled: venueId > 0 });
   const movements = trpc.inventory.movements.useQuery({ venueId }, { enabled: venueId > 0 });
@@ -69,6 +75,9 @@ export default function ManagerInventory() {
   const recipeMargins = trpc.inventory.recipeMargins.useQuery({ venueId }, { enabled: venueId > 0 });
   const purchaseOrders = trpc.inventory.purchaseOrders.useQuery({ venueId }, { enabled: venueId > 0 });
   const physicalCounts = trpc.inventory.physicalCounts.useQuery({ venueId }, { enabled: venueId > 0 });
+  const countMetrics = trpc.inventory.countMetrics.useQuery({ venueId }, { enabled: venueId > 0 });
+  const controlSettings = trpc.inventory.controlSettings.useQuery({ venueId }, { enabled: venueId > 0 });
+  const countTemplates = trpc.inventory.countTemplates.useQuery({ venueId }, { enabled: venueId > 0 });
   const refresh = () => {
     void utils.inventory.dashboard.invalidate({ venueId });
     void utils.inventory.movements.invalidate({ venueId });
@@ -80,10 +89,13 @@ export default function ManagerInventory() {
     void utils.inventory.recipeMargins.invalidate({ venueId });
     void utils.inventory.purchaseOrders.invalidate({ venueId });
     void utils.inventory.physicalCounts.invalidate({ venueId });
+    void utils.inventory.countMetrics.invalidate({ venueId });
+    void utils.inventory.controlSettings.invalidate({ venueId });
+    void utils.inventory.countTemplates.invalidate({ venueId });
   };
 
   const createItem = trpc.inventory.createItem.useMutation({
-    onSuccess: () => { toast.success("Insumo creado. Registra las existencias iniciales para activarlo."); setItemDialogOpen(false); setItemForm({ name: "", sku: "", dimension: "count", reorderPoint: "0", reorderUnit: "unit", packContent: "", isPerishable: false, expiryAlertDays: "7" }); refresh(); },
+    onSuccess: () => { toast.success("Insumo creado. Registra las existencias iniciales para activarlo."); setItemDialogOpen(false); setItemForm({ name: "", sku: "", family: "", dimension: "count", reorderPoint: "0", reorderUnit: "unit", packContent: "", isPerishable: false, expiryAlertDays: "7" }); refresh(); },
     onError: (error) => toast.error(error.message),
   });
   const registerMovement = trpc.inventory.registerMovement.useMutation({
@@ -136,12 +148,26 @@ export default function ManagerInventory() {
     onSuccess: (result) => { toast.success(`Conciliación aplicada: ${result.adjustmentCount} ajuste${result.adjustmentCount === 1 ? "" : "s"} auditado${result.adjustmentCount === 1 ? "" : "s"}.`); setPhysicalCountValues({}); refresh(); },
     onError: (error) => toast.error(error.message),
   });
+  const saveControlSettings = trpc.inventory.saveControlSettings.useMutation({
+    onSuccess: () => { toast.success("Regla de aprobación dual guardada para este local."); setControlSettingsDialogOpen(false); refresh(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const saveCountTemplate = trpc.inventory.saveCountTemplate.useMutation({
+    onSuccess: () => { toast.success("Plantilla de conteo guardada."); setCountTemplateDialogOpen(false); setCountTemplateForm({ name: "", families: [] }); refresh(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const decidePhysicalCountApproval = trpc.inventory.decidePhysicalCountApproval.useMutation({
+    onSuccess: (result) => { toast.success(result.status === "approved" ? "Conteo aprobado para conciliación." : "Conteo rechazado; no se aplicaron ajustes."); refresh(); },
+    onError: (error) => toast.error(error.message),
+  });
 
   const itemById = useMemo(() => new Map((dashboard.data?.items ?? []).map((item) => [item.id, item])), [dashboard.data?.items]);
   const lowStockCount = dashboard.data?.alerts.length ?? 0;
   const expiryCount = expiryAlerts.data?.length ?? 0;
+  const availableFamilies = useMemo(() => Array.from(new Set((dashboard.data?.items ?? []).map((item) => item.family?.trim()).filter((family): family is string => Boolean(family)))).sort((a, b) => a.localeCompare(b, "es")), [dashboard.data?.items]);
   const activePhysicalCount = useMemo(() => physicalCounts.data?.find((count) => count.status === "in_progress" || count.status === "draft") ?? null, [physicalCounts.data]);
   const readyPhysicalCount = useMemo(() => physicalCounts.data?.find((count) => count.status === "ready_to_reconcile") ?? null, [physicalCounts.data]);
+  const pendingApprovalPhysicalCount = useMemo(() => physicalCounts.data?.find((count) => count.status === "pending_approval") ?? null, [physicalCounts.data]);
 
   const submitItem = () => {
     if (!itemForm.name.trim()) return toast.error("Define el nombre del insumo.");
@@ -149,6 +175,7 @@ export default function ManagerInventory() {
       venueId,
       name: itemForm.name.trim(),
       sku: itemForm.sku.trim() || undefined,
+      family: itemForm.family.trim() || undefined,
       dimension: itemForm.dimension,
       reorderPointQuantity: quantity(itemForm.reorderPoint),
       reorderPointUnit: itemForm.reorderUnit,
@@ -227,7 +254,12 @@ export default function ManagerInventory() {
     downloadInventoryCostWasteExcel({ venueName: `Local #${venueId}`, items: dashboard.data.items, margins: recipeMargins.data ?? [], wastes: wastes.data ?? [] });
     toast.success("Reporte Excel descargado.");
   };
-  const startCount = () => startPhysicalCount.mutate({ venueId, notes: physicalCountNotes.trim() || undefined });
+  const startCount = () => startPhysicalCount.mutate({ venueId, notes: physicalCountNotes.trim() || undefined, templateId: physicalCountTemplateId === "all" ? undefined : Number(physicalCountTemplateId) });
+  const submitControlSettings = () => saveControlSettings.mutate({ venueId, dualApprovalEnabled: controlSettingsForm.dualApprovalEnabled, dualApprovalThresholdCost: quantity(controlSettingsForm.dualApprovalThresholdCost) });
+  const submitCountTemplate = () => {
+    if (!countTemplateForm.name.trim() || !countTemplateForm.families.length) return toast.error("Define el nombre y al menos una familia para la plantilla.");
+    saveCountTemplate.mutate({ venueId, name: countTemplateForm.name.trim(), families: countTemplateForm.families });
+  };
   const getPhysicalCountValue = (line: { id: number; physicalStockBase: string | null; note: string | null; item: { dimension: string; baseUnit: string } | null }): PhysicalCountValue => {
     const fallbackUnit = line.item ? unitForDimension(line.item.dimension as Dimension) : "unit";
     return physicalCountValues[line.id] ?? { quantity: line.physicalStockBase === null ? "" : String(Number(line.physicalStockBase)), unit: fallbackUnit, packContent: "", note: line.note ?? "" };
@@ -271,6 +303,8 @@ export default function ManagerInventory() {
         {lowStockCount > 0 && <Card className="border-amber-500/40"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base text-amber-600 dark:text-amber-400"><AlertTriangle className="h-4 w-4" /> Reposición requerida</CardTitle><CardDescription>Estos insumos alcanzaron o bajaron de su mínimo. Registra una entrada para resolver la alerta.</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2">{dashboard.data?.items.filter((item) => item.isLowStock).map((item) => <span key={item.id} className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-sm text-amber-700 dark:text-amber-300">{item.name}: {Number(item.currentStockBase)} {item.baseUnit}</span>)}</CardContent></Card>}
         {expiryCount > 0 && <Card className="border-rose-500/40"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base text-rose-600 dark:text-rose-400"><CalendarClock className="h-4 w-4" /> Caducidad requiere atención</CardTitle><CardDescription>Los lotes vencidos no se consumirán automáticamente; registra un ajuste auditado cuando confirmes la merma física.</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2">{expiryAlerts.data?.map((lot) => <span key={lot.id} className={`rounded-full border px-3 py-1 text-sm ${lot.state === "expired" ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300" : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>{lot.item.name}: {lot.state === "expired" ? "Vencido" : "Vence"} {new Date(lot.expiresAt).toLocaleDateString("es-CO")}</span>)}</CardContent></Card>}
 
+        <InventoryCountControls venueId={venueId} families={availableFamilies} onCountStarted={refresh} />
+
         <Tabs defaultValue="items" className="space-y-4">
           <TabsList className="flex w-full justify-start gap-1 overflow-x-auto"><TabsTrigger value="items">Insumos</TabsTrigger><TabsTrigger value="recipes">Fórmulas</TabsTrigger><TabsTrigger value="costs">Costos</TabsTrigger><TabsTrigger value="orders">Órdenes</TabsTrigger><TabsTrigger value="purchases">Compras</TabsTrigger><TabsTrigger value="expiry">Caducidad</TabsTrigger><TabsTrigger value="waste">Mermas</TabsTrigger><TabsTrigger value="counts">Conteos</TabsTrigger><TabsTrigger value="reports">Reportes</TabsTrigger><TabsTrigger value="movements">Movimientos</TabsTrigger></TabsList>
           <TabsContent value="items"><Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle>Existencias por insumo</CardTitle><CardDescription>Los saldos se expresan en unidad base y no se mezclan entre locales.</CardDescription></div><Button variant="outline" size="sm" onClick={() => setMovementDialogOpen(true)}><PackagePlus className="mr-2 h-4 w-4" /> Registrar entrada</Button></CardHeader><CardContent>{dashboard.isLoading ? <p className="text-sm text-muted-foreground">Cargando inventario…</p> : !dashboard.data?.items.length ? <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Aún no hay insumos. Crea el primero y registra sus existencias iniciales.</div> : <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead className="border-b text-left text-muted-foreground"><tr><th className="pb-3 font-medium">Insumo</th><th className="pb-3 font-medium">Dimensión</th><th className="pb-3 font-medium">Disponible</th><th className="pb-3 font-medium">Mínimo</th><th className="pb-3 font-medium">Estado</th></tr></thead><tbody>{dashboard.data.items.map((item) => <tr key={item.id} className="border-b last:border-0"><td className="py-3 font-medium">{item.name}<span className="ml-2 text-xs text-muted-foreground">{item.sku || "Sin SKU"}</span></td><td className="py-3">{dimensionLabels[item.dimension as Dimension]}</td><td className="py-3 font-semibold">{Number(item.currentStockBase)} {item.baseUnit}</td><td className="py-3">{Number(item.reorderPointBase)} {item.baseUnit}</td><td className="py-3">{item.isLowStock ? <span className="rounded-full bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-400">Reponer</span> : <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">Disponible</span>}</td></tr>)}</tbody></table></div>}</CardContent></Card></TabsContent>
@@ -288,7 +322,7 @@ export default function ManagerInventory() {
 
       <Dialog open={physicalCountDialogOpen} onOpenChange={setPhysicalCountDialogOpen}><DialogContent><DialogHeader><DialogTitle>Iniciar conteo físico</DialogTitle><DialogDescription>Se tomará una fotografía de las existencias actuales. Registrar cantidades no ajusta stock hasta que confirmes la conciliación.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div><Label htmlFor="physical-count-notes">Nota operativa (opcional)</Label><Textarea id="physical-count-notes" value={physicalCountNotes} onChange={(event) => setPhysicalCountNotes(event.target.value)} placeholder="Ej. Conteo semanal de cierre" maxLength={1000} /></div><Button onClick={startCount} disabled={startPhysicalCount.isPending}>{startPhysicalCount.isPending ? "Iniciando…" : "Iniciar conteo"}</Button></div></DialogContent></Dialog>
 
-      <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}><DialogContent><DialogHeader><DialogTitle>Crear insumo</DialogTitle><DialogDescription>Define la dimensión y el mínimo; el saldo se registra después como existencia inicial.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div><Label>Nombre</Label><Input value={itemForm.name} onChange={(event) => setItemForm({ ...itemForm, name: event.target.value })} placeholder="Ej. Ron blanco" /></div><div><Label>SKU (opcional)</Label><Input value={itemForm.sku} onChange={(event) => setItemForm({ ...itemForm, sku: event.target.value })} placeholder="RON-750" /></div><div className="grid grid-cols-2 gap-3"><div><Label>Dimensión</Label><Select value={itemForm.dimension} onValueChange={(value) => { const dimension = value as Dimension; setItemForm({ ...itemForm, dimension, reorderUnit: unitForDimension(dimension), packContent: "" }); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(dimensionLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div><div><Label>Mínimo</Label><Input type="number" min="0" step="0.0001" value={itemForm.reorderPoint} onChange={(event) => setItemForm({ ...itemForm, reorderPoint: event.target.value })} /></div></div><div><Label>Unidad del mínimo</Label><Select value={itemForm.reorderUnit} onValueChange={(value) => setItemForm({ ...itemForm, reorderUnit: value as Unit })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{unitsByDimension[itemForm.dimension].map((unit) => <SelectItem key={unit} value={unit}>{unitLabels[unit]}</SelectItem>)}</SelectContent></Select></div>{itemForm.reorderUnit === "box" && <div><Label>Contenido de cada caja en unidad base</Label><Input type="number" min="0.0001" step="0.0001" value={itemForm.packContent} onChange={(event) => setItemForm({ ...itemForm, packContent: event.target.value })} placeholder="Ej. 8520 ml por caja" /><p className="mt-1 text-xs text-muted-foreground">Define el total real por caja para convertir correctamente.</p></div>}<label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3"><input type="checkbox" checked={itemForm.isPerishable} onChange={(event) => setItemForm({ ...itemForm, isPerishable: event.target.checked })} className="mt-1 h-4 w-4 accent-primary" /><span><span className="block text-sm font-medium">Insumo perecedero</span><span className="text-xs text-muted-foreground">Las compras exigirán fecha de caducidad y se consumirán por vencimiento más cercano.</span></span></label>{itemForm.isPerishable && <div><Label>Días de aviso antes de caducar</Label><Input type="number" min="1" max="90" value={itemForm.expiryAlertDays} onChange={(event) => setItemForm({ ...itemForm, expiryAlertDays: event.target.value })} /><p className="mt-1 text-xs text-muted-foreground">La revisión diaria notifica a los Managers cuando un lote entra en esta ventana.</p></div>}<Button onClick={submitItem} disabled={createItem.isPending}>{createItem.isPending ? "Guardando…" : "Crear insumo"}</Button></div></DialogContent></Dialog>
+      <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}><DialogContent><DialogHeader><DialogTitle>Crear insumo</DialogTitle><DialogDescription>Define la dimensión, familia y mínimo; el saldo se registra después como existencia inicial.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div><Label>Nombre</Label><Input value={itemForm.name} onChange={(event) => setItemForm({ ...itemForm, name: event.target.value })} placeholder="Ej. Ron blanco" /></div><div className="grid grid-cols-2 gap-3"><div><Label>SKU (opcional)</Label><Input value={itemForm.sku} onChange={(event) => setItemForm({ ...itemForm, sku: event.target.value })} placeholder="RON-750" /></div><div><Label>Familia (opcional)</Label><Input value={itemForm.family} onChange={(event) => setItemForm({ ...itemForm, family: event.target.value })} placeholder="Ej. Bebidas" /></div></div><div className="grid grid-cols-2 gap-3"><div><Label>Dimensión</Label><Select value={itemForm.dimension} onValueChange={(value) => { const dimension = value as Dimension; setItemForm({ ...itemForm, dimension, reorderUnit: unitForDimension(dimension), packContent: "" }); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(dimensionLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div><div><Label>Mínimo</Label><Input type="number" min="0" step="0.0001" value={itemForm.reorderPoint} onChange={(event) => setItemForm({ ...itemForm, reorderPoint: event.target.value })} /></div></div><div><Label>Unidad del mínimo</Label><Select value={itemForm.reorderUnit} onValueChange={(value) => setItemForm({ ...itemForm, reorderUnit: value as Unit })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{unitsByDimension[itemForm.dimension].map((unit) => <SelectItem key={unit} value={unit}>{unitLabels[unit]}</SelectItem>)}</SelectContent></Select></div>{itemForm.reorderUnit === "box" && <div><Label>Contenido de cada caja en unidad base</Label><Input type="number" min="0.0001" step="0.0001" value={itemForm.packContent} onChange={(event) => setItemForm({ ...itemForm, packContent: event.target.value })} placeholder="Ej. 8520 ml por caja" /><p className="mt-1 text-xs text-muted-foreground">Define el total real por caja para convertir correctamente.</p></div>}<label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3"><input type="checkbox" checked={itemForm.isPerishable} onChange={(event) => setItemForm({ ...itemForm, isPerishable: event.target.checked })} className="mt-1 h-4 w-4 accent-primary" /><span><span className="block text-sm font-medium">Insumo perecedero</span><span className="text-xs text-muted-foreground">Las compras exigirán fecha de caducidad y se consumirán por vencimiento más cercano.</span></span></label>{itemForm.isPerishable && <div><Label>Días de aviso antes de caducar</Label><Input type="number" min="1" max="90" value={itemForm.expiryAlertDays} onChange={(event) => setItemForm({ ...itemForm, expiryAlertDays: event.target.value })} /><p className="mt-1 text-xs text-muted-foreground">La revisión diaria notifica a los Managers cuando un lote entra en esta ventana.</p></div>}<Button onClick={submitItem} disabled={createItem.isPending}>{createItem.isPending ? "Guardando…" : "Crear insumo"}</Button></div></DialogContent></Dialog>
 
       <Dialog open={movementDialogOpen} onOpenChange={setMovementDialogOpen}><DialogContent><DialogHeader><DialogTitle>Registrar movimiento</DialogTitle><DialogDescription>Las entradas aumentan stock; el ajuste permite corregir diferencias con trazabilidad.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div><Label>Insumo</Label><Select value={movementForm.itemId} onValueChange={(value) => { const item = itemById.get(Number(value)); setMovementForm({ ...movementForm, itemId: value, unit: item ? unitForDimension(item.dimension as Dimension) : "unit", packContent: "" }); }}><SelectTrigger><SelectValue placeholder="Selecciona un insumo" /></SelectTrigger><SelectContent>{dashboard.data?.items.map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent></Select></div><div className="grid grid-cols-2 gap-3"><div><Label>Tipo</Label><Select value={movementForm.movementType} onValueChange={(value) => setMovementForm({ ...movementForm, movementType: value as typeof movementForm.movementType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="initial">Existencia inicial</SelectItem><SelectItem value="restock">Entrada / reposición</SelectItem><SelectItem value="adjustment">Ajuste (+ o −)</SelectItem></SelectContent></Select></div><div><Label>Cantidad</Label><Input type="number" step="0.0001" value={movementForm.quantity} onChange={(event) => setMovementForm({ ...movementForm, quantity: event.target.value })} placeholder={movementForm.movementType === "adjustment" ? "Ej. -2" : "Ej. 1"} /></div></div><div><Label>Unidad</Label><Select value={movementForm.unit} onValueChange={(value) => setMovementForm({ ...movementForm, unit: value as Unit })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{unitsByDimension[(selectedMovementItem?.dimension as Dimension) ?? "count"].map((unit) => <SelectItem key={unit} value={unit}>{unitLabels[unit]}</SelectItem>)}</SelectContent></Select></div>{movementForm.unit === "box" && <div><Label>Contenido por caja (unidad base)</Label><Input type="number" step="0.0001" value={movementForm.packContent} onChange={(event) => setMovementForm({ ...movementForm, packContent: event.target.value })} /></div>}<div><Label>Nota (opcional)</Label><Textarea value={movementForm.note} onChange={(event) => setMovementForm({ ...movementForm, note: event.target.value })} placeholder="Factura, conteo físico o motivo del ajuste" /></div><Button onClick={submitMovement} disabled={registerMovement.isPending}><ArrowDownToLine className="mr-2 h-4 w-4" />{registerMovement.isPending ? "Registrando…" : "Guardar movimiento"}</Button></div></DialogContent></Dialog>
 

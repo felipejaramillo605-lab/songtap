@@ -8,6 +8,10 @@ import {
   createInventoryPurchaseOrder,
   createInventoryMovement,
   createInventorySupplier,
+  decideInventoryPhysicalCountApproval,
+  getInventoryControlSettings,
+  getInventoryCountMetrics,
+  getInventoryCountTemplates,
   getInventoryDashboard,
   getInventoryExpiryAlerts,
   getInventoryMovements,
@@ -23,6 +27,8 @@ import {
   recordExpiredInventoryWaste,
   reconcileInventoryPhysicalCount,
   replaceInventoryRecipe,
+  saveInventoryControlSettings,
+  saveInventoryCountTemplate,
   submitInventoryPhysicalCount,
   updateInventoryItem,
   updateInventoryPhysicalCountLine,
@@ -73,6 +79,7 @@ function toInventoryError(error: unknown): never {
     RECEPCION_ORDEN_INVALIDA: "La recepción supera lo pendiente o no coincide con la orden.",
     PROVEEDOR_NO_COINCIDE_CON_ORDEN: "El proveedor debe coincidir con el de la orden de compra.",
     CONTEO_SIN_INSUMOS: "No hay insumos activos para iniciar un conteo físico.",
+    CONTEO_ACTIVO_EXISTENTE: "Ya hay un conteo físico pendiente en este local; finalízalo o recházalo antes de iniciar otro.",
     CONTEO_NO_ENCONTRADO: "El conteo físico no existe en este local.",
     CONTEO_NO_EDITABLE: "El conteo ya fue enviado, conciliado o cancelado y no admite cambios.",
     LINEA_CONTEO_NO_ENCONTRADA: "El insumo no pertenece a este conteo físico.",
@@ -80,6 +87,13 @@ function toInventoryError(error: unknown): never {
     CONTEO_INCOMPLETO: "Registra una cantidad física para todos los insumos antes de enviar el conteo.",
     CONTEO_NO_CONCILIABLE: "El conteo debe estar listo para conciliar.",
     CONTEO_DESACTUALIZADO: "El inventario cambió durante el conteo. Inicia un nuevo conteo para evitar sobrescribir movimientos recientes.",
+    UMBRAL_APROBACION_INVALIDO: "El umbral de aprobación debe ser igual o mayor que cero.",
+    PLANTILLA_CONTEO_NO_ENCONTRADA: "La plantilla no existe, está inactiva o pertenece a otro local.",
+    PLANTILLA_CONTEO_SIN_FAMILIAS: "La plantilla debe incluir al menos una familia de insumos.",
+    PLANTILLA_CONTEO_INVALIDA: "La plantilla requiere un nombre y al menos una familia válida.",
+    CONTEO_NO_REQUIERE_APROBACION: "Este conteo no está pendiente de una aprobación dual.",
+    APROBADOR_DEBE_SER_DISTINTO: "La aprobación debe realizarla otra persona diferente a quien inició o envió el conteo.",
+    CONTEO_YA_APROBADO: "El conteo ya tiene una decisión de aprobación registrada.",
     PRODUCTO_NO_ENCONTRADO: "El producto de menú no existe en este local.",
     PEDIDO_ENTREGADO_FINAL: "Un pedido entregado no puede cambiarse a otro estado; registra un ajuste de inventario si es necesario.",
   };
@@ -118,6 +132,7 @@ export const inventoryRouter = router({
       venueId: z.number().int().positive(),
       name: z.string().trim().min(2).max(160),
       sku: z.string().trim().max(96).optional(),
+      family: z.string().trim().min(2).max(100).optional(),
       dimension: dimensionSchema,
       reorderPointQuantity: z.number().finite().min(0),
       reorderPointUnit: inventoryUnitSchema,
@@ -135,8 +150,8 @@ export const inventoryRouter = router({
           unit: input.reorderPointUnit,
           packBaseQuantity: input.reorderPointPackBaseQuantity,
         });
-        const item = await createInventoryItem({ venueId: input.venueId, name: input.name, sku: input.sku, dimension: input.dimension, reorderPointBase, isPerishable: input.isPerishable, expiryAlertDays: input.expiryAlertDays });
-        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_ITEM_CREATED", entity: "inventory_item", entityId: item?.id, details: JSON.stringify({ name: input.name, dimension: input.dimension }) });
+        const item = await createInventoryItem({ venueId: input.venueId, name: input.name, sku: input.sku, family: input.family, dimension: input.dimension, reorderPointBase, isPerishable: input.isPerishable, expiryAlertDays: input.expiryAlertDays });
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_ITEM_CREATED", entity: "inventory_item", entityId: item?.id, details: JSON.stringify({ name: input.name, family: input.family ?? null, dimension: input.dimension }) });
         return { item };
       } catch (error) {
         return toInventoryError(error);
@@ -149,6 +164,7 @@ export const inventoryRouter = router({
       itemId: z.number().int().positive(),
       name: z.string().trim().min(2).max(160),
       sku: z.string().trim().max(96).optional(),
+      family: z.string().trim().min(2).max(100).optional(),
       reorderPointQuantity: z.number().finite().min(0),
       reorderPointUnit: inventoryUnitSchema,
       reorderPointPackBaseQuantity: z.number().finite().positive().optional(),
@@ -169,7 +185,7 @@ export const inventoryRouter = router({
           unit: input.reorderPointUnit,
           packBaseQuantity: input.reorderPointPackBaseQuantity,
         });
-        await updateInventoryItem({ venueId: input.venueId, itemId: input.itemId, name: input.name, sku: input.sku, reorderPointBase, isActive: input.isActive, isPerishable: input.isPerishable, expiryAlertDays: input.expiryAlertDays });
+        await updateInventoryItem({ venueId: input.venueId, itemId: input.itemId, name: input.name, sku: input.sku, family: input.family, reorderPointBase, isActive: input.isActive, isPerishable: input.isPerishable, expiryAlertDays: input.expiryAlertDays });
         return { success: true };
       } catch (error) {
         return toInventoryError(error);
@@ -255,6 +271,27 @@ export const inventoryRouter = router({
     .query(async ({ ctx, input }) => {
       assertVenueAccess(ctx.user, input.venueId);
       return getInventoryPhysicalCounts(input.venueId);
+    }),
+
+  countMetrics: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      return getInventoryCountMetrics(input.venueId);
+    }),
+
+  controlSettings: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      return getInventoryControlSettings(input.venueId);
+    }),
+
+  countTemplates: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      return getInventoryCountTemplates(input.venueId);
     }),
 
   expiryAlerts: protectedProcedure
@@ -348,13 +385,41 @@ export const inventoryRouter = router({
     }),
 
   startPhysicalCount: protectedProcedure
-    .input(z.object({ venueId: z.number().int().positive(), notes: z.string().trim().max(1000).optional() }))
+    .input(z.object({ venueId: z.number().int().positive(), notes: z.string().trim().max(1000).optional(), templateId: z.number().int().positive().optional() }))
     .mutation(async ({ ctx, input }) => {
       assertVenueAccess(ctx.user, input.venueId);
       assertInventoryManager(ctx.user);
       try {
-        const result = await createInventoryPhysicalCount({ venueId: input.venueId, createdByUserId: ctx.user.id, notes: input.notes });
-        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PHYSICAL_COUNT_STARTED", entity: "inventory_physical_count", entityId: result.physicalCountId, details: JSON.stringify({ itemCount: result.itemCount }) });
+        const result = await createInventoryPhysicalCount({ venueId: input.venueId, createdByUserId: ctx.user.id, notes: input.notes, templateId: input.templateId });
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PHYSICAL_COUNT_STARTED", entity: "inventory_physical_count", entityId: result.physicalCountId, details: JSON.stringify({ itemCount: result.itemCount, templateId: input.templateId ?? null }) });
+        return result;
+      } catch (error) {
+        return toInventoryError(error);
+      }
+    }),
+
+  saveControlSettings: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive(), dualApprovalEnabled: z.boolean(), dualApprovalThresholdCost: z.number().finite().min(0) }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      assertInventoryManager(ctx.user);
+      try {
+        const result = await saveInventoryControlSettings(input);
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_DUAL_APPROVAL_SETTINGS_SAVED", entity: "inventory_control_settings", entityId: "id" in result ? result.id : undefined, details: JSON.stringify({ enabled: result.dualApprovalEnabled, threshold: result.dualApprovalThresholdCost }) });
+        return result;
+      } catch (error) {
+        return toInventoryError(error);
+      }
+    }),
+
+  saveCountTemplate: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive(), templateId: z.number().int().positive().optional(), name: z.string().trim().min(2).max(160), families: z.array(z.string().trim().min(2).max(100)).min(1).max(30), isActive: z.boolean().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      assertInventoryManager(ctx.user);
+      try {
+        const result = await saveInventoryCountTemplate({ ...input, createdByUserId: ctx.user.id });
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: input.templateId ? "INVENTORY_COUNT_TEMPLATE_UPDATED" : "INVENTORY_COUNT_TEMPLATE_CREATED", entity: "inventory_count_template", entityId: result.templateId, details: JSON.stringify({ name: input.name, familyCount: result.familyCount }) });
         return result;
       } catch (error) {
         return toInventoryError(error);
@@ -370,7 +435,9 @@ export const inventoryRouter = router({
         const dashboard = await getInventoryDashboard(input.venueId);
         const item = dashboard.items.find((candidate) => candidate.id === input.inventoryItemId);
         if (!item) throw new Error("INSUMO_NO_ENCONTRADO");
-        const physicalStockBase = convertQuantity({ dimension: item.dimension, quantity: input.physicalQuantity, unit: input.unit, packBaseQuantity: input.packBaseQuantity });
+        const physicalStockBase = input.physicalQuantity === 0
+          ? (convertQuantity({ dimension: item.dimension, quantity: 1, unit: input.unit, packBaseQuantity: input.packBaseQuantity }), 0)
+          : convertQuantity({ dimension: item.dimension, quantity: input.physicalQuantity, unit: input.unit, packBaseQuantity: input.packBaseQuantity });
         const result = await updateInventoryPhysicalCountLine({ venueId: input.venueId, physicalCountId: input.physicalCountId, inventoryItemId: input.inventoryItemId, physicalStockBase, countedByUserId: ctx.user.id, note: input.note });
         await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PHYSICAL_COUNT_LINE_RECORDED", entity: "inventory_physical_count_line", entityId: result.lineId, details: JSON.stringify({ physicalCountId: input.physicalCountId, inventoryItemId: input.inventoryItemId, physicalStockBase: result.physicalStockBase, varianceBase: result.varianceBase }) });
         return result;
@@ -385,8 +452,22 @@ export const inventoryRouter = router({
       assertVenueAccess(ctx.user, input.venueId);
       assertInventoryManager(ctx.user);
       try {
-        const result = await submitInventoryPhysicalCount(input);
-        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PHYSICAL_COUNT_SUBMITTED", entity: "inventory_physical_count", entityId: input.physicalCountId, details: JSON.stringify({ differenceCount: result.differenceCount }) });
+        const result = await submitInventoryPhysicalCount({ ...input, submittedByUserId: ctx.user.id });
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: "INVENTORY_PHYSICAL_COUNT_SUBMITTED", entity: "inventory_physical_count", entityId: input.physicalCountId, details: JSON.stringify({ differenceCount: result.differenceCount, totalVarianceCost: result.totalVarianceCost, approvalRequired: result.approvalRequired }) });
+        return result;
+      } catch (error) {
+        return toInventoryError(error);
+      }
+    }),
+
+  decidePhysicalCountApproval: protectedProcedure
+    .input(z.object({ venueId: z.number().int().positive(), physicalCountId: z.number().int().positive(), approved: z.boolean(), note: z.string().trim().max(500).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      assertVenueAccess(ctx.user, input.venueId);
+      assertInventoryManager(ctx.user);
+      try {
+        const result = await decideInventoryPhysicalCountApproval({ ...input, approverUserId: ctx.user.id });
+        await createAuditLog({ venueId: input.venueId, userId: ctx.user.id, userRole: ctx.user.role, module: "Inventario", action: input.approved ? "INVENTORY_PHYSICAL_COUNT_APPROVED" : "INVENTORY_PHYSICAL_COUNT_REJECTED", entity: "inventory_physical_count", entityId: input.physicalCountId, details: JSON.stringify({ totalVarianceCost: result.totalVarianceCost, note: input.note ?? null }) });
         return result;
       } catch (error) {
         return toInventoryError(error);

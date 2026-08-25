@@ -513,3 +513,10 @@
 - [x] Implementar conteos cíclicos y conciliación transaccional de diferencias de stock
 - [x] Añadir panel Manager para ejecutar conteos, revisar diferencias y descargar reportes
 - [x] Validar archivos Excel, conteos, conciliaciones, permisos y aislamiento por local
+- [x] Definir umbral configurable y separación de funciones para aprobación dual de conciliaciones
+- [x] Crear esquema multi-local de aprobaciones y plantillas de conteo por familia
+- [x] Implementar aprobación dual auditable antes de aplicar ajustes de alto valor
+- [x] Permitir crear y aplicar plantillas de conteo filtradas por familia de insumos
+- [x] Mostrar frecuencia de conteos y desviación de stock en el Dashboard Manager
+- [x] Validar umbrales, permisos, plantillas, indicadores y aislamiento por local
+- [x] Permitir que cada local configure y actualice su propio umbral de aprobación dual
