@@ -6,7 +6,7 @@ import { closeQrSession, createQrSession, getQrSessionByToken, getTableByToken, 
 
 export const qrRouter = router({
   // Validar el token QR de una mesa y obtener info del local
-  validateTable: publicProcedure.input(z.object({ qrToken: z.string() })).query(async ({ input }) => {
+  validateTable: publicProcedure.input(z.object({ qrToken: z.string().min(16).max(128) })).query(async ({ input }) => {
     const table = await getTableByToken(input.qrToken);
     if (!table || !table.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Mesa no encontrada o inactiva" });
 
@@ -28,10 +28,12 @@ export const qrRouter = router({
 
   // Crear sesión de cliente (el cliente ingresa su nombre)
   startSession: publicProcedure
-    .input(z.object({ qrToken: z.string(), clientName: z.string().min(1).max(64) }))
+    .input(z.object({ qrToken: z.string().min(16).max(128), clientName: z.string().trim().min(1).max(64) }))
     .mutation(async ({ input }) => {
       const table = await getTableByToken(input.qrToken);
       if (!table || !table.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Mesa no disponible" });
+      const venue = await getVenueById(table.venueId);
+      if (!venue || !venue.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Local no disponible" });
 
       const sessionToken = nanoid(48);
       await createQrSession({
@@ -49,7 +51,7 @@ export const qrRouter = router({
     }),
 
   // Validar sesión activa del cliente
-  validateSession: publicProcedure.input(z.object({ sessionToken: z.string() })).query(async ({ input }) => {
+  validateSession: publicProcedure.input(z.object({ sessionToken: z.string().min(16).max(128) })).query(async ({ input }) => {
     const session = await getQrSessionByToken(input.sessionToken);
     if (!session || !session.isActive) throw new TRPCError({ code: "UNAUTHORIZED", message: "Sesión inválida o expirada" });
 
@@ -64,7 +66,7 @@ export const qrRouter = router({
   }),
 
   // Cerrar sesión del cliente
-  closeSession: publicProcedure.input(z.object({ sessionToken: z.string() })).mutation(async ({ input }) => {
+  closeSession: publicProcedure.input(z.object({ sessionToken: z.string().min(16).max(128) })).mutation(async ({ input }) => {
     const session = await getQrSessionByToken(input.sessionToken);
     if (!session) throw new TRPCError({ code: "NOT_FOUND" });
     await closeQrSession(session.id);

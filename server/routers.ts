@@ -14,6 +14,8 @@ import { sdk } from "./_core/sdk";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import bcrypt from "bcrypt";
+import { randomBytes } from "crypto";
+import { toClientSafeUser } from "./userSafety";
 import { venuesRouter } from "./routers/venues";
 import { usersRouter } from "./routers/users";
 import { tablesRouter } from "./routers/tables";
@@ -38,7 +40,7 @@ export const appRouter = router({
   ownerReports: ownerReportsRouter,
   auth: router({
     me: publicProcedure.query(({ ctx }) => {
-      return ctx.user || null;
+      return ctx.user ? toClientSafeUser(ctx.user) : null;
     }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
@@ -62,14 +64,14 @@ export const appRouter = router({
         });
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 365 * 24 * 60 * 60 * 1000 });
-        return { success: true, user };
+        return { success: true, user: toClientSafeUser(user) };
       }),
     registerPassword: publicProcedure
       .input(
         z.object({
           email: z.string().email(),
-          password: z.string().min(6),
-          name: z.string(),
+          password: z.string().min(10).max(128),
+          name: z.string().trim().min(1).max(120),
           accountType: z.enum(["user", "manager"]).optional().default("user"),
           venueName: z.string().optional(),
           venueAddress: z.string().optional(),
@@ -113,7 +115,7 @@ export const appRouter = router({
         });
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 365 * 24 * 60 * 60 * 1000 });
-        return { success: true, user: newUser };
+        return { success: true, user: toClientSafeUser(newUser) };
       }),
     forgotPassword: publicProcedure
       .input(z.object({ email: z.string().email() }))
@@ -122,14 +124,15 @@ export const appRouter = router({
         if (!user) {
           return { success: true, message: "Si el correo está registrado, recibirás instrucciones." };
         }
-        const token = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+        const token = randomBytes(32).toString("base64url");
         const expires = new Date(Date.now() + 3600 * 1000);
         await setPasswordResetToken(input.email, token, expires);
-        console.log(`[Password Reset] Token para ${input.email}: ${token}`);
-        return { success: true, message: "Instrucciones enviadas al correo electrónico." };
+        // El token nunca se registra ni se devuelve. La entrega segura del enlace
+        // se habilitará mediante el proveedor transaccional configurado para producción.
+        return { success: true, message: "Si el correo está registrado, recibirás instrucciones cuando el envío de recuperación esté habilitado." };
       }),
     resetPassword: publicProcedure
-      .input(z.object({ token: z.string(), newPassword: z.string().min(6) }))
+      .input(z.object({ token: z.string().min(32).max(128), newPassword: z.string().min(10).max(128) }))
       .mutation(async ({ input }) => {
         const user = await getUserByResetToken(input.token);
         if (!user || !user.resetPasswordExpires || user.resetPasswordExpires < new Date()) {

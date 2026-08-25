@@ -478,3 +478,7 @@
 - [x] Permitir establecer y visualizar una fecha límite para la revisión de cada enlace de karaoke
 - [x] Notificar al Manager del local cuando un enlace sea marcado como Requiere revisión
 - [x] Exportar en CSV las métricas de salud de enlaces de karaoke por local desde Owner
+- [x] Definir y ejecutar auditoría de seguridad y pentesting controlado sobre SongTap
+- [x] Revisar autenticación, sesiones, RBAC, aislamiento por local, QR, entradas y dependencias
+- [x] Corregir hallazgos de seguridad verificables y añadir pruebas de regresión
+- [x] Documentar resultados, riesgos residuales y controles validados

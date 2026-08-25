@@ -21,18 +21,18 @@ export const ordersRouter = router({
   create: publicProcedure
     .input(
       z.object({
-        sessionToken: z.string(),
+        sessionToken: z.string().min(16).max(128),
         sessionId: z.number(),
         venueId: z.number(),
         tableId: z.number(),
-        clientName: z.string(),
+        clientName: z.string().trim().min(1).max(64),
         items: z.array(
           z.object({
             menuItemId: z.number(),
-            quantity: z.number().min(1),
-            notes: z.string().optional(),
+            quantity: z.number().int().min(1).max(99),
+            notes: z.string().trim().max(500).optional(),
           })
-        ),
+        ).min(1).max(50),
         ageConfirmed: z.boolean().optional(),
       })
     )
@@ -92,7 +92,7 @@ export const ordersRouter = router({
         venueId: input.venueId,
         tableId: input.tableId,
         sessionId: input.sessionId,
-        clientName: input.clientName,
+        clientName: session.clientName,
         status: "pending",
         totalAmount: totalAmount.toFixed(2),
         totalCost: totalCost.toFixed(2),

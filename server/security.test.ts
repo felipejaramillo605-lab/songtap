@@ -177,6 +177,25 @@ describe("Aislamiento por IDs adivinables y token QR", () => {
     await db.delete(qrSessions).where(eq(qrSessions.id, sessionId));
   });
 
+  it("no crea sesiones QR para una mesa activa de un local inactivo", async () => {
+    const db = await getDb();
+    if (!db) return;
+    const suffix = Date.now();
+    const venueResult = await db.insert(venues).values({ name: `Local inactivo ${suffix}`, isActive: false });
+    const venueId = Number((venueResult[0] as { insertId?: number }).insertId);
+    const qrToken = `inactive-venue-${suffix}-secure-token`;
+    const tableResult = await db.insert(tables).values({ venueId, name: "Mesa inactiva", qrToken, isActive: true });
+    const tableId = Number((tableResult[0] as { insertId?: number }).insertId);
+
+    try {
+      const caller = appRouter.createCaller(ctx("user", null, 9015));
+      await expect(caller.qr.startSession({ qrToken, clientName: "Cliente de prueba" })).rejects.toThrow("Local no disponible");
+    } finally {
+      await db.delete(tables).where(eq(tables.id, tableId));
+      await db.delete(venues).where(eq(venues.id, venueId));
+    }
+  });
+
   it("recorre PQRS con persistencia real, bloquea otro local y devuelve la respuesta a la sesión QR", async () => {
     const db = await getDb();
     if (!db) return;

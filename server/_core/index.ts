@@ -32,9 +32,23 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.disable("x-powered-by");
+  app.use((req, res, next) => {
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; " +
+        "script-src 'self' 'unsafe-inline' https://*.manus.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://api.manus.im https://*.manus.com; frame-src 'none'"
+    );
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    res.setHeader("X-Frame-Options", "DENY");
+    next();
+  });
+  // El router de carga limita los archivos a 5 MB. Este límite evita que otros
+  // endpoints tRPC acepten cuerpos excesivos sin impedir los Data URL permitidos.
+  app.use(express.json({ limit: "8mb" }));
+  app.use(express.urlencoded({ limit: "8mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerOwnerReportScheduleRoute(app);

@@ -42,7 +42,9 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    // Lax mantiene el callback OAuth de navegación superior y reduce el riesgo CSRF
+    // al no adjuntar la sesión a solicitudes iniciadas desde sitios externos.
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }

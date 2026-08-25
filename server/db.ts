@@ -34,6 +34,7 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
+import { createHash } from "crypto";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1432,9 +1433,10 @@ export async function createUserWithPassword(data: {
 export async function setPasswordResetToken(email: string, token: string, expires: Date) {
   const db = await getDb();
   if (!db) return false;
+  const tokenHash = createHash("sha256").update(token).digest("hex");
   await db
     .update(users)
-    .set({ resetPasswordToken: token, resetPasswordExpires: expires })
+    .set({ resetPasswordToken: tokenHash, resetPasswordExpires: expires })
     .where(eq(users.email, email));
   return true;
 }
@@ -1442,7 +1444,8 @@ export async function setPasswordResetToken(email: string, token: string, expire
 export async function getUserByResetToken(token: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.resetPasswordToken, token)).limit(1);
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const result = await db.select().from(users).where(eq(users.resetPasswordToken, tokenHash)).limit(1);
   return result[0];
 }
 
@@ -1451,7 +1454,13 @@ export async function updateUserPassword(userId: number, passwordHash: string, m
   if (!db) return;
   await db
     .update(users)
-    .set({ passwordHash, mustChangePassword, resetPasswordToken: null, resetPasswordExpires: null })
+    .set({
+      passwordHash,
+      mustChangePassword,
+      resetPasswordToken: null,
+      resetPasswordExpires: null,
+      sessionVersion: sql`${users.sessionVersion} + 1`,
+    })
     .where(eq(users.id, userId));
 }
 

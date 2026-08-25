@@ -7,6 +7,7 @@ import { users } from "../../drizzle/schema";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 import { favoriteModulesByRole, isFavoriteModuleAllowed } from "../../shared/favoriteModules";
+import { toClientSafeUser } from "../userSafety";
 
 export const usersRouter = router({
   favoriteModules: protectedProcedure.query(async ({ ctx }) => {
@@ -34,10 +35,10 @@ export const usersRouter = router({
 
   list: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user.role === "owner") {
-      return getAllUsers();
+      return (await getAllUsers()).map(toClientSafeUser);
     }
     if (ctx.user.venueId) {
-      return getUsersByVenue(ctx.user.venueId);
+      return (await getUsersByVenue(ctx.user.venueId)).map(toClientSafeUser);
     }
     return [];
   }),
@@ -276,7 +277,7 @@ export const usersRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "La contraseña actual es incorrecta" });
       }
       const newHash = await bcrypt.hash(input.newPassword, 10);
-      await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, ctx.user.id));
+      await updateUserPassword(ctx.user.id, newHash, false);
       return { success: true, message: "Contraseña actualizada con éxito" };
     }),
 });

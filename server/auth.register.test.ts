@@ -30,7 +30,7 @@ describe("Auth Register & Manager Venue Request Tests", () => {
     createdEmails.push(uniqueEmail);
     const res = await caller.auth.registerPassword({
       email: uniqueEmail,
-      password: "password123",
+      password: "password123!",
       name: "Test User",
       accountType: "user",
     });
@@ -47,7 +47,7 @@ describe("Auth Register & Manager Venue Request Tests", () => {
     createdEmails.push(uniqueEmail);
     const res = await caller.auth.registerPassword({
       email: uniqueEmail,
-      password: "password123",
+      password: "password123!",
       name: "Test Manager",
       accountType: "manager",
       venueName: "Bar de Prueba Test",
@@ -66,7 +66,7 @@ describe("Auth Register & Manager Venue Request Tests", () => {
     const uniqueEmail = `testmanager_fail_${Date.now()}@example.com`;
     const promise = caller.auth.registerPassword({
       email: uniqueEmail,
-      password: "password123",
+      password: "password123!",
       name: "Test Manager Bad",
       accountType: "manager",
       venueName: "",

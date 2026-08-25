@@ -66,4 +66,30 @@ describe("Upload Router Validation Tests", () => {
     const res = await validImageUpload;
     expect(res).toBeDefined();
   });
+
+  it("rechaza contenido que se hace pasar por una imagen permitida", async () => {
+    const caller = appRouter.createCaller({
+      user: {
+        id: 1,
+        openId: "test",
+        name: "Test User",
+        email: "test@example.com",
+        role: "user",
+        venueId: null,
+        language: "es",
+        loginMethod: "local",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastSignedIn: new Date(),
+      } as any,
+      req: {} as any,
+      res: {} as any,
+    });
+
+    await expect(caller.upload.uploadFile({
+      filename: "aparenta-ser-imagen.jpg",
+      base64Data: "data:image/jpeg;base64,TVqQAAMAAAAEAAAA",
+      contentType: "image/jpeg",
+    })).rejects.toThrow("no coincide con el formato declarado");
+  });
 });
