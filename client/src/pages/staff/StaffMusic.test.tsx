@@ -33,4 +33,15 @@ describe("StaffMusic normalización local", () => {
     fireEvent.click(screen.getByRole("button", { name: "Normalizar datos de Vivir Mi Vida - Marc Anthony" }));
     expect(mocks.normalize).toHaveBeenCalledWith({ venueId: 7, songId: 14 });
   });
+
+  it("ofrece una búsqueda externa de karaoke por canción sin llamar a una mutación", () => {
+    render(<StaffMusic />);
+    const karaokeLink = screen.getByRole("link", { name: "Buscar karaoke de Vivir Mi Vida - Marc Anthony en YouTube" });
+
+    expect(karaokeLink.getAttribute("href")).toBe(
+      "https://www.youtube.com/results?search_query=Vivir+Mi+Vida+-+Marc+Anthony+Artista+desconocido+karaoke+con+letra"
+    );
+    expect(karaokeLink.getAttribute("target")).toBe("_blank");
+    expect(mocks.normalize).not.toHaveBeenCalled();
+  });
 });

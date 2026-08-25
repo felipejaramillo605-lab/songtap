@@ -1,0 +1,6 @@
+# Fuentes y límites para karaoke en SongTap
+
+- YouTube permite buscar videos públicos mediante sus servicios, pero exige que las acciones relacionadas con YouTube sean claramente identificables y se inicien por el usuario. SongTap no debe descargar contenido, eludir controles ni reutilizar credenciales de terceros. Fuente: https://developers.google.com/youtube/terms/developer-policies
+- El reproductor IFrame de YouTube permite incrustar y controlar videos, sujeto a sus políticas y a los permisos del titular del contenido. Una búsqueda de karaoke no garantiza que el video tenga licencia de uso público en un local. Fuente: https://developers.google.com/youtube/iframe_api_reference
+- Las letras son contenido licenciado. Musixmatch ofrece una API comercial para mostrar letras y requiere contacto/plan comercial para uso empresarial; SongTap no copiará ni extraerá letras de sitios web. Fuente: https://docs.musixmatch.com/getting-started
+- Diseño inicial compatible: el Staff marca la canción actual manualmente; SongTap genera un enlace de búsqueda externo con título, artista y “karaoke”, siempre separado por venueId. La reproducción, la selección final y los derechos de ejecución quedan bajo responsabilidad del local y del proveedor autorizado.

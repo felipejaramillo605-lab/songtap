@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import MusicQueue from "@/components/MusicQueue";
+import NowPlayingStrip from "@/components/NowPlayingStrip";
 import ApplauseVoting from "@/components/ApplauseVoting";
 import ClientPqrs from "@/components/ClientPqrs";
 import { toast } from "sonner";
@@ -247,6 +248,8 @@ export default function ClientMenu() {
       </header>
 
       <div className="max-w-lg mx-auto px-4 pt-4">
+        <NowPlayingStrip current={musicData?.current} />
+
         <Tabs defaultValue={["music", "orders", "pqrs"].includes(new URLSearchParams(searchString).get("tab") ?? "") ? new URLSearchParams(searchString).get("tab")! : "menu"}>
           <TabsList className="grid w-full grid-cols-4 bg-secondary border border-border mb-4">
             <TabsTrigger value="menu" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">

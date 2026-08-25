@@ -3,12 +3,13 @@ import SongTapLayout from "@/components/SongTapLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Music2, Play, CheckCircle2, Trash2, Clock, Star, WandSparkles } from "lucide-react";
+import { Music2, Play, CheckCircle2, Trash2, Clock, Star, WandSparkles, Search } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { MusicProvider, musicProviderInfo, providerConnectionMessage } from "@/lib/musicProvider";
+import { buildKaraokeSearchUrl } from "@/lib/karaokeSearch";
 
 export default function StaffMusic() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -84,6 +85,15 @@ export default function StaffMusic() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs bg-primary/20 text-primary px-3 py-1.5 rounded-full font-medium">En vivo</span>
+                  <a
+                    href={buildKaraokeSearchUrl(currentSong.songName, currentSong.artist)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    aria-label={`Buscar karaoke de ${currentSong.songName} en YouTube`}
+                  >
+                    <Search size={13} /> Buscar karaoke
+                  </a>
                 </div>
               </div>
             ) : (
@@ -94,6 +104,10 @@ export default function StaffMusic() {
             )}
           </CardContent>
         </Card>
+
+        <p className="-mt-3 text-xs text-muted-foreground">
+          El asistente abre una búsqueda externa con el título y artista. El Staff decide qué versión usar; SongTap no descarga, reproduce ni muestra letras.
+        </p>
 
         {/* Cola de Canciones */}
         <Card className="bg-card border-border">
@@ -146,6 +160,15 @@ export default function StaffMusic() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      <a
+                        href={buildKaraokeSearchUrl(song.songName, song.artist)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        aria-label={`Buscar karaoke de ${song.songName} en YouTube`}
+                      >
+                        <Search size={12} /> Karaoke
+                      </a>
                       <Button
                         size="sm"
                         variant="outline"

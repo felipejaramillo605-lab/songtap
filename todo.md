@@ -461,3 +461,9 @@
 - [x] Implementar un modal de Novedades independiente del onboarding
 - [x] Validar métricas, novedades y accesibilidad responsive
 - [x] Corregir el cierre y la persistencia del onboarding al completar la guía, incluido el modo de pruebas
+- [ ] Crear la aplicación Spotify Web API, definir OAuth seguro por local y preparar sus credenciales para SongTap
+- [ ] Diseñar conexión Spotify con tokens, preferencias y fallos aislados por venueId antes de autorizar la app
+- [x] Evaluar el alta de una app Spotify propia por local y sus límites de Development Mode antes de venderla como servicio
+- [x] Mostrar de forma persistente la canción en reproducción en el portal por mesa y panel Staff
+- [x] Añadir asistencia por local para buscar enlaces legales de karaoke sin copiar letras ni descargar contenido protegido
+- [x] Implementar enlaces contextuales de búsqueda de karaoke desde cada canción de la cola y canción actual
