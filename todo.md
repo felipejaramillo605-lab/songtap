@@ -525,3 +525,9 @@
 - [x] Implementar selector de modo claro y oscuro con preferencia persistente
 - [x] Revisar contraste, fondos y legibilidad en modo claro para vistas principales
 - [x] Validar alertas, permisos, temas y compatibilidad responsive
+- [x] Auditar los módulos actuales y mapear guías operativas por rol
+- [x] Ampliar tutoriales de Owner, Manager y Staff con recorridos completos por módulo
+- [x] Incorporar guías específicas de inventario, aprobaciones, reportes y operación musical
+- [x] Extender la base de ayuda con soluciones y búsquedas para incidentes frecuentes
+- [x] Mejorar navegación por categorías, progreso y retorno al módulo asociado
+- [x] Validar cobertura, accesibilidad y experiencia responsive de guías ampliadas

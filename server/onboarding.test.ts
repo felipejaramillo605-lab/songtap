@@ -59,6 +59,12 @@ describe("onboarding router", () => {
     expect(dbMocks.setHelpArticleVote).toHaveBeenCalledWith(25, "cannot-save-change", "up");
   });
 
+  it("acepta interacciones sobre el nuevo artículo de aprobación dual de inventario", async () => {
+    dbMocks.toggleHelpArticleFavorite.mockResolvedValueOnce(true);
+    await expect(onboardingRouter.createCaller(context("manager")).toggleHelpFavorite({ articleKey: "inventory-dual-approval" })).resolves.toEqual({ isFavorite: true });
+    expect(dbMocks.toggleHelpArticleFavorite).toHaveBeenCalledWith(25, "inventory-dual-approval");
+  });
+
   it("guarda favoritos y rechaza claves de artículos que no pertenecen a la ayuda", async () => {
     dbMocks.toggleHelpArticleFavorite.mockResolvedValueOnce(true);
     await expect(onboardingRouter.createCaller(context("staff")).toggleHelpFavorite({ articleKey: "invalid-qr" })).resolves.toEqual({ isFavorite: true });

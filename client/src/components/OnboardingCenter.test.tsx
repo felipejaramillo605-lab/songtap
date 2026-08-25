@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), navigate: vi.fn(), progress: null as any, progressResolved: true, isPreviewMode: false }));
@@ -38,7 +38,7 @@ describe("OnboardingCenter", () => {
     expect(screen.getByRole("heading", { name: "Tu guía SongTap" })).toBeTruthy();
     expect(screen.getByRole("img", { name: /captura del dashboard owner/i })).toBeTruthy();
     expect(screen.getAllByText("Generar reporte ahora", { exact: false }).length).toBeGreaterThan(0);
-    expect(screen.getByText("Progreso: 1 de 4")).toBeTruthy();
+    expect(screen.getByText("Progreso: 1 de 10")).toBeTruthy();
   });
 
   it("no abre la guía cuando la consulta aún no ha resuelto el progreso", () => {
@@ -66,7 +66,7 @@ describe("OnboardingCenter", () => {
     expect(screen.getByText("Progreso: 2 de 2")).toBeTruthy();
     expect(screen.getByText("Este es el último paso.")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Guía completa" }));
-    expect(screen.getByText("Progreso: 1 de 4")).toBeTruthy();
+    expect(screen.getByText("Progreso: 1 de 11")).toBeTruthy();
   });
 
   it("permite impedir nuevas aperturas automáticas desde el checkbox", async () => {
@@ -81,9 +81,9 @@ describe("OnboardingCenter", () => {
     const user = userEvent.setup();
     render(<OnboardingCenter role="staff" />);
     await screen.findByRole("dialog");
-    await user.click(screen.getByRole("button", { name: "Siguiente" }));
-    await user.click(screen.getByRole("button", { name: "Siguiente" }));
-    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    const libraryCard = screen.getAllByText("PQRS y perfil seguro")[0]?.closest("article");
+    if (!libraryCard) throw new Error("No se encontró el tutorial final de Staff");
+    await user.click(within(libraryCard).getByRole("button", { name: "Añadir a ruta" }));
     await user.click(screen.getByRole("button", { name: "Completar guía" }));
     expect(mocks.complete).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -95,9 +95,9 @@ describe("OnboardingCenter", () => {
     render(<OnboardingCenter role="staff" />);
     expect(screen.queryByRole("dialog")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Abrir guía" }));
-    await user.click(screen.getByRole("button", { name: "Siguiente" }));
-    await user.click(screen.getByRole("button", { name: "Siguiente" }));
-    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    const libraryCard = screen.getAllByText("PQRS y perfil seguro")[0]?.closest("article");
+    if (!libraryCard) throw new Error("No se encontró el tutorial final de Staff");
+    await user.click(within(libraryCard).getByRole("button", { name: "Añadir a ruta" }));
     await user.click(screen.getByRole("button", { name: "Cerrar guía de prueba" }));
     expect(mocks.complete).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -154,6 +154,17 @@ describe("OnboardingCenter", () => {
     expect(mocks.setHelpVote).toHaveBeenCalledWith({ articleKey: "access-denied", vote: "up" });
     await user.click(screen.getByRole("button", { name: "Guardar Veo Acceso denegado en favoritos" }));
     expect(mocks.toggleHelpFavorite).toHaveBeenCalledWith({ articleKey: "access-denied" });
+  });
+
+  it("permite buscar un tutorial de inventario y añadirlo a la ruta completa", async () => {
+    const user = userEvent.setup();
+    render(<OnboardingCenter role="manager" />);
+    await screen.findByRole("dialog");
+    await user.type(screen.getByRole("textbox", { name: "Buscar tutoriales por módulo" }), "doble aprobación");
+    const libraryCard = screen.getAllByText("Conteos, diferencias y doble aprobación")[0]?.closest("article");
+    if (!libraryCard) throw new Error("No se encontró el tutorial de conteo");
+    await user.click(within(libraryCard).getByRole("button", { name: "Añadir a ruta" }));
+    expect(screen.getByText("Progreso: 10 de 11")).toBeTruthy();
   });
 
   it("ofrece reiniciar el onboarding desde Ayuda", async () => {
