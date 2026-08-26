@@ -41,3 +41,11 @@ El panel **Owner → Guías** incluye ahora un editor enriquecido basado en un s
 La biblioteca y los artículos publicados interpretan el mismo formato seguro y muestran imágenes solamente desde el almacenamiento administrado de SongTap. Las consultas de guías que no obtienen tutoriales ni sugerencias se registran de forma agregada por término normalizado y rol; no se almacena una identidad de quien buscó. Owner puede revisar la frecuencia, el último registro y crear directamente un artículo de ayuda prellenado desde cada necesidad detectada.
 
 La migración `0041_workable_venus.sql` agrega `guide_content_media` y `guide_search_misses`. La validación final de esta entrega aprobó **217 pruebas** con TypeScript sin errores.
+
+## Plantillas y señales de impacto de la ayuda
+
+Al crear una guía, Owner puede aplicar plantillas visuales de **tutorial operativo**, **solución rápida**, **procedimiento de control** o **novedad de producto**. Cada plantilla propone tipo, audiencia, categoría, duración y una estructura editable en el formato enriquecido seguro. Las plantillas no publican ni reemplazan contenido existente; funcionan como punto de partida para que Owner adapte el procedimiento a la operación real.
+
+Cuando una persona busca ayuda y abre un artículo administrado desde esos resultados, SongTap registra una señal agregada por término normalizado, rol y artículo. El evento no conserva usuario, local ni navegación individual. Owner visualiza aperturas desde resultados, consultas distintas, artículos con impacto y un ranking proporcional por artículo. Esta señal representa una apertura asociada a búsqueda, no una garantía de resolución; sirve para priorizar revisión y mejora editorial.
+
+La migración `0042_breezy_grim_reaper.sql` agrega `guide_search_resolutions`. La validación final aprobó **222 pruebas** con TypeScript sin errores.

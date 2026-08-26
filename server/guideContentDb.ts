@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
-import { guideContentMedia, guideContents, guideSearchMisses } from "../drizzle/schema";
+import { guideContentMedia, guideContents, guideSearchMisses, guideSearchResolutions } from "../drizzle/schema";
 import { getDb } from "./db";
 
 export type GuideContentRole = "owner" | "manager" | "staff";
@@ -94,6 +94,7 @@ export async function deleteManagedGuideContent(id: number) {
   if (!db) throw new Error("Base de datos no disponible");
   const [existing] = await db.select({ id: guideContents.id, title: guideContents.title }).from(guideContents).where(eq(guideContents.id, id)).limit(1);
   if (!existing) return null;
+  await db.delete(guideSearchResolutions).where(eq(guideSearchResolutions.guideContentId, id));
   await db.delete(guideContents).where(eq(guideContents.id, id));
   return existing;
 }
@@ -145,4 +146,45 @@ export async function getGuideSearchMisses(limit = 40) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(guideSearchMisses).orderBy(desc(guideSearchMisses.searchCount), desc(guideSearchMisses.lastSearchedAt)).limit(limit);
+}
+
+export async function recordGuideSearchResolution(input: { query: string; role: GuideContentRole; guideContentId: number }) {
+  const normalizedQuery = normalizeGuideSearch(input.query);
+  if (normalizedQuery.length < 2) return null;
+  const db = await getDb();
+  if (!db) return null;
+  const [content] = await db.select({ id: guideContents.id, roles: guideContents.roles }).from(guideContents).where(and(eq(guideContents.id, input.guideContentId), eq(guideContents.contentType, "help"), eq(guideContents.isActive, true))).limit(1);
+  if (!content || !decodeGuideRoles(content.roles).includes(input.role)) return null;
+  await db.insert(guideSearchResolutions).values({ normalizedQuery, displayQuery: input.query.trim().slice(0, 160), role: input.role, guideContentId: input.guideContentId }).onDuplicateKeyUpdate({
+    set: {
+      displayQuery: input.query.trim().slice(0, 160),
+      resolutionCount: sql`${guideSearchResolutions.resolutionCount} + 1`,
+      lastResolvedAt: new Date(),
+    },
+  });
+  return { guideContentId: input.guideContentId, normalizedQuery };
+}
+
+export async function getGuideResolutionStats(limit = 8) {
+  const db = await getDb();
+  const empty = { totalResolutions: 0, uniqueQueries: 0, articlesWithResolutions: 0, lastResolvedAt: null as Date | null, articles: [] as { guideContentId: number; title: string; category: string; resolutionCount: number; queryCount: number; lastResolvedAt: Date | null }[] };
+  if (!db) return empty;
+  const rows = await db.select({
+    guideContentId: guideContents.id,
+    title: guideContents.title,
+    category: guideContents.category,
+    resolutionCount: sql<number>`SUM(${guideSearchResolutions.resolutionCount})`,
+    queryCount: sql<number>`COUNT(DISTINCT ${guideSearchResolutions.normalizedQuery})`,
+    lastResolvedAt: sql<Date | null>`MAX(${guideSearchResolutions.lastResolvedAt})`,
+  }).from(guideSearchResolutions).innerJoin(guideContents, eq(guideSearchResolutions.guideContentId, guideContents.id)).groupBy(guideContents.id, guideContents.title, guideContents.category).orderBy(desc(sql`SUM(${guideSearchResolutions.resolutionCount})`), desc(sql`MAX(${guideSearchResolutions.lastResolvedAt})`));
+  const normalizedRows = rows.map((row) => ({ ...row, resolutionCount: Number(row.resolutionCount), queryCount: Number(row.queryCount) }));
+  const uniqueQueries = new Set(await db.select({ normalizedQuery: guideSearchResolutions.normalizedQuery }).from(guideSearchResolutions).then((items) => items.map((item) => item.normalizedQuery)));
+  const lastResolvedAt = normalizedRows.reduce<Date | null>((latest, row) => !latest || (row.lastResolvedAt && row.lastResolvedAt > latest) ? row.lastResolvedAt : latest, null);
+  return {
+    totalResolutions: normalizedRows.reduce((sum, row) => sum + row.resolutionCount, 0),
+    uniqueQueries: uniqueQueries.size,
+    articlesWithResolutions: normalizedRows.length,
+    lastResolvedAt,
+    articles: normalizedRows.slice(0, limit),
+  };
 }

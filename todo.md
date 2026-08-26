@@ -543,3 +543,9 @@
 - [x] Crear editor enriquecido con formato, inserción de imágenes y vista previa
 - [x] Registrar búsquedas sin coincidencias y mostrar términos faltantes al Owner
 - [x] Validar permisos, carga, renderizado, consultas y accesibilidad responsive
+- [x] Definir eventos anónimos y métricas de resolución entre búsquedas y artículos de ayuda
+- [x] Crear esquema y API segura para registrar aperturas de artículos desde resultados de búsqueda
+- [x] Incorporar plantillas visuales predefinidas por tipo de guía en el editor Owner
+- [x] Implementar panel Owner con artículos más abiertos, búsquedas resueltas y tasa de resolución
+- [x] Validar permisos, aislamiento, cálculos, accesibilidad y experiencia móvil
+- [x] Documentar las plantillas y estadísticas de aprendizaje

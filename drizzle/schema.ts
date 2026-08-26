@@ -1020,6 +1020,26 @@ export const guideSearchMisses = mysqlTable(
 
 export type GuideSearchMiss = typeof guideSearchMisses.$inferSelect;
 
+export const guideSearchResolutions = mysqlTable(
+  "guide_search_resolutions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    normalizedQuery: varchar("normalizedQuery", { length: 160 }).notNull(),
+    displayQuery: varchar("displayQuery", { length: 160 }).notNull(),
+    role: mysqlEnum("role", ["owner", "manager", "staff"]).notNull(),
+    guideContentId: int("guideContentId").notNull(),
+    resolutionCount: int("resolutionCount").default(1).notNull(),
+    firstResolvedAt: timestamp("firstResolvedAt").defaultNow().notNull(),
+    lastResolvedAt: timestamp("lastResolvedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    queryRoleContentUnique: uniqueIndex("guide_search_resolutions_query_role_content_unique").on(table.normalizedQuery, table.role, table.guideContentId),
+    contentPopularityIdx: index("guide_search_resolutions_content_popularity_idx").on(table.guideContentId, table.resolutionCount, table.lastResolvedAt),
+  }),
+);
+
+export type GuideSearchResolution = typeof guideSearchResolutions.$inferSelect;
+
 export const supportTickets = mysqlTable("support_tickets", {
   id: int("id").autoincrement().primaryKey(),
   reporterId: int("reporterId").notNull(),

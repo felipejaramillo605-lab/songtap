@@ -6,8 +6,10 @@ const learningMocks = vi.hoisted(() => ({
   createManagedGuideContent: vi.fn(),
   deleteManagedGuideContent: vi.fn(),
   getGuideContentMedia: vi.fn(),
+  getGuideResolutionStats: vi.fn(),
   getManagedGuideContents: vi.fn(),
   getGuideSearchMisses: vi.fn(),
+  recordGuideSearchResolution: vi.fn(),
   recordGuideSearchMiss: vi.fn(),
   searchGuideContentSuggestions: vi.fn(),
   updateManagedGuideContent: vi.fn(),
@@ -51,6 +53,18 @@ describe("learning router", () => {
   it("registra una búsqueda sin resultado con el rol autenticado", async () => {
     await expect(learningRouter.createCaller(context("staff")).recordSearchMiss({ query: "receta vegana" })).resolves.toEqual({ success: true });
     expect(learningMocks.recordGuideSearchMiss).toHaveBeenCalledWith({ query: "receta vegana", role: "staff" });
+  });
+
+  it("asocia una búsqueda con un artículo de ayuda autorizado para medir su resolución", async () => {
+    learningMocks.recordGuideSearchResolution.mockResolvedValueOnce({ guideContentId: 51, normalizedQuery: "conteo fisico" });
+    await expect(learningRouter.createCaller(context("manager")).recordSearchResolution({ query: "conteo físico", guideContentId: 51 })).resolves.toEqual({ success: true });
+    expect(learningMocks.recordGuideSearchResolution).toHaveBeenCalledWith({ query: "conteo físico", role: "manager", guideContentId: 51 });
+  });
+
+  it("reserva las estadísticas de resolución para Owner", async () => {
+    learningMocks.getGuideResolutionStats.mockResolvedValueOnce({ totalResolutions: 8, uniqueQueries: 3, articlesWithResolutions: 2, lastResolvedAt: null, articles: [] });
+    await expect(learningRouter.createCaller(context("owner")).adminResolutionStats()).resolves.toMatchObject({ totalResolutions: 8 });
+    await expect(learningRouter.createCaller(context("staff")).adminResolutionStats()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("solo permite a Owner subir una imagen de guía validada y deja auditoría", async () => {

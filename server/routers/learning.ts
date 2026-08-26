@@ -7,8 +7,10 @@ import {
   createManagedGuideContent,
   deleteManagedGuideContent,
   getGuideContentMedia,
+  getGuideResolutionStats,
   getManagedGuideContents,
   getGuideSearchMisses,
+  recordGuideSearchResolution,
   recordGuideSearchMiss,
   searchGuideContentSuggestions,
   updateManagedGuideContent,
@@ -66,9 +68,20 @@ export const learningRouter = router({
       return { success: true };
     }),
 
+  recordSearchResolution: protectedProcedure
+    .input(z.object({ query: z.string().trim().min(2).max(160), guideContentId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const role = ctx.user.role;
+      if (role !== "owner" && role !== "manager" && role !== "staff") return { success: true };
+      const resolution = await recordGuideSearchResolution({ query: input.query, role: role as GuideContentRole, guideContentId: input.guideContentId });
+      if (!resolution) throw new TRPCError({ code: "NOT_FOUND", message: "Este artículo de ayuda ya no está disponible." });
+      return { success: true };
+    }),
+
   adminList: adminProcedure.query(() => getManagedGuideContents()),
   adminMedia: adminProcedure.query(() => getGuideContentMedia()),
   adminSearchMisses: adminProcedure.query(() => getGuideSearchMisses()),
+  adminResolutionStats: adminProcedure.query(() => getGuideResolutionStats()),
 
   uploadGuideImage: adminProcedure
     .input(z.object({ filename: z.string().trim().min(1).max(120), base64Data: z.string().min(1).max(5_600_000), contentType: z.enum(guideImageTypes), altText: z.string().trim().min(3).max(240) }))

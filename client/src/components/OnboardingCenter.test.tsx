@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), recordSearchMiss: vi.fn(), navigate: vi.fn(), progress: null as any, progressResolved: true, isPreviewMode: false, managedContents: [] as any[], suggestions: [] as any[] }));
+const mocks = vi.hoisted(() => ({ markOpened: vi.fn(), markAutoShown: vi.fn(), setAutoSuppressed: vi.fn(), reportIssue: vi.fn(), complete: vi.fn(), reset: vi.fn(), setHelpVote: vi.fn(), toggleHelpFavorite: vi.fn(), recordSearchMiss: vi.fn(), recordSearchResolution: vi.fn(), navigate: vi.fn(), progress: null as any, progressResolved: true, isPreviewMode: false, managedContents: [] as any[], suggestions: [] as any[] }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -26,6 +26,7 @@ vi.mock("@/lib/trpc", () => ({
       available: { useQuery: () => ({ data: mocks.managedContents }) },
       suggestions: { useQuery: () => ({ data: mocks.suggestions }) },
       recordSearchMiss: { useMutation: () => ({ mutate: mocks.recordSearchMiss }) },
+      recordSearchResolution: { useMutation: () => ({ mutate: mocks.recordSearchResolution }) },
     },
   },
 }));
@@ -197,6 +198,17 @@ describe("OnboardingCenter", () => {
     await user.click(screen.getByRole("tab", { name: "Ayuda y errores" }));
     expect(screen.getByText("Ayuda administrada")).toBeTruthy();
     expect(screen.getByText("Recepción guiada")).toBeTruthy();
+  });
+
+  it("registra una señal de resolución al abrir un artículo administrado desde una búsqueda", async () => {
+    const user = userEvent.setup();
+    mocks.managedContents = [{ id: 92, contentType: "help", title: "Recepción guiada", summary: "Pasos propios para validar una compra.", body: "Confirma proveedor\nRevisa lotes", category: "Inventario", modulePath: "/manager/inventory", durationMinutes: 5 }];
+    render(<OnboardingCenter role="manager" />);
+    await screen.findByRole("dialog");
+    await user.click(screen.getByRole("tab", { name: "Ayuda y errores" }));
+    await user.type(screen.getByRole("textbox", { name: "Buscar soluciones de ayuda" }), "recepción");
+    await user.click(screen.getByRole("button", { name: "Leer artículo: Recepción guiada" }));
+    expect(mocks.recordSearchResolution).toHaveBeenCalledWith({ query: "recepción", guideContentId: 92 });
   });
 
   it("ofrece reiniciar el onboarding desde Ayuda", async () => {
