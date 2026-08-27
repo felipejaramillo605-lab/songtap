@@ -68,7 +68,10 @@ describe("Endurecimiento de autenticación y sesiones", () => {
     const request = { headers: { cookie: `${COOKIE_NAME}=${oldSession}` } } as any;
     await expect(sdk.authenticateRequest(request)).resolves.toMatchObject({ id: user.id });
 
+    await db!.update(users).set({ failedLoginAttempts: 10, loginLockedUntil: new Date(Date.now() + 60_000) }).where(eq(users.id, user.id));
     await updateUserPassword(user.id, await bcrypt.hash("ClaveNueva!26", 10));
     await expect(sdk.authenticateRequest(request)).rejects.toThrow("Session revoked");
+    const [updatedUser] = await db!.select().from(users).where(eq(users.id, user.id)).limit(1);
+    expect(updatedUser).toMatchObject({ failedLoginAttempts: 0, loginLockedUntil: null });
   });
 });

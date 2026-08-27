@@ -18,6 +18,8 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }).unique(),
   passwordHash: varchar("passwordHash", { length: 255 }),
+  failedLoginAttempts: int("failedLoginAttempts").default(0).notNull(),
+  loginLockedUntil: timestamp("loginLockedUntil"),
   googleId: varchar("googleId", { length: 128 }),
   appleId: varchar("appleId", { length: 128 }),
   loginMethod: varchar("loginMethod", { length: 64 }),

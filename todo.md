@@ -555,3 +555,9 @@
 - [x] Corregir hallazgos prioritarios de seguridad y rendimiento
 - [x] Validar regresiones, cabeceras, controles de acceso y compilación de producción
 - [x] Documentar hallazgos, riesgos residuales y decisiones de remediación
+- [x] Definir política de bloqueo temporal tras diez intentos fallidos de inicio de sesión
+- [x] Persistir intentos fallidos y fecha de desbloqueo con migración segura
+- [x] Aplicar bloqueo, reinicio por acceso exitoso y auditoría en autenticación local
+- [x] Mostrar aviso empático y accesible de credenciales o bloqueo temporal en Login
+- [x] Cubrir intentos, bloqueo, expiración, acceso válido y experiencia visual con pruebas
+- [x] Documentar y publicar el control de protección de cuentas

@@ -26,6 +26,7 @@ export default function Login() {
   const [venuePhone, setVenuePhone] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [loginNotice, setLoginNotice] = useState<string | null>(null);
 
   const roleLabels: Record<string, string> = { owner: "Owner", manager: "Manager", staff: "Staff", user: "Usuario" };
   const activeRole = user?.role ? roleLabels[user.role] ?? user.role : "Usuario";
@@ -46,11 +47,15 @@ export default function Login() {
 
   const loginPassword = trpc.auth.loginPassword.useMutation({
     onSuccess: async (data) => {
+      setLoginNotice(null);
       toast.success("¡Bienvenido de vuelta!");
       await utils.auth.me.invalidate();
       navigateByRole(data.user);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => {
+      setLoginNotice(e.message);
+      toast.error(e.message);
+    },
   });
 
   const registerPassword = trpc.auth.registerPassword.useMutation({
@@ -173,6 +178,11 @@ export default function Login() {
               }}
               className="space-y-4 text-left"
             >
+              {loginNotice && (
+                <div role="alert" aria-live="assertive" className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm leading-relaxed text-foreground">
+                  {loginNotice}
+                </div>
+              )}
               <div>
                 <Label className="text-xs text-muted-foreground">Correo electrónico</Label>
                 <Input

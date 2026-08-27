@@ -1422,6 +1422,64 @@ export async function getUserByEmail(email: string) {
   return result[0];
 }
 
+export const PASSWORD_LOGIN_MAX_ATTEMPTS = 10;
+export const PASSWORD_LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
+
+export async function recordPasswordLoginFailure(user: Pick<typeof users.$inferSelect, "id" | "venueId" | "role">, now = new Date()) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+
+  const nextLockedUntil = new Date(now.getTime() + PASSWORD_LOGIN_LOCK_DURATION_MS);
+  const priorLockExpired = sql`(${users.loginLockedUntil} IS NOT NULL AND ${users.loginLockedUntil} <= ${now})`;
+  await db
+    .update(users)
+    .set({
+      failedLoginAttempts: sql`CASE
+        WHEN ${priorLockExpired} THEN 1
+        WHEN ${users.failedLoginAttempts} >= ${PASSWORD_LOGIN_MAX_ATTEMPTS - 1} THEN ${PASSWORD_LOGIN_MAX_ATTEMPTS}
+        ELSE ${users.failedLoginAttempts} + 1
+      END`,
+      loginLockedUntil: sql`CASE
+        WHEN ${priorLockExpired} THEN NULL
+        WHEN ${users.failedLoginAttempts} >= ${PASSWORD_LOGIN_MAX_ATTEMPTS - 1} THEN ${nextLockedUntil}
+        ELSE NULL
+      END`,
+    })
+    .where(eq(users.id, user.id));
+
+  const [persisted] = await db
+    .select({ failedLoginAttempts: users.failedLoginAttempts, loginLockedUntil: users.loginLockedUntil })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+  const lockedUntil = persisted?.loginLockedUntil ?? null;
+  const isLocked = Boolean(lockedUntil && lockedUntil > now);
+
+  if (isLocked && lockedUntil && persisted?.failedLoginAttempts === PASSWORD_LOGIN_MAX_ATTEMPTS) {
+    await createAuditLog({
+      venueId: user.venueId,
+      userId: user.id,
+      userRole: user.role,
+      module: "Autenticación",
+      action: "PASSWORD_LOGIN_TEMPORARILY_LOCKED",
+      entity: "user",
+      entityId: user.id,
+      details: JSON.stringify({ reason: "10_failed_password_attempts", lockedUntil: lockedUntil.toISOString() }),
+    });
+  }
+
+  return { attempts: persisted?.failedLoginAttempts ?? 0, lockedUntil, isLocked };
+}
+
+export async function clearPasswordLoginFailures(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  await db
+    .update(users)
+    .set({ failedLoginAttempts: 0, loginLockedUntil: null })
+    .where(eq(users.id, userId));
+}
+
 export async function createUserWithPassword(data: {
   email: string;
   passwordHash: string;
@@ -1473,6 +1531,8 @@ export async function updateUserPassword(userId: number, passwordHash: string, m
       mustChangePassword,
       resetPasswordToken: null,
       resetPasswordExpires: null,
+      failedLoginAttempts: 0,
+      loginLockedUntil: null,
       sessionVersion: sql`${users.sessionVersion} + 1`,
     })
     .where(eq(users.id, userId));

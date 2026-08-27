@@ -9,6 +9,9 @@ import {
   getUserByResetToken,
   updateUserPassword,
   createVenueRequest,
+  clearPasswordLoginFailures,
+  PASSWORD_LOGIN_LOCK_DURATION_MS,
+  recordPasswordLoginFailure,
 } from "./db";
 import { sdk } from "./_core/sdk";
 import { TRPCError } from "@trpc/server";
@@ -35,6 +38,13 @@ import { ownerReportsRouter } from "./routers/ownerReports";
 import { inventoryRouter } from "./routers/inventory";
 import { learningRouter } from "./routers/learning";
 
+const PASSWORD_COMPARISON_PLACEHOLDER = "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+const INVALID_PASSWORD_LOGIN_MESSAGE = "No pudimos iniciar sesión con esos datos. Revisa tu correo y contraseña, o usa la recuperación de acceso si la necesitas.";
+const temporarilyLockedLoginMessage = (lockedUntil: Date) => {
+  const minutes = Math.max(1, Math.ceil((lockedUntil.getTime() - Date.now()) / 60_000));
+  return `Para cuidar la seguridad de tu cuenta, pausamos temporalmente los intentos de acceso. Podrás intentarlo de nuevo en aproximadamente ${minutes} minutos. Si necesitas ayuda, usa la recuperación de contraseña.`;
+};
+
 export const appRouter = router({
   system: systemRouter,
   testIncidents: testIncidentsRouter,
@@ -54,14 +64,23 @@ export const appRouter = router({
     loginPassword: publicProcedure
       .input(z.object({ email: z.string().email(), password: z.string() }))
       .mutation(async ({ ctx, input }) => {
-        const user = await getUserByEmail(input.email);
+        const user = await getUserByEmail(input.email.trim().toLowerCase());
         if (!user || !user.passwordHash) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Correo o contraseña incorrectos" });
+          await bcrypt.compare(input.password, PASSWORD_COMPARISON_PLACEHOLDER);
+          throw new TRPCError({ code: "UNAUTHORIZED", message: INVALID_PASSWORD_LOGIN_MESSAGE });
+        }
+        if (user.loginLockedUntil && user.loginLockedUntil > new Date()) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: temporarilyLockedLoginMessage(user.loginLockedUntil) });
         }
         const valid = await bcrypt.compare(input.password, user.passwordHash);
         if (!valid) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Correo o contraseña incorrectos" });
+          const failure = await recordPasswordLoginFailure(user);
+          if (failure.isLocked && failure.lockedUntil) {
+            throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: temporarilyLockedLoginMessage(failure.lockedUntil) });
+          }
+          throw new TRPCError({ code: "UNAUTHORIZED", message: INVALID_PASSWORD_LOGIN_MESSAGE });
         }
+        await clearPasswordLoginFailures(user.id);
         const sessionToken = await sdk.createSessionToken(user.openId, {
           name: user.name || user.email || "Usuario",
           sessionVersion: user.sessionVersion,
