@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import * as XLSX from "xlsx";
 import { filterAuditLogs } from "./auditFilters";
 import { buildAuditFilename, createAuditCsv, createAuditWorkbook, toAuditExportRows } from "./auditExport";
 
@@ -33,12 +32,17 @@ describe("auditExport", () => {
     expect(csv).toContain('"Cambio, con ""comillas"""');
   });
 
+  it("neutraliza fórmulas en los campos exportados", () => {
+    const csv = createAuditCsv([{ ...toAuditExportRows([log])[0], Detalle: "=HYPERLINK(\"https://invalid.example\")" }]);
+    expect(csv).toContain("'=HYPERLINK");
+  });
+
   it("genera un libro Excel con resumen y eventos filtrados", () => {
     const workbook = createAuditWorkbook(toAuditExportRows([log]), { company: "30001", module: "Pedidos", user: "7" });
-    expect(workbook.SheetNames).toEqual(["Resumen", "Eventos"]);
-    expect(workbook.Sheets.Resumen?.A3?.v).toBe("Eventos exportados");
-    expect(workbook.Sheets.Eventos?.A1?.v).toBe("ID evento");
-    expect(XLSX.write(workbook, { bookType: "xlsx", type: "array" }).byteLength).toBeGreaterThan(0);
+    expect(workbook.sheets.map((sheet) => sheet.name)).toEqual(["Resumen", "Eventos"]);
+    expect(workbook.sheets[0]?.rows[2]?.[0]).toBe("Eventos exportados");
+    expect(workbook.sheets[1]?.rows[0]?.[0]).toBe("ID evento");
+    expect(workbook.sheets[1]?.autoFilter).toBe(true);
   });
 
   it("exporta únicamente el subconjunto autorizado por los filtros activos", () => {

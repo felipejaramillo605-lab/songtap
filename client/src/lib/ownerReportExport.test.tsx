@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ writeFileXLSX: vi.fn(), save: vi.fn() }));
+const mocks = vi.hoisted(() => ({ downloadXlsxWorkbook: vi.fn(), save: vi.fn() }));
 
-vi.mock("xlsx", async () => ({ ...(await vi.importActual<typeof import("xlsx")>("xlsx")), writeFileXLSX: mocks.writeFileXLSX }));
+vi.mock("./xlsxExport", async () => ({ ...(await vi.importActual<typeof import("./xlsxExport")>("./xlsxExport")), downloadXlsxWorkbook: mocks.downloadXlsxWorkbook }));
 vi.mock("jspdf", () => ({ jsPDF: class { setFontSize() {} text() {} addPage() {} save = mocks.save; } }));
 
 import { buildOwnerReportFilename, createOwnerReportWorkbook, downloadOwnerReportExcel, downloadOwnerReportPdf, parseOwnerReportSummary } from "./ownerReportExport";
@@ -35,9 +35,9 @@ describe("owner report exports", () => {
 
   it("crea un Excel con resumen, comparación y desglose por local", () => {
     const workbook = createOwnerReportWorkbook(summary, new Date("2026-08-24T14:00:00.000Z"));
-    expect(workbook.SheetNames).toEqual(["Resumen", "Locales"]);
+    expect(workbook.sheets.map((sheet) => sheet.name)).toEqual(["Resumen", "Locales"]);
     downloadOwnerReportExcel(14, summary, new Date("2026-08-24T14:00:00.000Z"));
-    expect(mocks.writeFileXLSX).toHaveBeenCalledWith(expect.anything(), "songtap-reporte-owner-14.xlsx");
+    expect(mocks.downloadXlsxWorkbook).toHaveBeenCalledWith(workbook, "songtap-reporte-owner-14.xlsx");
     downloadOwnerReportPdf(14, summary, new Date("2026-08-24T14:00:00.000Z"));
     expect(mocks.save).toHaveBeenCalledWith("songtap-reporte-owner-14.pdf");
     expect(buildOwnerReportFilename(14, "pdf")).toBe("songtap-reporte-owner-14.pdf");

@@ -11,9 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getLoginUrl } from "@/const";
 import { filterAuditLogs } from "@/lib/auditFilters";
-import { buildAuditFilename, createAuditCsv, createAuditWorkbook, toAuditExportRows } from "@/lib/auditExport";
+import { buildAuditFilename, createAuditCsv, downloadAuditWorkbook, toAuditExportRows } from "@/lib/auditExport";
 import { Activity, Building2, CalendarDays, CheckCircle2, Clock3, Download, FileSpreadsheet, Filter, RotateCcw, Search, Shield, UserRound, XCircle } from "lucide-react";
-import { writeFileXLSX } from "xlsx";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -166,7 +165,7 @@ export default function OwnerAudit() {
 
   const downloadExcel = () => {
     const rows = toAuditExportRows(filteredLogs);
-    writeFileXLSX(createAuditWorkbook(rows, exportFilters), buildAuditFilename("xlsx"));
+    void Promise.resolve(downloadAuditWorkbook(rows, exportFilters)).catch(() => toast.error("No fue posible generar el archivo Excel."));
   };
 
   const downloadDecisionsCsv = () => {

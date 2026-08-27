@@ -3,7 +3,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], pqrsInputs: [] as any[], writeFileXLSX: vi.fn(), upsertSlaTarget: vi.fn(), generateManualReport: vi.fn(), invalidateSlaTargets: vi.fn(), invalidateOwnerAnalytics: vi.fn(), simulateSlaDrop: false, currentPqrsDateTo: 0 }));
+const mocks = vi.hoisted(() => ({ analyticsInputs: [] as any[], pqrsInputs: [] as any[], downloadPqrsWorkbook: vi.fn(() => Promise.resolve()), upsertSlaTarget: vi.fn(), generateManualReport: vi.fn(), invalidateSlaTargets: vi.fn(), invalidateOwnerAnalytics: vi.fn(), simulateSlaDrop: false, currentPqrsDateTo: 0 }));
 
 vi.mock("@/_core/hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: 1, name: "Felipe", role: "owner" }, isAuthenticated: true, loading: false }),
@@ -36,12 +36,12 @@ vi.mock("@/components/ui/card", () => ({ Card: ({ children }: { children: React.
 vi.mock("@/const", () => ({ getLoginUrl: () => "/login" }));
 vi.mock("wouter", () => ({ useLocation: () => ["/owner", vi.fn()] }));
 vi.mock("recharts", () => ({ ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, BarChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, Bar: () => null, CartesianGrid: () => null, Tooltip: () => null, XAxis: () => null, YAxis: () => null }));
-vi.mock("xlsx", async () => ({ ...(await vi.importActual<typeof import("xlsx")>("xlsx")), writeFileXLSX: mocks.writeFileXLSX }));
+vi.mock("@/lib/pqrsExport", async () => ({ ...(await vi.importActual<typeof import("@/lib/pqrsExport")>("@/lib/pqrsExport")), downloadPqrsWorkbook: mocks.downloadPqrsWorkbook }));
 
 import OwnerDashboard from "./OwnerDashboard";
 
 describe("OwnerDashboard analytics", () => {
-  beforeEach(() => { mocks.analyticsInputs = []; mocks.pqrsInputs = []; mocks.writeFileXLSX.mockReset(); mocks.upsertSlaTarget.mockReset(); mocks.generateManualReport.mockReset(); mocks.invalidateSlaTargets.mockReset(); mocks.invalidateOwnerAnalytics.mockReset(); mocks.simulateSlaDrop = false; mocks.currentPqrsDateTo = 0; });
+  beforeEach(() => { mocks.analyticsInputs = []; mocks.pqrsInputs = []; mocks.downloadPqrsWorkbook.mockReset(); mocks.upsertSlaTarget.mockReset(); mocks.generateManualReport.mockReset(); mocks.invalidateSlaTargets.mockReset(); mocks.invalidateOwnerAnalytics.mockReset(); mocks.simulateSlaDrop = false; mocks.currentPqrsDateTo = 0; });
   afterEach(() => cleanup());
 
   it("muestra métricas y ranking interlocal, filtra sucursales y exporta PQRS", async () => {
@@ -109,7 +109,7 @@ describe("OwnerDashboard analytics", () => {
     expect(await csvBlob.text()).toContain("2026-08-10");
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:pqrs");
     fireEvent.click(screen.getByRole("button", { name: "Descargar comparativo PQRS en Excel" }));
-    expect(mocks.writeFileXLSX).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^songtap-desempeno-pqrs-.*\.xlsx$/));
+    expect(mocks.downloadPqrsWorkbook).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.any(Date), expect.any(Date), { typeLabel: "Queja", statusLabel: "Resuelta" });
 
     fireEvent.change(screen.getByLabelText("Fecha inicial personalizada de PQRS"), { target: { value: "2026-08-20" } });
     expect(screen.getByRole("alert").textContent).toContain("La fecha inicial debe ser anterior o igual a la fecha final.");

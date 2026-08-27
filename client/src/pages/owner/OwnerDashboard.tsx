@@ -5,7 +5,7 @@ import FavoriteModules from "@/components/FavoriteModules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { buildPqrsFilename, createPqrsCsv, createPqrsWorkbook, toPqrsExportRows } from "@/lib/pqrsExport";
+import { buildPqrsFilename, createPqrsCsv, downloadPqrsWorkbook, toPqrsExportRows } from "@/lib/pqrsExport";
 import { getPreviousPqrsPeriod } from "@/lib/pqrsPeriod";
 import { getSlaRisk } from "@/lib/pqrsSlaRisk";
 import { buildKaraokeMetricsFilename, createKaraokeMetricsCsv } from "@/lib/karaokeMetricsExport";
@@ -14,7 +14,6 @@ import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { getLoginUrl } from "@/const";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { writeFileXLSX } from "xlsx";
 import { toast } from "sonner";
 
 function toDateInputValue(date: Date) {
@@ -169,7 +168,7 @@ export default function OwnerDashboard() {
   };
   const downloadPqrsExcel = () => {
     if (!pqrsAnalytics) return;
-    writeFileXLSX(createPqrsWorkbook(pqrsExportRows, selectedPqrsTotals, pqrsDateRange.dateFrom, pqrsDateRange.dateTo, pqrsExportFilters), buildPqrsFilename("xlsx"));
+    void Promise.resolve(downloadPqrsWorkbook(pqrsExportRows, selectedPqrsTotals, pqrsDateRange.dateFrom, pqrsDateRange.dateTo, pqrsExportFilters)).catch(() => toast.error("No fue posible generar el archivo Excel."));
   };
   const downloadKaraokeMetricsCsv = () => {
     if (!karaokeMetrics) return;

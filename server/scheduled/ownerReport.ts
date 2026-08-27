@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { sdk } from "../_core/sdk";
 import { generateOwnerScheduledReport } from "../db";
+import { scheduledCallbackError } from "./scheduledAuth";
 
 /**
  * Registers the internal callback used exclusively by the Heartbeat scheduler.
@@ -19,10 +20,8 @@ export function registerOwnerReportScheduleRoute(app: Express) {
       return res.status(200).json({ ok: true, result });
     } catch (error) {
       console.error("[Owner scheduled report] Failed", error);
-      return res.status(500).json({
-        ok: false,
-        error: error instanceof Error ? error.message : "Unable to generate scheduled Owner report",
-      });
+      const response = scheduledCallbackError(error);
+      return res.status(response.status).json(response.body);
     }
   });
 }

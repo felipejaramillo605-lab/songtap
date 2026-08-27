@@ -5,9 +5,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mocks = vi.hoisted(() => ({
-  writeFileXLSX: vi.fn(),
+  downloadAuditWorkbook: vi.fn(() => Promise.resolve()),
   createAuditCsv: vi.fn(() => "csv-content"),
-  createAuditWorkbook: vi.fn(() => "workbook"),
   buildAuditFilename: vi.fn((extension: string) => `songtap-auditoria.${extension}`),
   refetchLogs: vi.fn(),
   refetchPending: vi.fn(),
@@ -80,7 +79,6 @@ vi.mock("@/components/ui/dialog", () => ({
 vi.mock("@/components/ui/textarea", () => ({ Textarea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} /> }));
 vi.mock("@/const", () => ({ getLoginUrl: () => "/login" }));
 vi.mock("wouter", () => ({ useLocation: () => ["/owner/audit", vi.fn()] }));
-vi.mock("xlsx", () => ({ writeFileXLSX: mocks.writeFileXLSX }));
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   BarChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -100,7 +98,7 @@ vi.mock("jspdf", () => ({
 vi.mock("@/lib/auditExport", () => ({
   toAuditExportRows: (items: typeof logs) => items.map((item) => ({ "ID evento": item.id, Compañía: item.companyName })),
   createAuditCsv: mocks.createAuditCsv,
-  createAuditWorkbook: mocks.createAuditWorkbook,
+  downloadAuditWorkbook: mocks.downloadAuditWorkbook,
   buildAuditFilename: mocks.buildAuditFilename,
 }));
 
@@ -110,9 +108,8 @@ describe("OwnerAudit exports", () => {
   afterEach(() => cleanup());
 
   beforeEach(() => {
-    mocks.writeFileXLSX.mockReset();
+    mocks.downloadAuditWorkbook.mockReset();
     mocks.createAuditCsv.mockClear();
-    mocks.createAuditWorkbook.mockClear();
     mocks.buildAuditFilename.mockClear();
     mocks.resolve.mockReset();
     mocks.pendingRequests = [];
@@ -132,8 +129,7 @@ describe("OwnerAudit exports", () => {
     expect(anchorClick).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: /excel/i }));
-    expect(mocks.createAuditWorkbook).toHaveBeenCalledTimes(1);
-    expect(mocks.writeFileXLSX).toHaveBeenCalledWith("workbook", "songtap-auditoria.xlsx");
+    expect(mocks.downloadAuditWorkbook).toHaveBeenCalledWith([{ "ID evento": 1, Compañía: "Bar La Noche" }], { company: "all", module: "all", user: "all" });
     anchorClick.mockRestore();
   });
 

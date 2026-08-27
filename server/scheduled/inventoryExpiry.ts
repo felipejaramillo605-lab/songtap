@@ -1,6 +1,7 @@
 import { sdk } from "../_core/sdk";
 import { getInventoryAutomationSettingsByTaskUid, runInventoryExpiryNotifications } from "../inventoryDb";
 import type { Express, Request, Response } from "express";
+import { scheduledCallbackError } from "./scheduledAuth";
 
 /**
  * Revisa los lotes con saldo cada día. Solo acepta llamadas autenticadas por la
@@ -21,11 +22,8 @@ export function registerInventoryExpiryScheduleRoute(app: Express) {
       return res.status(200).json({ ok: true, result });
     } catch (error) {
       console.error("[Inventory expiry] Failed", error);
-      return res.status(500).json({
-        ok: false,
-        error: error instanceof Error ? error.message : "Unable to review inventory expiry",
-        timestamp: new Date().toISOString(),
-      });
+      const response = scheduledCallbackError(error);
+      return res.status(response.status).json(response.body);
     }
   });
 }

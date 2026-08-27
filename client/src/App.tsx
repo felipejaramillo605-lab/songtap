@@ -1,55 +1,47 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, type ComponentType, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { Toaster } from "sonner";
 import { useAuth } from "./_core/hooks/useAuth";
 import SongTapLayout from "./components/SongTapLayout";
 import { DashboardLayoutSkeleton } from "./components/DashboardLayoutSkeleton";
-
-// Public pages
-import Home from "./pages/Home";
-import ClientPortal from "./pages/client/ClientPortal";
-import ClientMenu from "./pages/client/ClientMenu";
-import PrivacyPolicy from "./pages/client/PrivacyPolicy";
-
-// Auth
-import Login from "./pages/Login";
-import ForcePasswordChange from "./pages/ForcePasswordChange";
 import AccessDenied from "./pages/AccessDenied";
+
 import PreviewModeBanner from "./components/PreviewModeBanner";
 
-// Profile Page
-import Profile from "./pages/Profile";
-
-// Owner pages
-import OwnerDashboard from "./pages/owner/OwnerDashboard";
-import OwnerVenues from "./pages/owner/OwnerVenues";
-import OwnerUsers from "./pages/owner/OwnerUsers";
-import OwnerAudit from "./pages/owner/OwnerAudit";
-import OwnerVenueRequests from "./pages/owner/OwnerVenueRequests";
-import OwnerNotificationsSettings from "./pages/owner/OwnerNotificationsSettings";
-import OwnerPreviewMode from "./pages/owner/OwnerPreviewMode";
-import OwnerGuideContent from "./pages/owner/OwnerGuideContent";
-
-// Manager pages
-import ManagerDashboard from "./pages/manager/ManagerDashboard";
-import ManagerMenu from "./pages/manager/ManagerMenu";
-import ManagerTables from "./pages/manager/ManagerTables";
-import ManagerStaff from "./pages/manager/ManagerStaff";
-import ManagerFinance from "./pages/manager/ManagerFinance";
-import ManagerSettings from "./pages/manager/ManagerSettings";
-import ManagerActivities from "./pages/manager/ManagerActivities";
-import ManagerPqrs from "./pages/manager/ManagerPqrs";
-import ManagerInventory from "./pages/manager/ManagerInventory";
-
-// Staff pages
-import StaffOrders from "./pages/staff/StaffOrders";
-import StaffMusic from "./pages/staff/StaffMusic";
-import StaffTables from "./pages/staff/StaffTables";
-import StaffActivities from "./pages/staff/StaffActivities";
+// Las rutas operativas se cargan bajo demanda, de modo que el portal QR, el
+// acceso y cada rol descargan solo el código de la pantalla que necesita.
+const Home = lazy(() => import("./pages/Home"));
+const ClientPortal = lazy(() => import("./pages/client/ClientPortal"));
+const ClientMenu = lazy(() => import("./pages/client/ClientMenu"));
+const PrivacyPolicy = lazy(() => import("./pages/client/PrivacyPolicy"));
+const Login = lazy(() => import("./pages/Login"));
+const ForcePasswordChange = lazy(() => import("./pages/ForcePasswordChange"));
+const Profile = lazy(() => import("./pages/Profile"));
+const OwnerDashboard = lazy(() => import("./pages/owner/OwnerDashboard"));
+const OwnerVenues = lazy(() => import("./pages/owner/OwnerVenues"));
+const OwnerUsers = lazy(() => import("./pages/owner/OwnerUsers"));
+const OwnerAudit = lazy(() => import("./pages/owner/OwnerAudit"));
+const OwnerVenueRequests = lazy(() => import("./pages/owner/OwnerVenueRequests"));
+const OwnerNotificationsSettings = lazy(() => import("./pages/owner/OwnerNotificationsSettings"));
+const OwnerPreviewMode = lazy(() => import("./pages/owner/OwnerPreviewMode"));
+const OwnerGuideContent = lazy(() => import("./pages/owner/OwnerGuideContent"));
+const ManagerDashboard = lazy(() => import("./pages/manager/ManagerDashboard"));
+const ManagerMenu = lazy(() => import("./pages/manager/ManagerMenu"));
+const ManagerTables = lazy(() => import("./pages/manager/ManagerTables"));
+const ManagerStaff = lazy(() => import("./pages/manager/ManagerStaff"));
+const ManagerFinance = lazy(() => import("./pages/manager/ManagerFinance"));
+const ManagerSettings = lazy(() => import("./pages/manager/ManagerSettings"));
+const ManagerActivities = lazy(() => import("./pages/manager/ManagerActivities"));
+const ManagerPqrs = lazy(() => import("./pages/manager/ManagerPqrs"));
+const ManagerInventory = lazy(() => import("./pages/manager/ManagerInventory"));
+const StaffOrders = lazy(() => import("./pages/staff/StaffOrders"));
+const StaffMusic = lazy(() => import("./pages/staff/StaffMusic"));
+const StaffTables = lazy(() => import("./pages/staff/StaffTables"));
+const StaffActivities = lazy(() => import("./pages/staff/StaffActivities"));
 
 function ProfilePageWrapper() {
   const { user } = useAuth();
@@ -74,10 +66,10 @@ export function RoleGate({ allowedRoles, children }: { allowedRoles: InternalRol
   return <>{children}</>;
 }
 
-const ownerOnly = (Component: () => ReactNode) => () => <RoleGate allowedRoles={["owner"]}><Component /></RoleGate>;
-const managerOnly = (Component: () => ReactNode) => () => <RoleGate allowedRoles={["manager"]}><Component /></RoleGate>;
-const staffOnly = (Component: () => ReactNode) => () => <RoleGate allowedRoles={["staff"]}><Component /></RoleGate>;
-const signedIn = (Component: () => ReactNode) => () => <RoleGate allowedRoles={["owner", "manager", "staff", "user"]}><Component /></RoleGate>;
+const ownerOnly = (Component: ComponentType) => () => <RoleGate allowedRoles={["owner"]}><Component /></RoleGate>;
+const managerOnly = (Component: ComponentType) => () => <RoleGate allowedRoles={["manager"]}><Component /></RoleGate>;
+const staffOnly = (Component: ComponentType) => () => <RoleGate allowedRoles={["staff"]}><Component /></RoleGate>;
+const signedIn = (Component: ComponentType) => () => <RoleGate allowedRoles={["owner", "manager", "staff", "user"]}><Component /></RoleGate>;
 
 // Las rutas se crean una vez fuera del render. Crear estos wrappers dentro de
 // Router cambiaba la identidad del componente ante cada actualización de auth,
@@ -109,9 +101,10 @@ const StaffPqrsRoute = staffOnly(ManagerPqrs);
 function Router() {
   const { user, isAuthenticated, loading } = useAuth();
   if (loading) return <DashboardLayoutSkeleton />;
-  if (isAuthenticated && user?.mustChangePassword) return <ForcePasswordChange />;
+  if (isAuthenticated && user?.mustChangePassword) return <Suspense fallback={<DashboardLayoutSkeleton />}><ForcePasswordChange /></Suspense>;
 
   return (
+    <Suspense fallback={<DashboardLayoutSkeleton />}>
     <Switch>
       {/* Landing */}
       <Route path="/" component={Home} />
@@ -160,6 +153,7 @@ function Router() {
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 

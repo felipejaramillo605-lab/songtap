@@ -549,3 +549,9 @@
 - [x] Implementar panel Owner con artículos más abiertos, búsquedas resueltas y tasa de resolución
 - [x] Validar permisos, aislamiento, cálculos, accesibilidad y experiencia móvil
 - [x] Documentar las plantillas y estadísticas de aprendizaje
+- [x] Establecer línea base de dependencias, superficie expuesta y métricas de rendimiento
+- [x] Auditar autenticación, autorización, aislamiento multi-tenant y manejo de archivos
+- [x] Ejecutar pruebas de seguridad controladas sobre rutas, sesiones y entradas
+- [x] Corregir hallazgos prioritarios de seguridad y rendimiento
+- [x] Validar regresiones, cabeceras, controles de acceso y compilación de producción
+- [x] Documentar hallazgos, riesgos residuales y decisiones de remediación
