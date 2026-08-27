@@ -46,6 +46,9 @@ const requestBodyErrorHandler: ErrorRequestHandler = (error, _req, res, next) =>
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  // Solo se confían proxies de red local o privada gestionados por la plataforma.
+  // No se acepta un X-Forwarded-For arbitrario enviado directamente por clientes.
+  app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"]);
   app.disable("x-powered-by");
   app.use((req, res, next) => {
     const scriptSource = process.env.NODE_ENV === "production"

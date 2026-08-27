@@ -561,3 +561,9 @@
 - [x] Mostrar aviso empático y accesible de credenciales o bloqueo temporal en Login
 - [x] Cubrir intentos, bloqueo, expiración, acceso válido y experiencia visual con pruebas
 - [x] Documentar y publicar el control de protección de cuentas
+- [x] Definir umbral, ventana y privacidad de la limitación de intentos por dirección IP
+- [x] Persistir contadores agregados de acceso por IP en una ventana temporal
+- [x] Aplicar el bloqueo de IP al inicio de sesión local y restablecerlo tras un acceso válido
+- [x] Mostrar una explicación clara, empática y no identificadora del bloqueo por red
+- [x] Validar límites, expiración, privacidad, regresiones y respuestas HTTP
+- [x] Documentar y publicar la protección contra fuerza bruta por IP

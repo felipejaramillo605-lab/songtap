@@ -9,7 +9,10 @@ import {
   getUserByResetToken,
   updateUserPassword,
   createVenueRequest,
+  clearIpLoginFailures,
   clearPasswordLoginFailures,
+  getIpLoginLimit,
+  recordIpLoginFailure,
   PASSWORD_LOGIN_LOCK_DURATION_MS,
   recordPasswordLoginFailure,
 } from "./db";
@@ -18,6 +21,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
+import { isIP } from "node:net";
 import { toClientSafeUser } from "./userSafety";
 import { venuesRouter } from "./routers/venues";
 import { usersRouter } from "./routers/users";
@@ -44,6 +48,15 @@ const temporarilyLockedLoginMessage = (lockedUntil: Date) => {
   const minutes = Math.max(1, Math.ceil((lockedUntil.getTime() - Date.now()) / 60_000));
   return `Para cuidar la seguridad de tu cuenta, pausamos temporalmente los intentos de acceso. Podrás intentarlo de nuevo en aproximadamente ${minutes} minutos. Si necesitas ayuda, usa la recuperación de contraseña.`;
 };
+const temporarilyLimitedIpMessage = (blockedUntil: Date) => {
+  const minutes = Math.max(1, Math.ceil((blockedUntil.getTime() - Date.now()) / 60_000));
+  return `Para proteger la plataforma frente a intentos automáticos, pausamos temporalmente los accesos desde esta red. Podrás volver a intentarlo en aproximadamente ${minutes} minutos. Gracias por tu paciencia.`;
+};
+const getTrustedClientIp = (request: { ip?: unknown }) => {
+  const rawIp = typeof request.ip === "string" ? request.ip.trim() : "";
+  const normalizedIp = rawIp.startsWith("::ffff:") ? rawIp.slice(7) : rawIp;
+  return isIP(normalizedIp) ? normalizedIp : null;
+};
 
 export const appRouter = router({
   system: systemRouter,
@@ -62,11 +75,24 @@ export const appRouter = router({
       return { success: true };
     }),
     loginPassword: publicProcedure
-      .input(z.object({ email: z.string().email(), password: z.string() }))
+      .input(z.object({ email: z.string().email(), password: z.string().max(128) }))
       .mutation(async ({ ctx, input }) => {
+        const clientIp = getTrustedClientIp(ctx.req);
+        if (clientIp) {
+          const ipLimit = await getIpLoginLimit(clientIp);
+          if (ipLimit.isBlocked && ipLimit.blockedUntil) {
+            throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: temporarilyLimitedIpMessage(ipLimit.blockedUntil) });
+          }
+        }
         const user = await getUserByEmail(input.email.trim().toLowerCase());
         if (!user || !user.passwordHash) {
           await bcrypt.compare(input.password, PASSWORD_COMPARISON_PLACEHOLDER);
+          if (clientIp) {
+            const failure = await recordIpLoginFailure(clientIp);
+            if (failure.isBlocked && failure.blockedUntil) {
+              throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: temporarilyLimitedIpMessage(failure.blockedUntil) });
+            }
+          }
           throw new TRPCError({ code: "UNAUTHORIZED", message: INVALID_PASSWORD_LOGIN_MESSAGE });
         }
         if (user.loginLockedUntil && user.loginLockedUntil > new Date()) {
@@ -74,6 +100,12 @@ export const appRouter = router({
         }
         const valid = await bcrypt.compare(input.password, user.passwordHash);
         if (!valid) {
+          if (clientIp) {
+            const ipFailure = await recordIpLoginFailure(clientIp);
+            if (ipFailure.isBlocked && ipFailure.blockedUntil) {
+              throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: temporarilyLimitedIpMessage(ipFailure.blockedUntil) });
+            }
+          }
           const failure = await recordPasswordLoginFailure(user);
           if (failure.isLocked && failure.lockedUntil) {
             throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: temporarilyLockedLoginMessage(failure.lockedUntil) });
@@ -81,6 +113,7 @@ export const appRouter = router({
           throw new TRPCError({ code: "UNAUTHORIZED", message: INVALID_PASSWORD_LOGIN_MESSAGE });
         }
         await clearPasswordLoginFailures(user.id);
+        if (clientIp) await clearIpLoginFailures(clientIp);
         const sessionToken = await sdk.createSessionToken(user.openId, {
           name: user.name || user.email || "Usuario",
           sessionVersion: user.sessionVersion,

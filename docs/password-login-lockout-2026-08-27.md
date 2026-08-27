@@ -22,7 +22,24 @@ La migración `0043_remarkable_kylun.sql` añade `failedLoginAttempts` y `loginL
 
 La validación cubrió los nueve primeros fallos, el bloqueo en el décimo, la ausencia de cookie mientras dura el bloqueo, el desbloqueo al expirar y el reinicio tras un inicio válido o cambio de contraseña. La suite completa finalizó con **56 archivos de prueba y 228 pruebas aprobadas**, además de TypeScript y build de producción correctos.
 
+## Limitación complementaria por dirección IP
+
+La migración `0044_conscious_paladin.sql` incorpora `auth_ip_login_limits` como segundo control ante ataques distribuidos o de *credential stuffing*. SongTap permite hasta **30 fallos por dirección IP en una ventana de 15 minutos**. Al alcanzar ese umbral, el acceso por contraseña desde esa red queda pausado otros **15 minutos**. El umbral es deliberadamente superior al límite por cuenta para reducir el impacto sobre personas que comparten una red legítima, mientras el bloqueo de diez intentos por cuenta sigue protegiendo cada identidad.
+
+| Dato | Tratamiento |
+|---|---|
+| Dirección IP | No se almacena en texto claro; se guarda HMAC-SHA-256 con una clave de servidor |
+| Identificador de red | Se obtiene de `req.ip` tras confiar únicamente en subredes locales/privadas del proxy gestionado |
+| Fallo de correo inexistente | Cuenta dentro del límite por IP, después de comparación bcrypt de duración equivalente |
+| Acceso válido | Elimina el contador de la IP para evitar penalizar una red legítima |
+| Mensaje al bloquear la red | No identifica cuentas y explica que la pausa protege frente a intentos automáticos |
+
+> “Para proteger la plataforma frente a intentos automáticos, pausamos temporalmente los accesos desde esta red. Podrás volver a intentarlo en aproximadamente 15 minutos. Gracias por tu paciencia.”
+
+Express documenta que `trust proxy` debe configurarse según la topología real, porque las cabeceras reenviadas solo son seguras cuando el proxy de confianza las reemplaza.[3] La aplicación limita esa confianza a rangos locales/privados administrados, en lugar de aceptar una cabecera `X-Forwarded-For` arbitraria. Las pruebas añadidas verifican 30 fallos, el bloqueo previo a comparar credenciales, la seudonimización, la expiración y el restablecimiento tras acceso válido. La validación consolidada alcanzó **57 archivos de prueba y 230 pruebas aprobadas**.
+
 ## Referencias
 
 [1]: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html "OWASP Authentication Cheat Sheet"
 [2]: https://pages.nist.gov/800-63-4/sp800-63b.html "NIST SP 800-63B: Digital Identity Guidelines"
+[3]: https://expressjs.com/en/5x/guide/behind-proxies/ "Express 5: Behind Proxies"

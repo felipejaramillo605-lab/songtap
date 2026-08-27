@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import {
   accessRequests,
   appauseVotes,
+  authIpLoginLimits,
   auditLogs,
   InsertUser,
   menuCategories,
@@ -39,7 +40,7 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
-import { createHash } from "crypto";
+import { createHash, createHmac } from "crypto";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1424,6 +1425,70 @@ export async function getUserByEmail(email: string) {
 
 export const PASSWORD_LOGIN_MAX_ATTEMPTS = 10;
 export const PASSWORD_LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
+export const IP_LOGIN_MAX_ATTEMPTS = 30;
+export const IP_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+export const IP_LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
+
+export function hashLoginIp(ipAddress: string) {
+  const serverKey = ENV.cookieSecret || ENV.appId || "songtap-development-ip-rate-limit";
+  return createHmac("sha256", serverKey).update(ipAddress).digest("hex");
+}
+
+export async function getIpLoginLimit(ipAddress: string, now = new Date()) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  const ipHash = hashLoginIp(ipAddress);
+  const [record] = await db
+    .select({ blockedUntil: authIpLoginLimits.blockedUntil })
+    .from(authIpLoginLimits)
+    .where(eq(authIpLoginLimits.ipHash, ipHash))
+    .limit(1);
+  const blockedUntil = record?.blockedUntil ?? null;
+  return { ipHash, blockedUntil, isBlocked: Boolean(blockedUntil && blockedUntil > now) };
+}
+
+export async function recordIpLoginFailure(ipAddress: string, now = new Date()) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  const ipHash = hashLoginIp(ipAddress);
+  const windowExpiry = new Date(now.getTime() - IP_LOGIN_WINDOW_MS);
+  const nextBlockedUntil = new Date(now.getTime() + IP_LOGIN_LOCK_DURATION_MS);
+  const shouldResetWindow = sql`(${authIpLoginLimits.windowStartedAt} <= ${windowExpiry} OR (${authIpLoginLimits.blockedUntil} IS NOT NULL AND ${authIpLoginLimits.blockedUntil} <= ${now}))`;
+
+  await db
+    .insert(authIpLoginLimits)
+    .values({ ipHash, windowStartedAt: now, failedAttempts: 1, lastAttemptAt: now })
+    .onDuplicateKeyUpdate({
+      set: {
+        windowStartedAt: sql`CASE WHEN ${shouldResetWindow} THEN ${now} ELSE ${authIpLoginLimits.windowStartedAt} END`,
+        failedAttempts: sql`CASE
+          WHEN ${shouldResetWindow} THEN 1
+          WHEN ${authIpLoginLimits.failedAttempts} >= ${IP_LOGIN_MAX_ATTEMPTS - 1} THEN ${IP_LOGIN_MAX_ATTEMPTS}
+          ELSE ${authIpLoginLimits.failedAttempts} + 1
+        END`,
+        blockedUntil: sql`CASE
+          WHEN ${shouldResetWindow} THEN NULL
+          WHEN ${authIpLoginLimits.failedAttempts} >= ${IP_LOGIN_MAX_ATTEMPTS - 1} THEN ${nextBlockedUntil}
+          ELSE NULL
+        END`,
+        lastAttemptAt: now,
+      },
+    });
+
+  const [record] = await db
+    .select({ failedAttempts: authIpLoginLimits.failedAttempts, blockedUntil: authIpLoginLimits.blockedUntil })
+    .from(authIpLoginLimits)
+    .where(eq(authIpLoginLimits.ipHash, ipHash))
+    .limit(1);
+  const blockedUntil = record?.blockedUntil ?? null;
+  return { attempts: record?.failedAttempts ?? 0, blockedUntil, isBlocked: Boolean(blockedUntil && blockedUntil > now) };
+}
+
+export async function clearIpLoginFailures(ipAddress: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  await db.delete(authIpLoginLimits).where(eq(authIpLoginLimits.ipHash, hashLoginIp(ipAddress)));
+}
 
 export async function recordPasswordLoginFailure(user: Pick<typeof users.$inferSelect, "id" | "venueId" | "role">, now = new Date()) {
   const db = await getDb();

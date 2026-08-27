@@ -43,6 +43,28 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+// ─── AUTH IP RATE LIMITS (protección contra fuerza bruta) ─────────────────────
+// Nunca persiste la IP en texto claro: ipHash es un HMAC con una clave del servidor.
+export const authIpLoginLimits = mysqlTable(
+  "auth_ip_login_limits",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    ipHash: varchar("ipHash", { length: 64 }).notNull(),
+    windowStartedAt: timestamp("windowStartedAt").notNull(),
+    failedAttempts: int("failedAttempts").default(0).notNull(),
+    blockedUntil: timestamp("blockedUntil"),
+    lastAttemptAt: timestamp("lastAttemptAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    ipHashUnique: uniqueIndex("auth_ip_login_limits_ip_hash_uq").on(table.ipHash),
+    blockedUntilIndex: index("auth_ip_login_limits_blocked_until_idx").on(table.blockedUntil),
+  })
+);
+
+export type AuthIpLoginLimit = typeof authIpLoginLimits.$inferSelect;
+
 // ─── USER FAVORITE MODULES (accesos personales) ──────────────────────────────
 export const userFavoriteModules = mysqlTable(
   "user_favorite_modules",
